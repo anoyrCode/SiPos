@@ -1,0 +1,56 @@
+# Directus — admin/CMS untuk master data SIPOS.
+# Berjalan di atas PostgreSQL yang SAMA dengan Supabase (lihat .env).
+#
+# Cara pakai:
+#   1. Isi DB_* dan DIRECTUS_* di .env.local (atau buat .env).
+#   2. Jalankan:  docker compose up -d directus
+#   3. Buka:      http://localhost:8055  (login pakai DIRECTUS_ADMIN_EMAIL/PASSWORD)
+#
+# Catatan:
+#   - Jika pakai Supabase Cloud: arahkan DB_HOST/DB_* ke Postgres Supabase.
+#   - Jika butuh Postgres lokal: jalankan profil "local-db":
+#       docker compose --profile local-db up -d
+#     lalu set DB_HOST=postgres di .env.
+
+services:
+  directus:
+    image: directus/directus:11
+    ports:
+      - "8055:8055"
+    env_file:
+      - .env.local
+    environment:
+      KEY: ${DIRECTUS_KEY}
+      SECRET: ${DIRECTUS_SECRET}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
+      PUBLIC_URL: ${DIRECTUS_PUBLIC_URL}
+      DB_CLIENT: pg
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SSL__REJECT_UNAUTHORIZED: "false"
+    volumes:
+      - directus_uploads:/directus/uploads
+    restart: unless-stopped
+
+  # Postgres lokal opsional (hanya jika TIDAK pakai Supabase Cloud).
+  # Aktifkan dengan:  docker compose --profile local-db up -d
+  postgres:
+    image: postgres:16
+    profiles: ["local-db"]
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  directus_uploads:
+  postgres_data:
