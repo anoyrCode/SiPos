@@ -1,0 +1,241 @@
+import Link from "next/link";
+import { FileBarChart2 } from "lucide-react";
+
+import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/auth/dal";
+import { getStr, type SearchParams } from "@/lib/list-params";
+import { PageHeader } from "@/components/shared/page-header";
+import { DataTable, type Column } from "@/components/shared/data-table";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { TaFilter } from "./ta-filter";
+import { RekapSantriTable, type RekapSantriRow } from "./rekap-santri-table";
+
+type KelasRekap = {
+  key: string;
+  nama: string;
+  count: number;
+  pos: number;
+  neg: number;
+  net: number;
+};
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const sp = await searchParams;
+  const mode = getStr(sp.mode) === "santri" ? "santri" : "kelas";
+
+  const profile = await getProfile();
+  if (!profile?.perms.laporan) {
+    return (
+      <div className="animate-enter space-y-6 p-6 md:p-8">
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Anda tidak memiliki hak akses untuk melihat laporan.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const supabase = await createClient();
+  const { data: taData } = await supabase
+    .from("tahun_ajaran")
+    .select("id, tahun, is_aktif")
+    .order("tahun", { ascending: false });
+  const taList = taData ?? [];
+  const activeTa = taList.find((t) => t.is_aktif);
+  const taId = getStr(sp.ta) || activeTa?.id || taList[0]?.id || "";
+  const taOptions = taList.map((t) => ({
+    value: t.id,
+    label: t.is_aktif ? `${t.tahun} (aktif)` : t.tahun,
+  }));
+
+  let kelasRekap: KelasRekap[] = [];
+  let santriRekap: RekapSantriRow[] = [];
+
+  if (taId) {
+    const [placeRes, txRes] = await Promise.all([
+      supabase
+        .from("santri_kelas")
+        .select("santri_id, kelas:kelas!inner(id, nama_kelas, tahun_ajaran_id)")
+        .eq("kelas.tahun_ajaran_id", taId),
+      supabase
+        .from("transaksi_poin")
+        .select("santri_id, tipe, nilai_poin")
+        .eq("tahun_ajaran_id", taId),
+    ]);
+
+    const placements = (placeRes.data ?? []) as unknown as {
+      santri_id: string;
+      kelas: { id: string; nama_kelas: string } | null;
+    }[];
+    const tx = (txRes.data ?? []) as {
+      santri_id: string;
+      tipe: "POSITIF" | "NEGATIF";
+      nilai_poin: number;
+    }[];
+
+    const santriToKelas = new Map<string, { id: string; nama: string }>();
+    const kelasAgg = new Map<
+      string,
+      { nama: string; count: number; pos: number; neg: number }
+    >();
+    for (const p of placements) {
+      if (!p.kelas) continue;
+      santriToKelas.set(p.santri_id, { id: p.kelas.id, nama: p.kelas.nama_kelas });
+      const e =
+        kelasAgg.get(p.kelas.id) ?? {
+          nama: p.kelas.nama_kelas,
+          count: 0,
+          pos: 0,
+          neg: 0,
+        };
+      e.count++;
+      kelasAgg.set(p.kelas.id, e);
+    }
+
+    const noneSantri = new Set<string>();
+    let nonePos = 0;
+    let noneNeg = 0;
+    const santriAgg = new Map<string, { pos: number; neg: number }>();
+
+    for (const t of tx) {
+      const e = santriAgg.get(t.santri_id) ?? { pos: 0, neg: 0 };
+      if (t.tipe === "POSITIF") e.pos += t.nilai_poin;
+      else e.neg += t.nilai_poin;
+      santriAgg.set(t.santri_id, e);
+
+      const k = santriToKelas.get(t.santri_id);
+      if (k) {
+        const ke = kelasAgg.get(k.id)!;
+        if (t.tipe === "POSITIF") ke.pos += t.nilai_poin;
+        else ke.neg += t.nilai_poin;
+      } else {
+        noneSantri.add(t.santri_id);
+        if (t.tipe === "POSITIF") nonePos += t.nilai_poin;
+        else noneNeg += t.nilai_poin;
+      }
+    }
+
+    kelasRekap = [...kelasAgg.entries()]
+      .map(([key, v]) => ({
+        key,
+        nama: v.nama,
+        count: v.count,
+        pos: v.pos,
+        neg: v.neg,
+        net: v.pos - v.neg,
+      }))
+      .sort((a, b) => a.nama.localeCompare(b.nama));
+    if (noneSantri.size > 0) {
+      kelasRekap.push({
+        key: "none",
+        nama: "Tanpa Kelas",
+        count: noneSantri.size,
+        pos: nonePos,
+        neg: noneNeg,
+        net: nonePos - noneNeg,
+      });
+    }
+
+    // Per santri (yang punya transaksi)
+    const ids = [...santriAgg.keys()];
+    if (ids.length > 0) {
+      const { data: names } = await supabase
+        .from("santri")
+        .select("id, nama")
+        .in("id", ids);
+      const nameMap = new Map((names ?? []).map((s) => [s.id, s.nama]));
+      santriRekap = ids
+        .map((id) => {
+          const v = santriAgg.get(id)!;
+          return {
+            id,
+            nama: nameMap.get(id) ?? "?",
+            kelas: santriToKelas.get(id)?.nama ?? null,
+            pos: v.pos,
+            neg: v.neg,
+            net: v.pos - v.neg,
+          };
+        })
+        .sort((a, b) => a.nama.localeCompare(b.nama));
+    }
+  }
+
+  const kelasColumns: Column<KelasRekap>[] = [
+    {
+      key: "nama",
+      header: "Kelas",
+      cell: (r) => <span className="font-medium">{r.nama}</span>,
+    },
+    {
+      key: "count",
+      header: "Jml Santri",
+      cell: (r) => <span className="tabular-nums text-muted-foreground">{r.count}</span>,
+    },
+    {
+      key: "pos",
+      header: "Positif",
+      cell: (r) => <span className="font-mono tabular-nums text-positive">+{r.pos}</span>,
+    },
+    {
+      key: "neg",
+      header: "Negatif",
+      cell: (r) => <span className="font-mono tabular-nums text-negative">−{r.neg}</span>,
+    },
+    {
+      key: "net",
+      header: "Net",
+      cell: (r) => (
+        <Badge variant={r.net >= 0 ? "positive" : "negative"} className="font-mono">
+          {r.net > 0 ? "+" : ""}
+          {r.net}
+        </Badge>
+      ),
+    },
+  ];
+
+  return (
+    <div className="animate-enter space-y-6 p-6 md:p-8">
+      <PageHeader
+        icon={FileBarChart2}
+        title="Laporan / Rekap"
+        description="Rekap poin per kelas atau per santri dalam satu tahun ajaran."
+      />
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border/70 bg-card p-3 shadow-sm">
+        <TaFilter options={taOptions} value={taId} />
+        <div className="flex gap-1 rounded-lg bg-muted p-1">
+          <Button asChild size="sm" variant={mode === "kelas" ? "default" : "ghost"}>
+            <Link href={`/laporan?ta=${taId}&mode=kelas`}>Per Kelas</Link>
+          </Button>
+          <Button asChild size="sm" variant={mode === "santri" ? "default" : "ghost"}>
+            <Link href={`/laporan?ta=${taId}&mode=santri`}>Per Santri</Link>
+          </Button>
+        </div>
+      </div>
+
+      {!taId ? (
+        <Card>
+          <CardContent className="py-10 text-center text-muted-foreground">
+            Belum ada tahun ajaran.
+          </CardContent>
+        </Card>
+      ) : mode === "kelas" ? (
+        <DataTable
+          columns={kelasColumns}
+          rows={kelasRekap}
+          getRowId={(r) => r.key}
+          empty="Belum ada data."
+        />
+      ) : (
+        <RekapSantriTable rows={santriRekap} />
+      )}
+    </div>
+  );
+}
