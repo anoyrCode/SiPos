@@ -19,12 +19,12 @@ export function PwaInstallPrompt() {
 
   useEffect(() => {
     if (localStorage.getItem(STORAGE_KEY)) return;
+    if (window.matchMedia("(display-mode: standalone)").matches) return;
 
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      // Tunda 3 detik agar tidak langsung muncul saat halaman baru dibuka
-      setTimeout(() => setVisible(true), 3000);
+      setTimeout(() => setVisible(true), 1000);
     };
 
     window.addEventListener("beforeinstallprompt", handler);
