@@ -61,8 +61,7 @@ export function RankingList({
             >
               <span
                 className={cn(
-                  "flex shrink-0 items-center justify-center rounded-full font-semibold tabular-nums",
-                  isMedal ? "size-7 text-sm" : "size-6 text-xs",
+                  "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
                   chipClass(idx),
                 )}
               >
