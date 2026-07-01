@@ -23,10 +23,21 @@ export function RankingList({
   const max = Math.max(...items.map((i) => i.total), 1);
   const sign = variant === "positive" ? "+" : "−";
   const barColor = variant === "positive" ? "bg-chart-pos" : "bg-chart-neg";
-  const topChip =
-    variant === "positive"
-      ? "bg-positive-soft text-positive"
-      : "bg-negative-soft text-negative";
+
+  const MEDALS = [
+    "bg-amber-100 text-amber-600",
+    "bg-slate-100 text-slate-500",
+    "bg-orange-100 text-orange-700",
+  ];
+
+  const chipClass = (idx: number) => {
+    if (variant === "positive" && idx < 3) return MEDALS[idx];
+    if (idx < 3)
+      return variant === "positive"
+        ? "bg-positive-soft text-positive"
+        : "bg-negative-soft text-negative";
+    return "bg-muted text-muted-foreground";
+  };
 
   return (
     <ol className="max-h-72 space-y-0.5 overflow-y-auto pr-1">
@@ -34,21 +45,24 @@ export function RankingList({
         <li key={it.id}>
           <Link
             href={`/santri/${it.id}`}
-            className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted",
+              variant === "positive" && "hover:border-l-2 hover:border-l-primary hover:pl-[6px]",
+            )}
           >
             <span
               className={cn(
                 "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
-                idx < 3 ? topChip : "bg-muted text-muted-foreground",
+                chipClass(idx),
               )}
             >
               {idx + 1}
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{it.nama}</p>
-              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
                 <div
-                  className={cn("h-full rounded-full", barColor)}
+                  className={cn("h-full rounded-full transition-all duration-500", barColor)}
                   style={{ width: `${Math.round((it.total / max) * 100)}%` }}
                 />
               </div>
