@@ -1,4 +1,4 @@
-import { History, Trash2 } from "lucide-react";
+import { Download, History, Trash2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth/dal";
@@ -44,6 +44,14 @@ export default async function Page({
   const taId = getStr(sp.ta);
   const dateFrom = getStr(sp.from);
   const dateTo = getStr(sp.to);
+
+  const exportParams = new URLSearchParams();
+  if (tipe) exportParams.set("tipe", tipe);
+  if (taId) exportParams.set("ta", taId);
+  if (dateFrom) exportParams.set("from", dateFrom);
+  if (dateTo) exportParams.set("to", dateTo);
+  if (q) exportParams.set("q", q);
+  const exportHref = `/api/export/riwayat-poin?${exportParams.toString()}`;
 
   const profile = await getProfile();
   const isAdminUser = profile?.perms.super ?? false;
@@ -196,15 +204,23 @@ export default async function Page({
 
   return (
     <div className="animate-enter space-y-6 p-6 md:p-8">
-      <PageHeader
-        icon={History}
-        title="Riwayat Poin"
-        description={
-          isAdminUser
-            ? "Semua transaksi poin santri."
-            : "Riwayat transaksi poin (hanya lihat)."
-        }
-      />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader
+          icon={History}
+          title="Riwayat Poin"
+          description={
+            isAdminUser
+              ? "Semua transaksi poin santri."
+              : "Riwayat transaksi poin (hanya lihat)."
+          }
+        />
+        <Button asChild variant="secondary" size="sm">
+          <a href={exportHref}>
+            <Download data-icon="inline-start" />
+            Unduh Excel
+          </a>
+        </Button>
+      </div>
       <div className="flex flex-wrap items-center gap-2.5 rounded-card border border-border/70 bg-card p-3 shadow-sm">
         <SearchInput placeholder="Cari santri (nama/NIS)…" />
         <FilterSelect

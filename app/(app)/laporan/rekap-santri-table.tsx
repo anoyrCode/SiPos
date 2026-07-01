@@ -8,6 +8,7 @@ import { DataTable, type Column } from "@/components/shared/data-table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { downloadExcel } from "@/lib/export";
 
 export type RekapSantriRow = {
   id: string;
@@ -18,7 +19,13 @@ export type RekapSantriRow = {
   net: number;
 };
 
-export function RekapSantriTable({ rows }: { rows: RekapSantriRow[] }) {
+export function RekapSantriTable({
+  rows,
+  taLabel = "export",
+}: {
+  rows: RekapSantriRow[];
+  taLabel?: string;
+}) {
   const [q, setQ] = useState("");
 
   const filtered = useMemo(() => {
@@ -26,20 +33,22 @@ export function RekapSantriTable({ rows }: { rows: RekapSantriRow[] }) {
     return t ? rows.filter((r) => r.nama.toLowerCase().includes(t)) : rows;
   }, [q, rows]);
 
-  function exportCsv() {
-    const header = "Nama,Kelas,Positif,Negatif,Net";
-    const lines = filtered.map(
-      (r) =>
-        `"${r.nama.replace(/"/g, '""')}","${r.kelas ?? ""}",${r.pos},${r.neg},${r.net}`,
+  function handleExport() {
+    const data = filtered.map((r, i) => ({
+      No: i + 1,
+      "Nama Santri": r.nama,
+      Kelas: r.kelas ?? "—",
+      "Poin Positif": r.pos,
+      "Poin Negatif": r.neg,
+      "Net Skor": r.net,
+      Status: r.net >= 0 ? "Baik" : "Perlu Perhatian",
+    }));
+    downloadExcel(
+      `rekap-santri-${taLabel}.xlsx`,
+      "Rekap Santri",
+      data,
+      [6, 28, 22, 14, 14, 12, 18],
     );
-    const csv = [header, ...lines].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "rekap-santri.csv";
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   const columns: Column<RekapSantriRow>[] = [
@@ -94,9 +103,9 @@ export function RekapSantriTable({ rows }: { rows: RekapSantriRow[] }) {
             placeholder="Cari santri…"
           />
         </div>
-        <Button variant="secondary" size="sm" onClick={exportCsv} disabled={filtered.length === 0}>
+        <Button variant="secondary" size="sm" onClick={handleExport} disabled={filtered.length === 0}>
           <Download data-icon="inline-start" />
-          Unduh CSV
+          Unduh Excel
         </Button>
       </div>
       <DataTable

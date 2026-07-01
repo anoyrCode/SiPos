@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TaFilter } from "./ta-filter";
 import { RekapSantriTable, type RekapSantriRow } from "./rekap-santri-table";
+import { ExportRekapKelas } from "./export-rekap-kelas";
 
 type KelasRekap = {
   key: string;
@@ -50,6 +51,8 @@ export default async function Page({
   const taList = taData ?? [];
   const activeTa = taList.find((t) => t.is_aktif);
   const taId = getStr(sp.ta) || activeTa?.id || taList[0]?.id || "";
+  const selectedTa = taList.find((t) => t.id === taId);
+  const taLabel = selectedTa?.tahun ?? "export";
   const taOptions = taList.map((t) => ({
     value: t.id,
     label: t.is_aktif ? `${t.tahun} (aktif)` : t.tahun,
@@ -210,13 +213,18 @@ export default async function Page({
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border/70 bg-card p-3 shadow-sm">
         <TaFilter options={taOptions} value={taId} />
-        <div className="flex gap-1 rounded-lg bg-muted p-1">
-          <Button asChild size="sm" variant={mode === "kelas" ? "default" : "ghost"}>
-            <Link href={`/laporan?ta=${taId}&mode=kelas`}>Per Kelas</Link>
-          </Button>
-          <Button asChild size="sm" variant={mode === "santri" ? "default" : "ghost"}>
-            <Link href={`/laporan?ta=${taId}&mode=santri`}>Per Santri</Link>
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {mode === "kelas" && (
+            <ExportRekapKelas rows={kelasRekap} taLabel={taLabel} />
+          )}
+          <div className="flex gap-1 rounded-lg bg-muted p-1">
+            <Button asChild size="sm" variant={mode === "kelas" ? "default" : "ghost"}>
+              <Link href={`/laporan?ta=${taId}&mode=kelas`}>Per Kelas</Link>
+            </Button>
+            <Button asChild size="sm" variant={mode === "santri" ? "default" : "ghost"}>
+              <Link href={`/laporan?ta=${taId}&mode=santri`}>Per Santri</Link>
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -234,7 +242,7 @@ export default async function Page({
           empty="Belum ada data."
         />
       ) : (
-        <RekapSantriTable rows={santriRekap} />
+        <RekapSantriTable rows={santriRekap} taLabel={taLabel} />
       )}
     </div>
   );
