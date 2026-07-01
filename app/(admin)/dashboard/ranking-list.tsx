@@ -37,9 +37,9 @@ export function RankingList({
   ];
 
   const MEDAL_ROW_BG = [
-    "bg-amber-50/60",
-    "bg-slate-50/60",
-    "bg-orange-50/60",
+    "bg-amber-50/60 dark:bg-amber-500/10",
+    "bg-slate-100/60 dark:bg-slate-500/10",
+    "bg-orange-50/60 dark:bg-orange-500/10",
   ];
 
   const chipClass = (idx: number) => {
@@ -62,7 +62,7 @@ export function RankingList({
               className={cn(
                 "flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted",
                 isMedal && MEDAL_ROW_BG[idx],
-                isMedal && "hover:brightness-95",
+                isMedal && "hover:brightness-95 dark:hover:brightness-125",
               )}
             >
               <span
