@@ -30,6 +30,12 @@ export function RankingList({
     "bg-orange-400 text-white shadow-sm",
   ];
 
+  const MEDAL_BAR = [
+    "bg-amber-400",
+    "bg-slate-400",
+    "bg-orange-400",
+  ];
+
   const MEDAL_ROW_BG = [
     "bg-amber-50/60",
     "bg-slate-50/60",
@@ -73,7 +79,10 @@ export function RankingList({
                 </p>
                 <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
                   <div
-                    className={cn("h-full rounded-full transition-all duration-500", barColor)}
+                    className={cn(
+                      "h-full rounded-full transition-all duration-500",
+                      isMedal ? MEDAL_BAR[idx] : barColor,
+                    )}
                     style={{ width: `${Math.round((it.total / max) * 100)}%` }}
                   />
                 </div>
