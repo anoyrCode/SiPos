@@ -34,10 +34,9 @@ type Tx = {
 
 function monthLabel(key: string): string {
   const d = new Date(`${key}-01T00:00:00`);
-  return new Intl.DateTimeFormat("id-ID", {
-    month: "short",
-    year: "2-digit",
-  }).format(d);
+  const month = new Intl.DateTimeFormat("id-ID", { month: "short" }).format(d);
+  const year = d.getFullYear().toString().slice(-2);
+  return `${month} '${year}`;
 }
 
 function enumerateMonths(start: string, end: string): string[] {
