@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Download } from "lucide-react";
+import { FileSpreadsheet, FileText } from "lucide-react";
 
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { downloadExcel } from "@/lib/export";
+import { downloadPdfRekapSantri } from "@/lib/pdf";
 
 export type RekapSantriRow = {
   id: string;
@@ -27,13 +28,14 @@ export function RekapSantriTable({
   taLabel?: string;
 }) {
   const [q, setQ] = useState("");
+  const [loadingPdf, setLoadingPdf] = useState(false);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
     return t ? rows.filter((r) => r.nama.toLowerCase().includes(t)) : rows;
   }, [q, rows]);
 
-  function handleExport() {
+  function handleExcelExport() {
     const data = filtered.map((r, i) => ({
       No: i + 1,
       "Nama Santri": r.nama,
@@ -43,12 +45,16 @@ export function RekapSantriTable({
       "Net Skor": r.net,
       Status: r.net >= 0 ? "Baik" : "Perlu Perhatian",
     }));
-    downloadExcel(
-      `rekap-santri-${taLabel}.xlsx`,
-      "Rekap Santri",
-      data,
-      [6, 28, 22, 14, 14, 12, 18],
-    );
+    downloadExcel(`rekap-santri-${taLabel}.xlsx`, "Rekap Santri", data, [6, 28, 22, 14, 14, 12, 18]);
+  }
+
+  async function handlePdfExport() {
+    setLoadingPdf(true);
+    try {
+      await downloadPdfRekapSantri(filtered, taLabel);
+    } finally {
+      setLoadingPdf(false);
+    }
   }
 
   const columns: Column<RekapSantriRow>[] = [
@@ -103,10 +109,16 @@ export function RekapSantriTable({
             placeholder="Cari santri…"
           />
         </div>
-        <Button variant="secondary" size="sm" onClick={handleExport} disabled={filtered.length === 0}>
-          <Download data-icon="inline-start" />
-          Unduh Excel
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button variant="secondary" size="sm" onClick={handleExcelExport} disabled={filtered.length === 0}>
+            <FileSpreadsheet data-icon="inline-start" />
+            Excel
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handlePdfExport} disabled={filtered.length === 0 || loadingPdf}>
+            <FileText data-icon="inline-start" />
+            {loadingPdf ? "Memproses…" : "PDF"}
+          </Button>
+        </div>
       </div>
       <DataTable
         columns={columns}
