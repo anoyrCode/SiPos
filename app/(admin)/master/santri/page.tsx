@@ -152,7 +152,9 @@ export default async function Page({
         columns={columns}
         rows={rows}
         getRowId={(r) => r.id}
+        isFiltered={!!q || !!statusFilter}
         empty="Belum ada data santri."
+        emptyHint="Tambah santri dengan tombol di atas."
       />
       <Pagination
         page={page}

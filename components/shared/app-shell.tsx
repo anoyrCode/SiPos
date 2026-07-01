@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { SidebarNav } from "./sidebar-nav";
 import { MobileNav } from "./mobile-nav";
 import { SiposMark } from "./sipos-mark";
+import { NavCurrentTitle } from "./nav-current-title";
+import { ThemeToggle } from "./theme-toggle";
 
 function initials(name: string | null): string {
   if (!name) return "?";
@@ -70,11 +72,14 @@ export function AppShell({
                 {roleLabel}
               </p>
             </div>
-            <form action={logout}>
-              <Button type="submit" variant="ghost" size="icon-sm" aria-label="Keluar">
-                <LogOut />
-              </Button>
-            </form>
+            <div className="flex items-center gap-0.5">
+              <ThemeToggle />
+              <form action={logout}>
+                <Button type="submit" variant="ghost" size="icon-sm" aria-label="Keluar">
+                  <LogOut />
+                </Button>
+              </form>
+            </div>
           </div>
         </div>
       </aside>
@@ -84,18 +89,18 @@ export function AppShell({
           <div className="flex items-center gap-2">
             <MobileNav nav={nav} />
             <div className="flex items-center gap-2">
-              <SiposMark className="size-8" />
-              <span className="font-heading font-extrabold tracking-tight">
-                <span className="text-foreground">SIPOS</span>{" "}
-                <span className="text-primary">Al-Kautsar</span>
-              </span>
+              <SiposMark className="size-7 shrink-0" />
+              <NavCurrentTitle nav={nav} />
             </div>
           </div>
-          <form action={logout}>
-            <Button type="submit" variant="ghost" size="icon-sm" aria-label="Keluar">
-              <LogOut />
-            </Button>
-          </form>
+          <div className="flex items-center gap-0.5">
+            <ThemeToggle />
+            <form action={logout}>
+              <Button type="submit" variant="ghost" size="icon-sm" aria-label="Keluar">
+                <LogOut />
+              </Button>
+            </form>
+          </div>
         </header>
         <main className="min-w-0 flex-1">{children}</main>
       </div>

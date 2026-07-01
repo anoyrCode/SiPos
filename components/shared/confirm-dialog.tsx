@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 
 import {
   Dialog,
@@ -39,8 +40,10 @@ export function ConfirmDialog({
       const res = await action(id);
       if (res.ok) {
         setOpen(false);
+        toast.success("Data berhasil dihapus.");
       } else {
         setError(res.error);
+        toast.error(res.error);
       }
     });
   }

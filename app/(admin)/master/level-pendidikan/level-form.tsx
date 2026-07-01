@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Pencil, Plus } from "lucide-react";
@@ -47,6 +48,7 @@ export function LevelForm({ initial }: { initial?: LevelRow }) {
       return;
     }
     setOpen(false);
+    toast.success(initial ? "Level pendidikan diperbarui." : "Level pendidikan berhasil ditambahkan.");
     if (!initial) form.reset({ nama: "", urutan: 0 });
     router.refresh();
   });

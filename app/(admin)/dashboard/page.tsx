@@ -267,10 +267,10 @@ export default async function Page() {
   ];
 
   return (
-    <div className="animate-enter space-y-6 p-6 md:p-8">
+    <div className="animate-enter space-y-4 p-4 md:space-y-6 md:p-8">
       {/* Hero */}
       <section
-        className="relative overflow-hidden rounded-3xl p-6 text-white shadow-lg shadow-primary/20 sm:p-8"
+        className="relative overflow-hidden rounded-2xl p-4 text-white shadow-lg shadow-primary/20 sm:rounded-3xl sm:p-6 md:p-8"
         style={{
           backgroundImage:
             "linear-gradient(135deg, #00b4d8 0%, #0092b7 55%, #036985 100%)",

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Pencil, Plus } from "lucide-react";
 
 import {
@@ -85,6 +86,7 @@ export function StaffAccountForm({
       return;
     }
     setOpen(false);
+    toast.success("Akun staff berhasil ditambahkan.");
     reset();
     router.refresh();
   }

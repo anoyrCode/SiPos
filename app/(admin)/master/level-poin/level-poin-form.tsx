@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Pencil, Plus } from "lucide-react";
@@ -60,6 +61,7 @@ export function LevelPoinForm({
       return;
     }
     setOpen(false);
+    toast.success(initial ? "Level poin diperbarui." : "Level poin berhasil ditambahkan.");
     if (!initial) form.reset(defaults);
     router.refresh();
   });

@@ -165,7 +165,9 @@ export async function PoinPage({
         columns={columns}
         rows={rows}
         getRowId={(r) => r.id}
+        isFiltered={!!q}
         empty={isPos ? "Belum ada poin positif." : "Belum ada poin negatif."}
+        emptyHint="Tambah item poin dengan tombol di atas."
       />
       <Pagination
         page={page}

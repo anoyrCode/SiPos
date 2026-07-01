@@ -100,7 +100,9 @@ export default async function Page({
         columns={columns}
         rows={rows}
         getRowId={(r) => r.id}
+        isFiltered={!!q}
         empty="Belum ada level poin."
+        emptyHint="Tambah level poin dengan tombol di atas."
       />
       <Pagination
         page={page}

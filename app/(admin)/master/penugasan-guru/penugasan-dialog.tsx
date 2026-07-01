@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Check, School } from "lucide-react";
 
 import {
@@ -66,6 +67,7 @@ export function PenugasanDialog({
         return;
       }
       setOpen(false);
+      toast.success("Penugasan guru berhasil disimpan.");
       router.refresh();
     });
   }

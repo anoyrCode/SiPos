@@ -97,7 +97,7 @@ export function StatistikPoinChart({
           Belum ada data.
         </div>
       ) : (
-        <div className="max-h-80 overflow-y-auto pr-1 scrollbar-thin">
+        <div className="max-h-64 overflow-y-auto pr-1 scrollbar-thin sm:max-h-80">
           <div style={{ height: Math.max(150, data.length * 50 + 36) }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
@@ -168,7 +168,7 @@ export function PerkembanganChart({
     );
   }
   return (
-    <div className="h-64">
+    <div className="h-48 sm:h-64">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ left: 0, right: 12, top: 8, bottom: 4 }}>
           <defs>
@@ -192,6 +192,7 @@ export function PerkembanganChart({
             fontSize={12}
             axisLine={false}
             tickLine={false}
+            minTickGap={48}
           />
           <YAxis
             stroke="var(--muted-foreground)"

@@ -142,7 +142,9 @@ export default async function Page({
         columns={columns}
         rows={rows}
         getRowId={(r) => r.id}
+        isFiltered={!!q || !!taFilter}
         empty="Belum ada data kelas."
+        emptyHint="Tambah kelas dengan tombol di atas."
       />
       <Pagination
         page={page}

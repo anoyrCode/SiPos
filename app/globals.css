@@ -83,7 +83,7 @@
   --secondary: #eef2f8;
   --secondary-foreground: #3d4a5c;
   --muted: #eef2f8;
-  --muted-foreground: #7c8794;
+  --muted-foreground: #5e6d7c;
   --accent: #e0f4fa;
   --accent-foreground: #075e78;
 
@@ -203,6 +203,11 @@
     stroke-width: 1.5;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+  /* Focus ring konsisten untuk semua elemen interaktif (keyboard nav). */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }
 

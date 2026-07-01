@@ -1,4 +1,4 @@
-import { UserCog } from "lucide-react";
+﻿import { UserCog } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { requirePerm } from "@/lib/auth/dal";
@@ -106,7 +106,9 @@ export default async function Page({
         columns={columns}
         rows={rows}
         getRowId={(r) => r.id}
-        empty="Belum ada data wali. Klik “Generate dari Data Santri”."
+        isFiltered={!!q}
+        empty="Belum ada akun wali."
+        emptyHint={`Gunakan tombol "Generate dari Data Santri" untuk membuat akun wali.`}
       />
       <Pagination
         page={page}

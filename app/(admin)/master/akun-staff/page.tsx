@@ -150,7 +150,9 @@ export default async function Page({
         columns={columns}
         rows={rows}
         getRowId={(r) => r.id}
+        isFiltered={!!q}
         empty="Belum ada akun staff."
+        emptyHint="Tambah akun dengan tombol di atas."
       />
       <Pagination
         page={page}

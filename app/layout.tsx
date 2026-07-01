@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
+import { ThemeProvider } from "@/components/shared/theme-provider";
 import { PwaInstallPrompt } from "@/components/shared/pwa-install-prompt";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -47,8 +49,11 @@ export default function RootLayout({
             __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js')})}`,
           }}
         />
-        {children}
-        <PwaInstallPrompt />
+        <ThemeProvider>
+          {children}
+          <Toaster richColors position="bottom-right" />
+          <PwaInstallPrompt />
+        </ThemeProvider>
       </body>
     </html>
   );

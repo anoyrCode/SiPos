@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Pencil, Plus } from "lucide-react";
@@ -61,6 +62,7 @@ export function SantriForm({ initial }: { initial?: SantriRow }) {
       return;
     }
     setOpen(false);
+    toast.success(initial ? "Data santri diperbarui." : "Santri berhasil ditambahkan.");
     if (!initial) form.reset(defaults);
     router.refresh();
   });

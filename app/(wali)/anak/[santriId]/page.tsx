@@ -144,7 +144,7 @@ export default async function Page({
   });
 
   return (
-    <div className="animate-enter space-y-6 p-6 md:p-8">
+    <div className="animate-enter space-y-4 p-4 md:space-y-6 md:p-8">
       <Button asChild variant="ghost" size="sm">
         <Link href="/anak">
           <ArrowLeft data-icon="inline-start" />

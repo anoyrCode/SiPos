@@ -135,7 +135,9 @@ export default async function Page({
         columns={columns}
         rows={rows}
         getRowId={(r) => r.id}
-        empty="Belum ada pegawai."
+        isFiltered={!!q}
+        empty="Belum ada penugasan guru."
+        emptyHint="Tambah penugasan dengan tombol di atas."
       />
       <Pagination
         page={page}
