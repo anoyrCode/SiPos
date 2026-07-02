@@ -88,10 +88,7 @@ export function AppShell({
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b bg-card/80 px-4 py-3 backdrop-blur md:hidden">
           <div className="flex items-center gap-2">
             <MobileNav nav={nav} />
-            <div className="flex items-center gap-2">
-              <SiposMark className="size-7 shrink-0" />
-              <NavCurrentTitle nav={nav} />
-            </div>
+            <NavCurrentTitle nav={nav} />
           </div>
           <div className="flex items-center gap-0.5">
             <ThemeToggle />
