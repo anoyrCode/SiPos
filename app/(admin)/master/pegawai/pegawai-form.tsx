@@ -124,7 +124,7 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                 <Field
                   label="Jabatan"
                   htmlFor="jabatan"
-                  hint="mis. Guru, Wali Kelas, Pengasuh, TU"
+                  hint="mis. Guru, Wali Kelas, Musyrif, TU"
                   error={form.formState.errors.jabatan?.message}
                 >
                   <Input id="jabatan" {...form.register("jabatan")} />
