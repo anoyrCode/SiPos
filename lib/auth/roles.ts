@@ -54,6 +54,7 @@ export function navForProfile({ role, perms }: ProfileLike): NavGroup[] {
   if (perms.laporan) {
     transaksi.push({ href: "/riwayat-poin", label: "Riwayat Poin" });
     transaksi.push({ href: "/laporan", label: "Laporan" });
+    transaksi.push({ href: "/surat-panggilan", label: "Surat Panggilan" });
   }
   if (transaksi.length > 0) {
     groups.push({ title: "Transaksi", items: transaksi });

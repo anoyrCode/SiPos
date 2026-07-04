@@ -5,18 +5,49 @@ const FG = [61, 74, 92] as const;             // #3D4A5C
 const MUTED = [126, 140, 153] as const;
 const ZEBRA = [246, 248, 252] as const;
 
-function drawHeader(doc: import("jspdf").jsPDF, title: string, meta: string[]) {
+let logoDataUrlPromise: Promise<string | null> | null = null;
+
+function getLogoDataUrl(): Promise<string | null> {
+  if (!logoDataUrlPromise) {
+    logoDataUrlPromise = fetch("/logo.png")
+      .then((res) => res.arrayBuffer())
+      .then((buf) => {
+        const bytes = new Uint8Array(buf);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return `data:image/png;base64,${btoa(binary)}`;
+      })
+      .catch(() => null);
+  }
+  return logoDataUrlPromise;
+}
+
+async function drawHeader(doc: import("jspdf").jsPDF, title: string, meta: string[]) {
   const W = doc.internal.pageSize.width;
 
   doc.setFillColor(...BRAND);
   doc.rect(0, 0, W, 22, "F");
+
+  let textX = 14;
+  const logo = await getLogoDataUrl();
+  if (logo) {
+    const logoH = 11;
+    const logoW = logoH * (403 / 504);
+    try {
+      doc.addImage(logo, "PNG", 14, (22 - logoH) / 2, logoW, logoH);
+      textX = 14 + logoW + 4;
+    } catch {
+      // Lanjut tanpa logo bila gagal dimuat/di-embed.
+    }
+  }
+
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
-  doc.text("SIPOS Al-Kautsar", 14, 10);
+  doc.text("SIPOS Al-Kautsar", textX, 10);
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  doc.text("Sistem Informasi Poin Santri", 14, 16.5);
+  doc.text("Sistem Informasi Poin Santri", textX, 16.5);
 
   doc.setTextColor(...FG);
   doc.setFontSize(14);
@@ -77,7 +108,7 @@ export async function downloadPdfRekapKelas(rows: KelasRekapRow[], taLabel: stri
   const totalNeg = rows.reduce((s, r) => s + r.neg, 0);
   const totalNet = totalPos - totalNeg;
 
-  const startY = drawHeader(doc, "Rekap Poin Per Kelas", [
+  const startY = await drawHeader(doc, "Rekap Poin Per Kelas", [
     `Tahun Ajaran: ${taLabel}`,
     `Dicetak: ${new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}`,
   ]);
@@ -111,13 +142,135 @@ export async function downloadPdfRekapKelas(rows: KelasRekapRow[], taLabel: stri
   doc.save(`rekap-kelas-${taLabel}.pdf`);
 }
 
+export type PelanggaranItem = {
+  tanggal: string;
+  namaPoin: string;
+  kodePoin: string;
+  nilai: number;
+  catatan: string | null;
+};
+
+function formatTanggalID(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(d);
+}
+
+export async function downloadSuratPanggilan(params: {
+  santri: { nama: string; nis: string | null; kelas: string | null };
+  wali: { nama: string | null; noTelp: string | null };
+  pelanggaran: PelanggaranItem[];
+  totalNegatif: number;
+  ambangBatas: number;
+  taLabel: string;
+}) {
+  const { santri, wali, pelanggaran, totalNegatif, ambangBatas, taLabel } = params;
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const W = doc.internal.pageSize.width;
+
+  const today = new Date().toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+
+  let y = await drawHeader(doc, "Surat Pemanggilan Orang Tua / Wali Santri", [
+    `Tanggal: ${today}`,
+  ]);
+
+  doc.setFontSize(9.5);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...FG);
+  doc.text("Kepada Yth.", 14, y);
+  y += 5.5;
+  doc.setFont("helvetica", "bold");
+  doc.text(wali.nama || "Bapak/Ibu Wali Santri", 14, y);
+  y += 5.5;
+  doc.setFont("helvetica", "normal");
+  if (wali.noTelp) {
+    doc.text(`No. Telp/WA: ${wali.noTelp}`, 14, y);
+    y += 5.5;
+  }
+  doc.text("di tempat", 14, y);
+  y += 9;
+
+  const bodyLines = doc.splitTextToSize(
+    `Dengan hormat, berdasarkan pemantauan poin pembinaan santri, tercatat akumulasi poin negatif putra/putri Bapak/Ibu telah mencapai batas yang memerlukan perhatian bersama (ambang batas pembinaan: ${ambangBatas} poin). Sehubungan dengan hal tersebut, kami bermaksud mengundang Bapak/Ibu untuk hadir ke sekolah guna berdiskusi dan bersama-sama menentukan langkah pembinaan terbaik bagi perkembangan putra/putri Bapak/Ibu. Atas perhatian dan kerja sama Bapak/Ibu, kami sampaikan terima kasih.`,
+    W - 28,
+  );
+  doc.text(bodyLines, 14, y);
+  y += bodyLines.length * 5 + 6;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Data Santri", 14, y);
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  const info: [string, string][] = [
+    ["Nama", santri.nama],
+    ["NIS", santri.nis ?? "—"],
+    ["Kelas", santri.kelas ?? "—"],
+    ["Tahun Ajaran", taLabel],
+    ["Total Poin Negatif", `-${totalNegatif}`],
+  ];
+  for (const [k, v] of info) {
+    doc.text(k, 14, y);
+    doc.text(`: ${v}`, 46, y);
+    y += 5.5;
+  }
+  y += 3;
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Tanggal", "Pelanggaran", "Poin", "Catatan"]],
+    body: pelanggaran.map((p) => [
+      formatTanggalID(p.tanggal),
+      `${p.namaPoin} (${p.kodePoin})`,
+      p.nilai,
+      p.catatan ?? "—",
+    ]),
+    headStyles: { fillColor: [...BRAND], textColor: 255, fontStyle: "bold", fontSize: 8.5 },
+    alternateRowStyles: { fillColor: [...ZEBRA] },
+    styles: { fontSize: 8.5, cellPadding: 3, textColor: [...FG] },
+    columnStyles: {
+      2: { halign: "right", textColor: [...NEGATIVE], fontStyle: "bold" },
+    },
+    didDrawPage: (data) => {
+      pageFooter(
+        doc,
+        data.pageNumber,
+        (doc as unknown as { internal: { pages: unknown[] } }).internal.pages.length - 1 || 1,
+      );
+    },
+  });
+
+  const finalY =
+    (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 16;
+  const sigY = Math.min(finalY, doc.internal.pageSize.height - 38);
+
+  doc.setFontSize(9.5);
+  doc.setTextColor(...FG);
+  doc.text("Kesantrian / Wali Kelas,", 14, sigY);
+  doc.text("Orang Tua / Wali Santri,", W - 70, sigY);
+  doc.text("(_______________________)", 14, sigY + 22);
+  doc.text("(_______________________)", W - 70, sigY + 22);
+
+  doc.save(`surat-panggilan-${santri.nama.trim().replace(/\s+/g, "-").toLowerCase()}.pdf`);
+}
+
 export async function downloadPdfRekapSantri(rows: SantriRekapRow[], taLabel: string) {
   const { default: jsPDF } = await import("jspdf");
   const { default: autoTable } = await import("jspdf-autotable");
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-  const startY = drawHeader(doc, "Rekap Poin Per Santri", [
+  const startY = await drawHeader(doc, "Rekap Poin Per Santri", [
     `Tahun Ajaran: ${taLabel}`,
     `Total Santri: ${rows.length} santri`,
     `Dicetak: ${new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}`,
