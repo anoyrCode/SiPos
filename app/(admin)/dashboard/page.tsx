@@ -479,7 +479,7 @@ export default async function Page() {
                 Belum ada aktivitas dalam 24 jam terakhir.
               </p>
             ) : (
-              <div className="max-h-80 space-y-1 overflow-y-auto pr-1 scrollbar-thin">
+              <div className="max-h-60 space-y-1 overflow-y-auto pr-1 scrollbar-thin">
                 {recent.map((r) => (
                   <div
                     key={r.id}

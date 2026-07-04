@@ -98,27 +98,15 @@ export function StatistikPoinChart({
         </div>
       ) : (
         <div className="max-h-64 overflow-y-auto pr-1 scrollbar-thin sm:max-h-80">
-          <div style={{ height: Math.max(150, data.length * 50 + 36) }}>
+          <div style={{ height: Math.max(96, data.length * 42 + 12) }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={data}
                 layout="vertical"
-                barCategoryGap="26%"
-                margin={{ left: 8, right: 20, top: 4, bottom: 4 }}
+                barCategoryGap="32%"
+                margin={{ left: 8, right: 28, top: 4, bottom: 4 }}
               >
-                <CartesianGrid
-                  horizontal={false}
-                  stroke="var(--border)"
-                  strokeDasharray="3 3"
-                />
-                <XAxis
-                  type="number"
-                  allowDecimals={false}
-                  stroke="var(--muted-foreground)"
-                  fontSize={12}
-                  axisLine={false}
-                  tickLine={false}
-                />
+                <XAxis type="number" allowDecimals={false} hide />
                 <YAxis
                   type="category"
                   dataKey="label"
@@ -136,14 +124,16 @@ export function StatistikPoinChart({
                   dataKey="count"
                   name="Kejadian"
                   fill={color}
-                  radius={[0, 6, 6, 0]}
-                  maxBarSize={22}
+                  radius={[0, 5, 5, 0]}
+                  maxBarSize={14}
+                  background={{ fill: "var(--muted)", radius: 5 }}
                 >
                   <LabelList
                     dataKey="count"
                     position="right"
                     fontSize={11}
-                    fill="var(--muted-foreground)"
+                    fontWeight={600}
+                    fill="var(--foreground)"
                   />
                 </Bar>
               </BarChart>

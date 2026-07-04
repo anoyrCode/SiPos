@@ -42,6 +42,7 @@ export default function RootLayout({
     <html
       lang="id"
       className={`${jakarta.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
         <script
