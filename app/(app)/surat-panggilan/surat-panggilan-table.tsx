@@ -9,8 +9,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { orDash } from "@/lib/format";
 import { downloadSuratPanggilan, type PelanggaranItem } from "@/lib/pdf";
+
+const SP_LEVELS = [
+  { level: 1, ambang: 300 },
+  { level: 2, ambang: 600 },
+  { level: 3, ambang: 900 },
+];
+
+function spLevelFor(totalNegatif: number) {
+  let level: number | null = null;
+  for (const sp of SP_LEVELS) {
+    if (totalNegatif >= sp.ambang) level = sp.level;
+  }
+  return level;
+}
 
 export type SuratPanggilanRow = {
   id: string;
@@ -34,9 +55,11 @@ export function SuratPanggilanTable({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const [ambang, setAmbang] = useState(
-    () => Number(searchParams.get("ambang")) || 100,
-  );
+  const [sp, setSp] = useState(() => {
+    const fromUrl = Number(searchParams.get("sp"));
+    return SP_LEVELS.some((l) => l.level === fromUrl) ? fromUrl : 1;
+  });
+  const ambang = SP_LEVELS.find((l) => l.level === sp)?.ambang ?? 300;
   const [q, setQ] = useState("");
   const [printingId, setPrintingId] = useState<string | null>(null);
   const first = useRef(true);
@@ -48,13 +71,13 @@ export function SuratPanggilanTable({
     }
     const timer = setTimeout(() => {
       const params = new URLSearchParams(searchParams);
-      if (ambang && ambang !== 100) params.set("ambang", String(ambang));
-      else params.delete("ambang");
+      if (sp !== 1) params.set("sp", String(sp));
+      else params.delete("sp");
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     }, 350);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ambang]);
+  }, [sp]);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -109,9 +132,14 @@ export function SuratPanggilanTable({
       key: "total",
       header: "Poin Negatif",
       cell: (r) => (
-        <Badge variant="negative" className="font-mono">
-          −{r.totalNegatif}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="negative" className="font-mono">
+            −{r.totalNegatif}
+          </Badge>
+          {spLevelFor(r.totalNegatif) && (
+            <Badge variant="outline">SP {spLevelFor(r.totalNegatif)}</Badge>
+          )}
+        </div>
       ),
     },
     {
@@ -138,14 +166,21 @@ export function SuratPanggilanTable({
           <Label htmlFor="ambang" className="text-xs">
             Ambang batas poin negatif
           </Label>
-          <Input
-            id="ambang"
-            type="number"
-            min={0}
-            value={ambang}
-            onChange={(e) => setAmbang(Number(e.target.value) || 0)}
-            className="w-40"
-          />
+          <Select
+            value={String(sp)}
+            onValueChange={(v) => setSp(Number(v))}
+          >
+            <SelectTrigger id="ambang" className="w-52">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SP_LEVELS.map((l) => (
+                <SelectItem key={l.level} value={String(l.level)}>
+                  SP {l.level} (≥ {l.ambang} poin)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="min-w-48 flex-1 space-y-1">
           <Label htmlFor="q" className="text-xs">
