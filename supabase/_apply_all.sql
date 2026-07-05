@@ -837,4 +837,48 @@ create policy "rekam_medis_manage" on public.rekam_medis
   using (public.can_kesehatan()) with check (public.can_kesehatan());
 create policy "rekam_medis_select" on public.rekam_medis
   for select to authenticated using (public.can_view_rekam(santri_id));
+
+-- ============================================================
+-- Hak akses granular: Santri, Pegawai, Akun Staff
+-- ============================================================
+
+alter table public.app_role
+  add column perm_santri     boolean not null default false,
+  add column perm_pegawai    boolean not null default false,
+  add column perm_akun_staff boolean not null default false;
+
+create or replace function public.can_santri()
+returns boolean language sql stable security definer set search_path = '' as $$
+  select public.is_admin() or coalesce((
+    select r.perm_master or r.perm_santri
+    from public.profiles pr
+    join public.app_role r on r.id = pr.app_role_id
+    where pr.id = auth.uid()
+  ), false);
+$$;
+
+create or replace function public.can_pegawai()
+returns boolean language sql stable security definer set search_path = '' as $$
+  select public.is_admin() or coalesce((
+    select r.perm_master or r.perm_pegawai
+    from public.profiles pr
+    join public.app_role r on r.id = pr.app_role_id
+    where pr.id = auth.uid()
+  ), false);
+$$;
+
+create or replace function public.can_akun_staff()
+returns boolean language sql stable security definer set search_path = '' as $$
+  select public.is_admin() or coalesce((
+    select r.perm_akun or r.perm_akun_staff
+    from public.profiles pr
+    join public.app_role r on r.id = pr.app_role_id
+    where pr.id = auth.uid()
+  ), false);
+$$;
+
+alter policy "santri_admin_all" on public.santri
+  using (public.can_santri()) with check (public.can_santri());
+alter policy "pegawai_admin_all" on public.pegawai
+  using (public.can_pegawai()) with check (public.can_pegawai());
 grant select, insert, update, delete on public.rekam_medis to authenticated;

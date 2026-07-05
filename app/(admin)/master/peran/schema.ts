@@ -9,6 +9,9 @@ export const peranSchema = z.object({
   perm_akun: z.boolean(),
   perm_kesehatan: z.boolean(),
   scope_kelas: z.boolean(),
+  perm_santri: z.boolean(),
+  perm_pegawai: z.boolean(),
+  perm_akun_staff: z.boolean(),
 });
 
 export type PeranInput = z.infer<typeof peranSchema>;
@@ -23,5 +26,8 @@ export type PeranRow = {
   perm_akun: boolean;
   perm_kesehatan: boolean;
   scope_kelas: boolean;
+  perm_santri: boolean;
+  perm_pegawai: boolean;
+  perm_akun_staff: boolean;
   is_super: boolean;
 };

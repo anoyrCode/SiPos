@@ -8,9 +8,13 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Area admin: butuh kelola master ATAU kelola akun (atau super).
+  // Area admin: butuh kelola master ATAU kelola akun (atau super),
+  // termasuk hak akses sempit (santri/pegawai/akun staff saja).
   const profile = await requireAuth();
-  if (!(profile.perms.master || profile.perms.akun || profile.perms.super)) {
+  const p = profile.perms;
+  if (
+    !(p.master || p.akun || p.super || p.santri || p.pegawai || p.akun_staff)
+  ) {
     redirect(homePathForProfile(profile));
   }
 

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { canAkun, getUser } from "@/lib/auth/dal";
+import { canAkun, canAkunStaff, getUser } from "@/lib/auth/dal";
 import { type FormResult } from "@/lib/forms";
 
 const PATH = "/master/akun-staff";
@@ -15,10 +15,45 @@ type StaffInput = {
   pegawai_id?: string | null;
 };
 
+/**
+ * Peran sempit (akun_staff tanpa akun penuh) tidak boleh menetapkan/menyentuh
+ * akun yang berperan admin/akun-penuh — mencegah eskalasi hak akses.
+ */
+async function assertRoleAssignable(appRoleId: string): Promise<string | null> {
+  if (await canAkun()) return null;
+  const admin = createAdminClient();
+  const { data: role } = await admin
+    .from("app_role")
+    .select("is_super, perm_akun")
+    .eq("id", appRoleId)
+    .maybeSingle();
+  if (role?.is_super || role?.perm_akun) {
+    return "Tidak boleh menetapkan peran admin/akun penuh.";
+  }
+  return null;
+}
+
+async function assertAccountTouchable(userId: string): Promise<string | null> {
+  if (await canAkun()) return null;
+  const admin = createAdminClient();
+  const { data: acc } = await admin
+    .from("profiles")
+    .select("app_role:app_role(is_super, perm_akun)")
+    .eq("id", userId)
+    .maybeSingle();
+  const role = (
+    Array.isArray(acc?.app_role) ? acc?.app_role[0] : acc?.app_role
+  ) as { is_super: boolean; perm_akun: boolean } | undefined;
+  if (role?.is_super || role?.perm_akun) {
+    return "Tidak boleh mengubah akun admin/akun penuh.";
+  }
+  return null;
+}
+
 export async function createStaffAccount(
   input: StaffInput,
 ): Promise<FormResult> {
-  if (!(await canAkun())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canAkunStaff())) return { ok: false, error: "Tidak diizinkan." };
 
   const email = input.email.trim().toLowerCase();
   if (!email) return { ok: false, error: "Email wajib diisi." };
@@ -26,6 +61,8 @@ export async function createStaffAccount(
     return { ok: false, error: "Password minimal 6 karakter." };
   }
   if (!input.app_role_id) return { ok: false, error: "Pilih peran." };
+  const roleErr = await assertRoleAssignable(input.app_role_id);
+  if (roleErr) return { ok: false, error: roleErr };
 
   const admin = createAdminClient();
   const { data: created, error } = await admin.auth.admin.createUser({
@@ -59,8 +96,12 @@ export async function updateStaffAccount(
   userId: string,
   input: { app_role_id: string; pegawai_id?: string | null },
 ): Promise<FormResult> {
-  if (!(await canAkun())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canAkunStaff())) return { ok: false, error: "Tidak diizinkan." };
   if (!input.app_role_id) return { ok: false, error: "Pilih peran." };
+  const touchErr = await assertAccountTouchable(userId);
+  if (touchErr) return { ok: false, error: touchErr };
+  const roleErr = await assertRoleAssignable(input.app_role_id);
+  if (roleErr) return { ok: false, error: roleErr };
 
   const admin = createAdminClient();
   await admin
@@ -85,10 +126,12 @@ export async function resetStaffPassword(
   userId: string,
   password: string,
 ): Promise<FormResult> {
-  if (!(await canAkun())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canAkunStaff())) return { ok: false, error: "Tidak diizinkan." };
   if (!password || password.length < 6) {
     return { ok: false, error: "Password minimal 6 karakter." };
   }
+  const touchErr = await assertAccountTouchable(userId);
+  if (touchErr) return { ok: false, error: touchErr };
 
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.updateUserById(userId, { password });
@@ -97,12 +140,14 @@ export async function resetStaffPassword(
 }
 
 export async function deleteStaffAccount(userId: string): Promise<FormResult> {
-  if (!(await canAkun())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canAkunStaff())) return { ok: false, error: "Tidak diizinkan." };
 
   const me = await getUser();
   if (me?.id === userId) {
     return { ok: false, error: "Tidak bisa menghapus akun sendiri." };
   }
+  const touchErr = await assertAccountTouchable(userId);
+  if (touchErr) return { ok: false, error: touchErr };
 
   const admin = createAdminClient();
   await admin.from("pegawai").update({ user_id: null }).eq("user_id", userId);

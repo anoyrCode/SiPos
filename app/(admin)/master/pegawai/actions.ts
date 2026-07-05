@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import { canMaster } from "@/lib/auth/dal";
+import { canPegawai } from "@/lib/auth/dal";
 import { dbErrorMessage, type FormResult } from "@/lib/forms";
 import { pegawaiSchema, type PegawaiInput } from "./schema";
 
@@ -24,7 +24,7 @@ function payload(input: PegawaiInput) {
 }
 
 export async function createPegawai(input: PegawaiInput): Promise<FormResult> {
-  if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canPegawai())) return { ok: false, error: "Tidak diizinkan." };
   const parsed = pegawaiSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Data tidak valid." };
 
@@ -40,7 +40,7 @@ export async function updatePegawai(
   id: string,
   input: PegawaiInput,
 ): Promise<FormResult> {
-  if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canPegawai())) return { ok: false, error: "Tidak diizinkan." };
   const parsed = pegawaiSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Data tidak valid." };
 
@@ -56,7 +56,7 @@ export async function updatePegawai(
 }
 
 export async function deletePegawai(id: string): Promise<FormResult> {
-  if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canPegawai())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
   const { error } = await supabase.from("pegawai").delete().eq("id", id);
@@ -68,7 +68,7 @@ export async function deletePegawai(id: string): Promise<FormResult> {
 
 /** Cek NIP yang sudah ada di database (untuk validasi import CSV). */
 export async function checkExistingNip(keys: string[]): Promise<string[]> {
-  if (!(await canMaster())) return [];
+  if (!(await canPegawai())) return [];
   if (keys.length === 0) return [];
 
   const supabase = await createClient();
@@ -80,7 +80,7 @@ export async function checkExistingNip(keys: string[]): Promise<string[]> {
 export async function importPegawai(
   rows: PegawaiInput[],
 ): Promise<{ ok: boolean; inserted: number; error?: string }> {
-  if (!(await canMaster())) return { ok: false, inserted: 0, error: "Tidak diizinkan." };
+  if (!(await canPegawai())) return { ok: false, inserted: 0, error: "Tidak diizinkan." };
   if (rows.length === 0) return { ok: false, inserted: 0, error: "Tidak ada data." };
 
   const payloads = [];

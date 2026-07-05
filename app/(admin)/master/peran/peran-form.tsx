@@ -29,7 +29,10 @@ type PermKey =
   | "perm_laporan"
   | "perm_master"
   | "perm_akun"
-  | "perm_kesehatan";
+  | "perm_kesehatan"
+  | "perm_santri"
+  | "perm_pegawai"
+  | "perm_akun_staff";
 
 const PERMS: { key: PermKey; label: string; desc: string }[] = [
   { key: "perm_input_poin", label: "Input poin", desc: "Mencatat poin santri." },
@@ -44,9 +47,24 @@ const PERMS: { key: PermKey; label: string; desc: string }[] = [
     desc: "Tambah/edit santri, pegawai, poin, kelas, dll.",
   },
   {
+    key: "perm_santri",
+    label: "— Kelola data Santri saja",
+    desc: "Tambah/edit/hapus data Santri, tanpa akses master data lain.",
+  },
+  {
+    key: "perm_pegawai",
+    label: "— Kelola data Pegawai saja",
+    desc: "Tambah/edit/hapus data Pegawai, tanpa akses master data lain.",
+  },
+  {
     key: "perm_akun",
     label: "Kelola akun & peran",
     desc: "Buat akun staff dan atur hak aksesnya.",
+  },
+  {
+    key: "perm_akun_staff",
+    label: "— Kelola Akun Staff saja",
+    desc: "Buat/atur Akun Staff saja, tanpa akses Akun Wali & Peran.",
   },
   {
     key: "perm_kesehatan",
@@ -70,6 +88,9 @@ export function PeranForm({ initial }: { initial?: PeranRow }) {
     perm_akun: initial?.perm_akun ?? false,
     perm_kesehatan: initial?.perm_kesehatan ?? false,
     scope_kelas: initial?.scope_kelas ?? false,
+    perm_santri: initial?.perm_santri ?? false,
+    perm_pegawai: initial?.perm_pegawai ?? false,
+    perm_akun_staff: initial?.perm_akun_staff ?? false,
   };
 
   const form = useForm<PeranInput>({

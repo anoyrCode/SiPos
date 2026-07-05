@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import { canMaster } from "@/lib/auth/dal";
+import { canSantri } from "@/lib/auth/dal";
 import { dbErrorMessage, type FormResult } from "@/lib/forms";
 import { santriSchema, type SantriInput } from "./schema";
 
@@ -25,7 +25,7 @@ function payload(input: SantriInput) {
 }
 
 export async function createSantri(input: SantriInput): Promise<FormResult> {
-  if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canSantri())) return { ok: false, error: "Tidak diizinkan." };
   const parsed = santriSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Data tidak valid." };
 
@@ -41,7 +41,7 @@ export async function updateSantri(
   id: string,
   input: SantriInput,
 ): Promise<FormResult> {
-  if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canSantri())) return { ok: false, error: "Tidak diizinkan." };
   const parsed = santriSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Data tidak valid." };
 
@@ -57,7 +57,7 @@ export async function updateSantri(
 }
 
 export async function deleteSantri(id: string): Promise<FormResult> {
-  if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canSantri())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
   const { error } = await supabase.from("santri").delete().eq("id", id);
@@ -69,7 +69,7 @@ export async function deleteSantri(id: string): Promise<FormResult> {
 
 /** Cek NIS yang sudah ada di database (untuk validasi import CSV). */
 export async function checkExistingNis(keys: string[]): Promise<string[]> {
-  if (!(await canMaster())) return [];
+  if (!(await canSantri())) return [];
   if (keys.length === 0) return [];
 
   const supabase = await createClient();
@@ -81,7 +81,7 @@ export async function checkExistingNis(keys: string[]): Promise<string[]> {
 export async function importSantri(
   rows: SantriInput[],
 ): Promise<{ ok: boolean; inserted: number; error?: string }> {
-  if (!(await canMaster())) return { ok: false, inserted: 0, error: "Tidak diizinkan." };
+  if (!(await canSantri())) return { ok: false, inserted: 0, error: "Tidak diizinkan." };
   if (rows.length === 0) return { ok: false, inserted: 0, error: "Tidak ada data." };
 
   const payloads = [];

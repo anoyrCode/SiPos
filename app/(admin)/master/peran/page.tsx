@@ -23,7 +23,10 @@ const PERM_BADGES: { key: keyof PeranRow; label: string }[] = [
   { key: "perm_input_poin", label: "Input poin" },
   { key: "perm_laporan", label: "Laporan" },
   { key: "perm_master", label: "Master" },
+  { key: "perm_santri", label: "Santri" },
+  { key: "perm_pegawai", label: "Pegawai" },
   { key: "perm_akun", label: "Akun" },
+  { key: "perm_akun_staff", label: "Akun Staff" },
   { key: "perm_kesehatan", label: "UKS" },
 ];
 
@@ -40,7 +43,7 @@ export default async function Page({
   let query = supabase
     .from("app_role")
     .select(
-      "id, nama, deskripsi, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, is_super",
+      "id, nama, deskripsi, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, is_super",
       { count: "exact" },
     )
     .order("is_super", { ascending: false })
@@ -83,13 +86,9 @@ export default async function Page({
               </Badge>
             ))}
             {r.scope_kelas && <Badge variant="outline">Per kelas</Badge>}
-            {!r.perm_input_poin &&
-              !r.perm_laporan &&
-              !r.perm_master &&
-              !r.perm_akun &&
-              !r.perm_kesehatan && (
-                <span className="text-xs text-muted-foreground">—</span>
-              )}
+            {!PERM_BADGES.some((p) => r[p.key]) && (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
           </div>
         ),
     },

@@ -9,6 +9,9 @@ export type Perms = {
   akun: boolean;
   kesehatan: boolean; // kelola rekam medis (UKS)
   scope_kelas: boolean; // input poin hanya kelas yang ditugaskan
+  santri: boolean; // kelola data santri saja (subset dari master)
+  pegawai: boolean; // kelola data pegawai saja (subset dari master)
+  akun_staff: boolean; // kelola akun staff saja (subset dari akun)
 };
 
 export const EMPTY_PERMS: Perms = {
@@ -19,6 +22,9 @@ export const EMPTY_PERMS: Perms = {
   akun: false,
   kesehatan: false,
   scope_kelas: false,
+  santri: false,
+  pegawai: false,
+  akun_staff: false,
 };
 
 export type NavItem = { href: string; label: string };
@@ -33,6 +39,8 @@ export function homePathForProfile({ role, perms }: ProfileLike): string {
   if (perms.input_poin) return "/input-poin";
   if (perms.laporan) return "/riwayat-poin";
   if (perms.kesehatan || perms.scope_kelas) return "/uks";
+  if (perms.santri || perms.pegawai) return "/master/santri";
+  if (perms.akun || perms.akun_staff) return "/master/akun-staff";
   return "/input-poin"; // fallback aman (halaman menampilkan pesan bila tak berhak)
 }
 
@@ -60,33 +68,36 @@ export function navForProfile({ role, perms }: ProfileLike): NavGroup[] {
     groups.push({ title: "Transaksi", items: transaksi });
   }
 
+  const masterItems: NavItem[] = [];
+  if (perms.master || perms.santri) masterItems.push({ href: "/master/santri", label: "Santri" });
+  if (perms.master || perms.pegawai) masterItems.push({ href: "/master/pegawai", label: "Pegawai" });
   if (perms.master) {
-    groups.push({
-      title: "Master Data",
-      items: [
-        { href: "/master/santri", label: "Santri" },
-        { href: "/master/pegawai", label: "Pegawai" },
-        { href: "/master/poin-positif", label: "Poin Positif" },
-        { href: "/master/poin-negatif", label: "Poin Negatif" },
-        { href: "/master/level-poin", label: "Level Poin" },
-        { href: "/master/kelas", label: "Kelas" },
-        { href: "/master/level-pendidikan", label: "Level Pendidikan" },
-        { href: "/master/tahun-ajaran", label: "Tahun Ajaran" },
-        { href: "/master/kelas-wali", label: "Kelas & Wali" },
-        { href: "/master/penugasan-guru", label: "Penugasan Guru" },
-      ],
-    });
+    masterItems.push(
+      { href: "/master/poin-positif", label: "Poin Positif" },
+      { href: "/master/poin-negatif", label: "Poin Negatif" },
+      { href: "/master/level-poin", label: "Level Poin" },
+      { href: "/master/kelas", label: "Kelas" },
+      { href: "/master/level-pendidikan", label: "Level Pendidikan" },
+      { href: "/master/tahun-ajaran", label: "Tahun Ajaran" },
+      { href: "/master/kelas-wali", label: "Kelas & Wali" },
+      { href: "/master/penugasan-guru", label: "Penugasan Guru" },
+    );
+  }
+  if (masterItems.length > 0) {
+    groups.push({ title: "Master Data", items: masterItems });
   }
 
+  const akunItems: NavItem[] = [];
+  if (perms.akun || perms.akun_staff)
+    akunItems.push({ href: "/master/akun-staff", label: "Akun Staff" });
   if (perms.akun) {
-    groups.push({
-      title: "Akun & Peran",
-      items: [
-        { href: "/master/akun-staff", label: "Akun Staff" },
-        { href: "/master/akun-wali", label: "Akun Wali" },
-        { href: "/master/peran", label: "Peran & Hak Akses" },
-      ],
-    });
+    akunItems.push(
+      { href: "/master/akun-wali", label: "Akun Wali" },
+      { href: "/master/peran", label: "Peran & Hak Akses" },
+    );
+  }
+  if (akunItems.length > 0) {
+    groups.push({ title: "Akun & Peran", items: akunItems });
   }
 
   if (perms.kesehatan || perms.scope_kelas) {

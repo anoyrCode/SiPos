@@ -30,6 +30,9 @@ type AppRoleRow = {
   perm_akun: boolean;
   perm_kesehatan: boolean;
   scope_kelas: boolean;
+  perm_santri: boolean;
+  perm_pegawai: boolean;
+  perm_akun_staff: boolean;
 } | null;
 
 function resolvePerms(role: Role, r: AppRoleRow): Perms {
@@ -44,6 +47,9 @@ function resolvePerms(role: Role, r: AppRoleRow): Perms {
       akun: true,
       kesehatan: true,
       scope_kelas: false,
+      santri: true,
+      pegawai: true,
+      akun_staff: true,
     };
   }
   return {
@@ -54,6 +60,9 @@ function resolvePerms(role: Role, r: AppRoleRow): Perms {
     akun: !!r?.perm_akun,
     kesehatan: !!r?.perm_kesehatan,
     scope_kelas: !!r?.scope_kelas,
+    santri: !!r?.perm_santri,
+    pegawai: !!r?.perm_pegawai,
+    akun_staff: !!r?.perm_akun_staff,
   };
 }
 
@@ -75,7 +84,7 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   const { data } = await supabase
     .from("profiles")
     .select(
-      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas), pegawai:pegawai(nama), wali:wali(nama)",
+      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff), pegawai:pegawai(nama), wali:wali(nama)",
     )
     .eq("id", user.id)
     .single();
@@ -150,6 +159,24 @@ export async function canAkun(): Promise<boolean> {
   return profile?.perms.akun ?? false;
 }
 
+/** True bila boleh mengelola data santri (master penuh atau perm khusus santri). */
+export async function canSantri(): Promise<boolean> {
+  const profile = await getProfile();
+  return (profile?.perms.master || profile?.perms.santri) ?? false;
+}
+
+/** True bila boleh mengelola data pegawai (master penuh atau perm khusus pegawai). */
+export async function canPegawai(): Promise<boolean> {
+  const profile = await getProfile();
+  return (profile?.perms.master || profile?.perms.pegawai) ?? false;
+}
+
+/** True bila boleh mengelola akun staff (akun penuh atau perm khusus akun staff). */
+export async function canAkunStaff(): Promise<boolean> {
+  const profile = await getProfile();
+  return (profile?.perms.akun || profile?.perms.akun_staff) ?? false;
+}
+
 /** True bila boleh mengelola rekam medis (UKS). */
 export async function canKesehatan(): Promise<boolean> {
   const profile = await getProfile();
@@ -177,7 +204,15 @@ export async function requireStaff(): Promise<Profile> {
   const profile = await requireAuth();
   const p = profile.perms;
   const hasAny =
-    p.super || p.input_poin || p.laporan || p.master || p.akun || p.kesehatan;
+    p.super ||
+    p.input_poin ||
+    p.laporan ||
+    p.master ||
+    p.akun ||
+    p.kesehatan ||
+    p.santri ||
+    p.pegawai ||
+    p.akun_staff;
   if (profile.role === "wali" || !hasAny) {
     redirect(homePathForProfile(profile));
   }

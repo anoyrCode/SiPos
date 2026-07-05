@@ -1,7 +1,9 @@
 import { Trash2, UserCog } from "lucide-react";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requirePerm } from "@/lib/auth/dal";
+import { canAkun, getProfile } from "@/lib/auth/dal";
+import { homePathForProfile } from "@/lib/auth/roles";
+import { redirect } from "next/navigation";
 import {
   parseListParams,
   totalPages,
@@ -39,7 +41,11 @@ export default async function Page({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  await requirePerm("akun");
+  const profile = await getProfile();
+  if (!profile || !(profile.perms.akun || profile.perms.akun_staff)) {
+    redirect(profile ? homePathForProfile(profile) : "/login");
+  }
+  const hasFullAkun = await canAkun();
   const sp = await searchParams;
   const { page, perPage, q, from, to } = parseListParams(sp);
 
@@ -48,7 +54,7 @@ export default async function Page({
   let query = admin
     .from("profiles")
     .select(
-      "id, email, role, app_role_id, pegawai_id, app_role:app_role(nama), pegawai:pegawai(nama)",
+      "id, email, role, app_role_id, pegawai_id, app_role:app_role(nama, is_super, perm_akun), pegawai:pegawai(nama)",
       { count: "exact" },
     )
     .neq("role", "wali")
@@ -58,19 +64,28 @@ export default async function Page({
     if (term) query = query.ilike("email", `%${term}%`);
   }
   const { data, count } = await query.range(from, to);
-  const rows = (data ?? []) as unknown as AccountRow[];
+  let rows = (data ?? []) as unknown as (AccountRow & {
+    app_role: { nama: string; is_super: boolean; perm_akun: boolean } | null;
+  })[];
 
   const [{ data: roleData }, { data: pegData }] = await Promise.all([
     admin
       .from("app_role")
-      .select("id, nama")
+      .select("id, nama, is_super, perm_akun")
       .eq("is_aktif", true)
       .order("is_super", { ascending: false })
       .order("nama"),
     admin.from("pegawai").select("id, nama, email").order("nama"),
   ]);
-  const roles = roleData ?? [];
+  let roles = roleData ?? [];
   const pegawai = pegData ?? [];
+
+  // Peran sempit (akun_staff tanpa akun penuh) tidak boleh melihat/menetapkan
+  // akun & peran admin/akun-penuh — cegah eskalasi hak akses.
+  if (!hasFullAkun) {
+    rows = rows.filter((r) => !(r.app_role?.is_super || r.app_role?.perm_akun));
+    roles = roles.filter((r) => !(r.is_super || r.perm_akun));
+  }
 
   const columns: Column<AccountRow>[] = [
     {
