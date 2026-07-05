@@ -30,6 +30,28 @@ import { Field } from "@/components/shared/field";
 import { pegawaiSchema, type PegawaiInput, type PegawaiRow } from "./schema";
 import { createPegawai, updatePegawai } from "./actions";
 
+const JABATAN_OPTIONS = [
+  "Musyrif",
+  "Musyrifah",
+  "Kesantrian Akhwat",
+  "Kesantrian Ikhwan",
+  "Humas",
+  "IT Support (TU)",
+  "IT Development",
+  "Tim Keamanan",
+  "Guru Profesional",
+  "Tim Kurikulum",
+  "Administrasi",
+  "Tim Kesehatan",
+  "Tim Kepala Sekolah",
+  "Tim Maintenance Umum",
+  "Tim Maintenance AC",
+  "Tim Maintenance Kelistrikan",
+  "Bagian Dapur/Konsumsi",
+  "Bagian Kantin",
+  "Tim Percetakan",
+];
+
 export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -124,10 +146,49 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                 <Field
                   label="Jabatan"
                   htmlFor="jabatan"
-                  hint="mis. Guru, Wali Kelas, Musyrif, TU"
                   error={form.formState.errors.jabatan?.message}
                 >
-                  <Input id="jabatan" {...form.register("jabatan")} />
+                  <Controller
+                    control={form.control}
+                    name="jabatan"
+                    render={({ field }) => {
+                      const isPreset = JABATAN_OPTIONS.includes(field.value ?? "");
+                      const selectValue = field.value
+                        ? isPreset
+                          ? field.value
+                          : "Lainnya"
+                        : undefined;
+                      return (
+                        <div className="space-y-2">
+                          <Select
+                            value={selectValue}
+                            onValueChange={(v) =>
+                              field.onChange(v === "Lainnya" ? "" : v)
+                            }
+                          >
+                            <SelectTrigger id="jabatan">
+                              <SelectValue placeholder="Pilih jabatan" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {JABATAN_OPTIONS.map((opt) => (
+                                <SelectItem key={opt} value={opt}>
+                                  {opt}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="Lainnya">Lainnya</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {selectValue === "Lainnya" && (
+                            <Input
+                              placeholder="Tulis jabatan"
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value)}
+                            />
+                          )}
+                        </div>
+                      );
+                    }}
+                  />
                 </Field>
                 <Field
                   label="Jenis Kelamin"
