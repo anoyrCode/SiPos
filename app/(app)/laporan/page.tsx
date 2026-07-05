@@ -5,13 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth/dal";
 import { getStr, type SearchParams } from "@/lib/list-params";
 import { PageHeader } from "@/components/shared/page-header";
-import { DataTable, type Column } from "@/components/shared/data-table";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TaFilter } from "./ta-filter";
 import { RekapSantriTable, type RekapSantriRow } from "./rekap-santri-table";
-import { ExportRekapKelas } from "./export-rekap-kelas";
+import { RekapKelasTable } from "./rekap-kelas-table";
 
 type KelasRekap = {
   key: string;
@@ -170,39 +168,6 @@ export default async function Page({
     }
   }
 
-  const kelasColumns: Column<KelasRekap>[] = [
-    {
-      key: "nama",
-      header: "Kelas",
-      cell: (r) => <span className="font-medium">{r.nama}</span>,
-    },
-    {
-      key: "count",
-      header: "Jml Santri",
-      cell: (r) => <span className="tabular-nums text-muted-foreground">{r.count}</span>,
-    },
-    {
-      key: "pos",
-      header: "Positif",
-      cell: (r) => <span className="font-mono tabular-nums text-positive">+{r.pos}</span>,
-    },
-    {
-      key: "neg",
-      header: "Negatif",
-      cell: (r) => <span className="font-mono tabular-nums text-negative">−{r.neg}</span>,
-    },
-    {
-      key: "net",
-      header: "Net",
-      cell: (r) => (
-        <Badge variant={r.net >= 0 ? "positive" : "negative"} className="font-mono">
-          {r.net > 0 ? "+" : ""}
-          {r.net}
-        </Badge>
-      ),
-    },
-  ];
-
   return (
     <div className="animate-enter space-y-6 p-6 md:p-8">
       <PageHeader
@@ -213,18 +178,13 @@ export default async function Page({
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border/70 bg-card p-3 shadow-sm">
         <TaFilter options={taOptions} value={taId} />
-        <div className="flex flex-wrap items-center gap-2">
-          {mode === "kelas" && (
-            <ExportRekapKelas rows={kelasRekap} taLabel={taLabel} />
-          )}
-          <div className="flex gap-1 rounded-lg bg-muted p-1">
-            <Button asChild size="sm" variant={mode === "kelas" ? "default" : "ghost"}>
-              <Link href={`/laporan?ta=${taId}&mode=kelas`}>Per Kelas</Link>
-            </Button>
-            <Button asChild size="sm" variant={mode === "santri" ? "default" : "ghost"}>
-              <Link href={`/laporan?ta=${taId}&mode=santri`}>Per Santri</Link>
-            </Button>
-          </div>
+        <div className="flex gap-1 rounded-lg bg-muted p-1">
+          <Button asChild size="sm" variant={mode === "kelas" ? "default" : "ghost"}>
+            <Link href={`/laporan?ta=${taId}&mode=kelas`}>Per Kelas</Link>
+          </Button>
+          <Button asChild size="sm" variant={mode === "santri" ? "default" : "ghost"}>
+            <Link href={`/laporan?ta=${taId}&mode=santri`}>Per Santri</Link>
+          </Button>
         </div>
       </div>
 
@@ -235,12 +195,7 @@ export default async function Page({
           </CardContent>
         </Card>
       ) : mode === "kelas" ? (
-        <DataTable
-          columns={kelasColumns}
-          rows={kelasRekap}
-          getRowId={(r) => r.key}
-          empty="Belum ada data."
-        />
+        <RekapKelasTable rows={kelasRekap} taLabel={taLabel} />
       ) : (
         <RekapSantriTable rows={santriRekap} taLabel={taLabel} />
       )}
