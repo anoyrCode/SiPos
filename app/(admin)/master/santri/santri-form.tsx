@@ -205,9 +205,14 @@ export function SantriForm({ initial }: { initial?: SantriRow }) {
                 <Field
                   label="Nama Wali"
                   htmlFor="nama_wali"
+                  hint="Nama ayah/ibu atau wali yang dihubungi untuk akun & surat."
                   error={form.formState.errors.nama_wali?.message}
                 >
-                  <Input id="nama_wali" {...form.register("nama_wali")} />
+                  <Input
+                    id="nama_wali"
+                    placeholder="mis. nama ayah atau ibu"
+                    {...form.register("nama_wali")}
+                  />
                 </Field>
                 <Field
                   label="No WA/Telp Wali"
