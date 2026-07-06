@@ -32,7 +32,8 @@ type PermKey =
   | "perm_kesehatan"
   | "perm_santri"
   | "perm_pegawai"
-  | "perm_akun_staff";
+  | "perm_akun_staff"
+  | "perm_absensi";
 
 const PERMS: { key: PermKey; label: string; desc: string }[] = [
   { key: "perm_input_poin", label: "Input poin", desc: "Mencatat poin santri." },
@@ -67,6 +68,11 @@ const PERMS: { key: PermKey; label: string; desc: string }[] = [
     desc: "Buat/atur Akun Staff saja, tanpa akses Akun Wali & Peran.",
   },
   {
+    key: "perm_absensi",
+    label: "Absensi (clock in/out)",
+    desc: "Bisa clock in/out kehadiran sendiri berbasis lokasi pondok.",
+  },
+  {
     key: "perm_kesehatan",
     label: "Kelola rekam medis (UKS)",
     desc: "Mencatat & melihat rekam medis santri di UKS.",
@@ -91,6 +97,7 @@ export function PeranForm({ initial }: { initial?: PeranRow }) {
     perm_santri: initial?.perm_santri ?? false,
     perm_pegawai: initial?.perm_pegawai ?? false,
     perm_akun_staff: initial?.perm_akun_staff ?? false,
+    perm_absensi: initial?.perm_absensi ?? false,
   };
 
   const form = useForm<PeranInput>({

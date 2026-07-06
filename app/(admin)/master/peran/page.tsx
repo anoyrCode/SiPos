@@ -27,6 +27,7 @@ const PERM_BADGES: { key: keyof PeranRow; label: string }[] = [
   { key: "perm_pegawai", label: "Pegawai" },
   { key: "perm_akun", label: "Akun" },
   { key: "perm_akun_staff", label: "Akun Staff" },
+  { key: "perm_absensi", label: "Absensi" },
   { key: "perm_kesehatan", label: "UKS" },
 ];
 
@@ -43,7 +44,7 @@ export default async function Page({
   let query = supabase
     .from("app_role")
     .select(
-      "id, nama, deskripsi, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, is_super",
+      "id, nama, deskripsi, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_absensi, is_super",
       { count: "exact" },
     )
     .order("is_super", { ascending: false })
