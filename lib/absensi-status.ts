@@ -3,6 +3,7 @@ export type AbsensiStatus =
   | "telat"
   | "curang"
   | "telat_clock_out"
+  | "belum_clock_out"
   | "alpa"
   | "libur"
   | "belum_absen";
@@ -67,9 +68,13 @@ export function computeStatusPulang(
 
 /**
  * Status harian keseluruhan untuk 1 pegawai pada 1 tanggal.
- * Prioritas: libur > alpa/belum_absen > telat_clock_out > curang > telat > normal.
+ * Prioritas: libur > alpa/belum_absen > belum_clock_out > telat_clock_out
+ * > curang > telat > normal.
  * "alpa" hanya berlaku utk tanggal < hari ini (WIB); hari ini tanpa
- * record tampil "belum_absen" (harinya belum lewat).
+ * record tampil "belum_absen" (harinya belum lewat). "belum_clock_out"
+ * berlaku utk tanggal < hari ini yang sudah clock in tapi belum clock out
+ * (lupa absen pulang) — dicek SEBELUM status telat/curang/normal biasa,
+ * supaya lupa clock out tidak tersamar jadi "Normal".
  */
 export function computeDayStatus(
   tanggal: string,
@@ -84,6 +89,10 @@ export function computeDayStatus(
   if (isLibur && !hasRecord) return "libur";
   if (!hasRecord) return isPast ? "alpa" : "belum_absen";
 
+  if (isPast && record?.jam_masuk_aktual && !record?.jam_pulang_aktual) {
+    return "belum_clock_out";
+  }
+
   const statusMasuk = computeStatusMasuk(tanggal, record, jadwal);
   const statusPulang = computeStatusPulang(tanggal, record, jadwal);
   if (statusPulang === "telat_clock_out") return "telat_clock_out";
@@ -97,6 +106,7 @@ export const STATUS_LABEL: Record<AbsensiStatus, string> = {
   telat: "Telat",
   curang: "Curang",
   telat_clock_out: "Telat Clock Out",
+  belum_clock_out: "Belum Clock Out",
   alpa: "Alpa",
   libur: "Libur",
   belum_absen: "Belum Absen",
