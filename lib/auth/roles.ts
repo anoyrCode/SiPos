@@ -12,6 +12,7 @@ export type Perms = {
   santri: boolean; // kelola data santri saja (subset dari master)
   pegawai: boolean; // kelola data pegawai saja (subset dari master)
   akun_staff: boolean; // kelola akun staff saja (subset dari akun)
+  absensi: boolean; // clock in/out kehadiran pribadi
 };
 
 export const EMPTY_PERMS: Perms = {
@@ -25,6 +26,7 @@ export const EMPTY_PERMS: Perms = {
   santri: false,
   pegawai: false,
   akun_staff: false,
+  absensi: false,
 };
 
 export type NavItem = { href: string; label: string };
@@ -41,6 +43,7 @@ export function homePathForProfile({ role, perms }: ProfileLike): string {
   if (perms.kesehatan || perms.scope_kelas) return "/uks";
   if (perms.santri || perms.pegawai) return "/master/santri";
   if (perms.akun || perms.akun_staff) return "/master/akun-staff";
+  if (perms.absensi) return "/absensi";
   return "/input-poin"; // fallback aman (halaman menampilkan pesan bila tak berhak)
 }
 
@@ -64,6 +67,8 @@ export function navForProfile({ role, perms }: ProfileLike): NavGroup[] {
     transaksi.push({ href: "/laporan", label: "Laporan" });
     transaksi.push({ href: "/surat-panggilan", label: "Surat Panggilan" });
   }
+  if (perms.absensi) transaksi.push({ href: "/absensi", label: "Absensi" });
+  if (perms.master) transaksi.push({ href: "/rekap-absensi", label: "Rekap Absensi" });
   if (transaksi.length > 0) {
     groups.push({ title: "Transaksi", items: transaksi });
   }

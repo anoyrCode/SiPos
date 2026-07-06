@@ -33,6 +33,7 @@ type AppRoleRow = {
   perm_santri: boolean;
   perm_pegawai: boolean;
   perm_akun_staff: boolean;
+  perm_absensi: boolean;
 } | null;
 
 function resolvePerms(role: Role, r: AppRoleRow): Perms {
@@ -50,6 +51,7 @@ function resolvePerms(role: Role, r: AppRoleRow): Perms {
       santri: true,
       pegawai: true,
       akun_staff: true,
+      absensi: true,
     };
   }
   return {
@@ -63,6 +65,7 @@ function resolvePerms(role: Role, r: AppRoleRow): Perms {
     santri: !!r?.perm_santri,
     pegawai: !!r?.perm_pegawai,
     akun_staff: !!r?.perm_akun_staff,
+    absensi: !!r?.perm_absensi,
   };
 }
 
@@ -84,7 +87,7 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   const { data } = await supabase
     .from("profiles")
     .select(
-      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff), pegawai:pegawai(nama), wali:wali(nama)",
+      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_absensi), pegawai:pegawai(nama), wali:wali(nama)",
     )
     .eq("id", user.id)
     .single();
@@ -177,6 +180,12 @@ export async function canAkunStaff(): Promise<boolean> {
   return (profile?.perms.akun || profile?.perms.akun_staff) ?? false;
 }
 
+/** True bila boleh absen (clock in/out). */
+export async function canAbsensi(): Promise<boolean> {
+  const profile = await getProfile();
+  return profile?.perms.absensi ?? false;
+}
+
 /** True bila boleh mengelola rekam medis (UKS). */
 export async function canKesehatan(): Promise<boolean> {
   const profile = await getProfile();
@@ -212,7 +221,8 @@ export async function requireStaff(): Promise<Profile> {
     p.kesehatan ||
     p.santri ||
     p.pegawai ||
-    p.akun_staff;
+    p.akun_staff ||
+    p.absensi;
   if (profile.role === "wali" || !hasAny) {
     redirect(homePathForProfile(profile));
   }
