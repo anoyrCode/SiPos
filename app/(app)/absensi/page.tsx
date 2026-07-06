@@ -1,0 +1,77 @@
+import { Fingerprint } from "lucide-react";
+
+import { createClient } from "@/lib/supabase/server";
+import { requirePerm } from "@/lib/auth/dal";
+import { PageHeader } from "@/components/shared/page-header";
+import { computeDayStatus, type JadwalPegawai } from "@/lib/absensi-status";
+import { AbsensiClient, type AbsensiHistoryRow } from "./absensi-client";
+
+function lastNDatesJakarta(n: number): string[] {
+  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });
+  const dates: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - i);
+    dates.push(fmt.format(d));
+  }
+  return dates;
+}
+
+export default async function Page() {
+  const profile = await requirePerm("absensi");
+  const supabase = await createClient();
+  const pegawaiId = profile.pegawai_id ?? "";
+
+  const { data: pegawai } = await supabase
+    .from("pegawai")
+    .select("jam_masuk_jadwal, jam_pulang_jadwal, hari_libur")
+    .eq("id", pegawaiId)
+    .maybeSingle();
+
+  const jadwal: JadwalPegawai = {
+    jam_masuk_jadwal: pegawai?.jam_masuk_jadwal ?? null,
+    jam_pulang_jadwal: pegawai?.jam_pulang_jadwal ?? null,
+    hari_libur: pegawai?.hari_libur ?? null,
+  };
+
+  const dates = lastNDatesJakarta(14);
+  const from = dates[dates.length - 1];
+  const to = dates[0];
+
+  const { data: rows } = await supabase
+    .from("absensi")
+    .select("tanggal, jam_masuk_aktual, jam_pulang_aktual")
+    .eq("pegawai_id", pegawaiId)
+    .gte("tanggal", from)
+    .lte("tanggal", to);
+
+  const rowMap = new Map((rows ?? []).map((r) => [r.tanggal, r]));
+
+  const history: AbsensiHistoryRow[] = dates.map((tanggal) => {
+    const record = rowMap.get(tanggal) ?? null;
+    return {
+      tanggal,
+      jamMasukAktual: record?.jam_masuk_aktual ?? null,
+      jamPulangAktual: record?.jam_pulang_aktual ?? null,
+      status: computeDayStatus(tanggal, record, jadwal),
+    };
+  });
+
+  const todayRow = rowMap.get(to) ?? null;
+
+  return (
+    <div className="animate-enter space-y-6 p-6 md:p-8">
+      <PageHeader
+        icon={Fingerprint}
+        title="Absensi"
+        description="Clock in/out kehadiran harian berdasarkan lokasi pondok."
+      />
+      <AbsensiClient
+        hasJadwal={!!jadwal.jam_masuk_jadwal && !!jadwal.jam_pulang_jadwal}
+        sudahClockIn={!!todayRow?.jam_masuk_aktual}
+        sudahClockOut={!!todayRow?.jam_pulang_aktual}
+        history={history}
+      />
+    </div>
+  );
+}
