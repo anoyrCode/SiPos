@@ -30,7 +30,7 @@ export default async function Page({
   let query = supabase
     .from("pegawai")
     .select(
-      "id, nip, nama, email, jabatan, jenis_kelamin, telp, tempat_lahir, tanggal_lahir, alamat",
+      "id, nip, nama, email, jabatan, jenis_kelamin, telp, tempat_lahir, tanggal_lahir, alamat, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur",
       { count: "exact" },
     )
     .order("nama", { ascending: true });

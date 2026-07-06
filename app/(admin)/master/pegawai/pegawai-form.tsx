@@ -52,6 +52,16 @@ const JABATAN_OPTIONS = [
   "Tim Percetakan",
 ];
 
+const HARI_LIBUR_OPTIONS = [
+  { value: "0", label: "Minggu" },
+  { value: "1", label: "Senin" },
+  { value: "2", label: "Selasa" },
+  { value: "3", label: "Rabu" },
+  { value: "4", label: "Kamis" },
+  { value: "5", label: "Jumat" },
+  { value: "6", label: "Sabtu" },
+];
+
 export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -67,6 +77,12 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
     tempat_lahir: initial?.tempat_lahir ?? "",
     tanggal_lahir: initial?.tanggal_lahir ?? "",
     alamat: initial?.alamat ?? "",
+    jam_masuk_jadwal: initial?.jam_masuk_jadwal ?? "",
+    jam_pulang_jadwal: initial?.jam_pulang_jadwal ?? "",
+    hari_libur:
+      initial?.hari_libur !== null && initial?.hari_libur !== undefined
+        ? String(initial.hari_libur)
+        : "",
   };
 
   const form = useForm<PegawaiInput>({
@@ -262,6 +278,64 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                   error={form.formState.errors.alamat?.message}
                 >
                   <Textarea id="alamat" {...form.register("alamat")} />
+                </Field>
+              </div>
+            </section>
+
+            <div className="h-px bg-border" />
+
+            <section className="space-y-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Jadwal Absensi
+              </h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field
+                  label="Jam Masuk"
+                  htmlFor="jam_masuk_jadwal"
+                  error={form.formState.errors.jam_masuk_jadwal?.message}
+                >
+                  <Input
+                    id="jam_masuk_jadwal"
+                    type="time"
+                    {...form.register("jam_masuk_jadwal")}
+                  />
+                </Field>
+                <Field
+                  label="Jam Pulang"
+                  htmlFor="jam_pulang_jadwal"
+                  error={form.formState.errors.jam_pulang_jadwal?.message}
+                >
+                  <Input
+                    id="jam_pulang_jadwal"
+                    type="time"
+                    {...form.register("jam_pulang_jadwal")}
+                  />
+                </Field>
+                <Field
+                  label="Hari Libur"
+                  error={form.formState.errors.hari_libur?.message}
+                >
+                  <Controller
+                    control={form.control}
+                    name="hari_libur"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value || undefined}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih hari libur" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {HARI_LIBUR_OPTIONS.map((h) => (
+                            <SelectItem key={h.value} value={h.value}>
+                              {h.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                 </Field>
               </div>
             </section>

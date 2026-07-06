@@ -15,6 +15,9 @@ export const pegawaiSchema = z.object({
   tempat_lahir: z.string().trim().optional(),
   tanggal_lahir: z.string().optional(),
   alamat: z.string().trim().optional(),
+  jam_masuk_jadwal: z.string().trim().optional(),
+  jam_pulang_jadwal: z.string().trim().optional(),
+  hari_libur: z.string().optional(),
 });
 
 export type PegawaiInput = z.infer<typeof pegawaiSchema>;
@@ -30,4 +33,7 @@ export type PegawaiRow = {
   tempat_lahir: string | null;
   tanggal_lahir: string | null;
   alamat: string | null;
+  jam_masuk_jadwal: string | null;
+  jam_pulang_jadwal: string | null;
+  hari_libur: number | null;
 };

@@ -20,6 +20,12 @@ function payload(input: PegawaiInput) {
     tempat_lahir: input.tempat_lahir || null,
     tanggal_lahir: input.tanggal_lahir || null,
     alamat: input.alamat || null,
+    jam_masuk_jadwal: input.jam_masuk_jadwal || null,
+    jam_pulang_jadwal: input.jam_pulang_jadwal || null,
+    hari_libur:
+      input.hari_libur !== undefined && input.hari_libur !== ""
+        ? Number(input.hari_libur)
+        : null,
   };
 }
 
