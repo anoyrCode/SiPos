@@ -66,37 +66,3 @@ export async function deleteSantri(id: string): Promise<FormResult> {
   revalidatePath(PATH);
   return { ok: true };
 }
-
-/** Cek NIS yang sudah ada di database (untuk validasi import CSV). */
-export async function checkExistingNis(keys: string[]): Promise<string[]> {
-  if (!(await canSantri())) return [];
-  if (keys.length === 0) return [];
-
-  const supabase = await createClient();
-  const { data } = await supabase.from("santri").select("nis").in("nis", keys);
-  return (data ?? []).map((r) => r.nis).filter((v): v is string => Boolean(v));
-}
-
-/** Bulk import santri dari CSV (re-validasi tiap baris). */
-export async function importSantri(
-  rows: SantriInput[],
-): Promise<{ ok: boolean; inserted: number; error?: string }> {
-  if (!(await canSantri())) return { ok: false, inserted: 0, error: "Tidak diizinkan." };
-  if (rows.length === 0) return { ok: false, inserted: 0, error: "Tidak ada data." };
-
-  const payloads = [];
-  for (const row of rows) {
-    const parsed = santriSchema.safeParse(row);
-    if (!parsed.success) {
-      return { ok: false, inserted: 0, error: "Ada baris yang tidak valid." };
-    }
-    payloads.push(payload(parsed.data));
-  }
-
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("santri").insert(payloads).select("id");
-  if (error) return { ok: false, inserted: 0, error: dbErrorMessage(error) };
-
-  revalidatePath(PATH);
-  return { ok: true, inserted: data?.length ?? payloads.length };
-}

@@ -15,7 +15,6 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PegawaiForm } from "./pegawai-form";
-import { PegawaiImport } from "./pegawai-import";
 import { deletePegawai } from "./actions";
 import type { PegawaiRow } from "./schema";
 
@@ -122,7 +121,6 @@ export default async function Page({
       <div className="flex flex-wrap items-center gap-2.5 rounded-card border border-border/70 bg-card p-3 shadow-sm">
         <SearchInput placeholder="Cari nama atau NIP…" />
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <PegawaiImport />
           <PegawaiForm />
         </div>
       </div>

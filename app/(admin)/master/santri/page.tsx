@@ -17,7 +17,6 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SantriForm } from "./santri-form";
-import { SantriImport } from "./santri-import";
 import { deleteSantri } from "./actions";
 import { SANTRI_STATUS, type SantriRow } from "./schema";
 
@@ -144,7 +143,6 @@ export default async function Page({
           }))}
         />
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <SantriImport />
           <SantriForm />
         </div>
       </div>
