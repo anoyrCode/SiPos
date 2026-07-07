@@ -17,6 +17,12 @@ function lastNDatesJakarta(n: number): string[] {
   return dates;
 }
 
+/** "HH:MM:SS" (kolom Postgres `time`) -> "HH:MM". Bukan timestamptz, jangan pakai formatJamWIB. */
+function formatJamJadwal(value: string | null): string | null {
+  if (!value) return null;
+  return value.slice(0, 5);
+}
+
 export default async function Page() {
   const profile = await requirePerm("absensi");
   const supabase = await createClient();
@@ -68,8 +74,11 @@ export default async function Page() {
       />
       <AbsensiClient
         hasJadwal={!!jadwal.jam_masuk_jadwal && !!jadwal.jam_pulang_jadwal}
-        sudahClockIn={!!todayRow?.jam_masuk_aktual}
-        sudahClockOut={!!todayRow?.jam_pulang_aktual}
+        jamMasukJadwal={formatJamJadwal(jadwal.jam_masuk_jadwal)}
+        jamPulangJadwal={formatJamJadwal(jadwal.jam_pulang_jadwal)}
+        jamMasukAktual={todayRow?.jam_masuk_aktual ?? null}
+        jamPulangAktual={todayRow?.jam_pulang_aktual ?? null}
+        todayStatus={history[0].status}
         history={history}
       />
     </div>
