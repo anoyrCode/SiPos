@@ -1,7 +1,15 @@
 "use client";
 
+import { useEffect } from "react";
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Circle, useMapEvents } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Circle,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 // Fix ikon marker default Leaflet: import gambar dari node_modules tidak
@@ -29,6 +37,19 @@ function ClickHandler({ onChange }: { onChange: (lat: number, long: number) => v
       onChange(e.latlng.lat, e.latlng.lng);
     },
   });
+  return null;
+}
+
+// Leaflet menghitung ukuran container saat mount. Di dalam dialog yang masih
+// beranimasi buka, ukuran itu bisa salah, sehingga grid tile tidak dimuat
+// (marker & lingkaran tetap muncul karena overlay, tapi peta blank). Panggil
+// invalidateSize() setelah animasi settle supaya tile dimuat ulang dgn benar.
+function FixMapSize() {
+  const map = useMap();
+  useEffect(() => {
+    const id = setTimeout(() => map.invalidateSize(), 250);
+    return () => clearTimeout(id);
+  }, [map]);
   return null;
 }
 
@@ -75,6 +96,7 @@ export default function LokasiMapPicker({
         />
         <Circle center={[safeLat, safeLong]} radius={safeRadius} />
         <ClickHandler onChange={onChange} />
+        <FixMapSize />
       </MapContainer>
     </div>
   );
