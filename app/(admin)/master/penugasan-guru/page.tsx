@@ -39,7 +39,7 @@ export default async function Page({
       <div className="animate-enter space-y-6 p-6 md:p-8">
         <PageHeader
           icon={Network}
-          title="Penugasan Guru"
+          title="Penugasan Musyrif"
           description="Tetapkan kelas yang boleh diinput poinnya oleh tiap guru/musyrif."
         />
         <Card>
@@ -125,7 +125,7 @@ export default async function Page({
     <div className="animate-enter space-y-6 p-6 md:p-8">
       <PageHeader
         icon={Network}
-        title="Penugasan Guru"
+        title="Penugasan Musyrif"
         description={`Tetapkan kelas yang boleh diinput poinnya oleh tiap guru/musyrif. T.A. ${ta.tahun}.`}
       />
       <div className="flex flex-wrap items-center gap-2.5 rounded-card border border-border/70 bg-card p-3 shadow-sm">

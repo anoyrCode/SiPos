@@ -85,7 +85,7 @@ export function navForProfile({ role, perms }: ProfileLike): NavGroup[] {
       { href: "/master/level-pendidikan", label: "Level Pendidikan" },
       { href: "/master/tahun-ajaran", label: "Tahun Ajaran" },
       { href: "/master/kelas-wali", label: "Kelas & Wali" },
-      { href: "/master/penugasan-guru", label: "Penugasan Guru" },
+      { href: "/master/penugasan-guru", label: "Penugasan Musyrif" },
     );
   }
   if (masterItems.length > 0) {
