@@ -201,9 +201,11 @@ export function AbsensiClient({
           ) : (
             <>
               {now && (
-                <p className="font-mono text-4xl font-bold tabular-nums tracking-tight">
-                  {formatClockWIB(now)}
-                </p>
+                <div className="rounded-2xl bg-primary/5 px-6 py-3">
+                  <p className="font-mono text-4xl font-bold tabular-nums tracking-tight text-primary">
+                    {formatClockWIB(now)}
+                  </p>
+                </div>
               )}
               {(jamMasukJadwal || jamPulangJadwal) && (
                 <p className="text-xs text-muted-foreground">
