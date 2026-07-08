@@ -196,12 +196,38 @@ export function AbsensiClient({
 
       <div className="space-y-2">
         <h2 className="text-sm font-semibold">Riwayat 14 Hari Terakhir</h2>
-        <DataTable
-          columns={columns}
-          rows={history}
-          getRowId={(r) => r.tanggal}
-          empty="Belum ada riwayat absensi."
-        />
+
+        <div className="hidden md:block">
+          <DataTable
+            columns={columns}
+            rows={history}
+            getRowId={(r) => r.tanggal}
+            empty="Belum ada riwayat absensi."
+          />
+        </div>
+
+        <div className="space-y-2 md:hidden">
+          {history.length === 0 ? (
+            <p className="rounded-card border border-border/70 bg-card p-4 text-center text-sm text-muted-foreground">
+              Belum ada riwayat absensi.
+            </p>
+          ) : (
+            history.map((r) => (
+              <div
+                key={r.tanggal}
+                className="rounded-card border border-border/70 bg-card p-3 shadow-sm"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium">{formatDateID(r.tanggal)}</span>
+                  <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+                </div>
+                <p className="mt-1 font-mono text-xs text-muted-foreground">
+                  {formatJamWIB(r.jamMasukAktual)} → {formatJamWIB(r.jamPulangAktual)}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
