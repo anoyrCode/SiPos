@@ -84,6 +84,23 @@ export function computeStatusPulang(
 }
 
 /**
+ * Menit clock-out lebih awal dari jadwal (curang), dibulatkan ke bawah.
+ * 0 bila tidak lebih awal, tidak ada record, atau jam_pulang_jadwal null.
+ */
+export function computeMenitLebihAwalPulang(
+  tanggal: string,
+  record: AbsensiRecord | null,
+  jadwal: JadwalPegawai,
+): number {
+  if (!record?.jam_pulang_aktual || !jadwal.jam_pulang_jadwal) return 0;
+  const jadwalPulang = jakartaInstant(tanggal, jadwal.jam_pulang_jadwal);
+  const aktual = new Date(record.jam_pulang_aktual);
+  const diffMs = jadwalPulang.getTime() - aktual.getTime();
+  if (diffMs <= 0) return 0;
+  return Math.floor(diffMs / 60000);
+}
+
+/**
  * Status harian keseluruhan untuk 1 pegawai pada 1 tanggal.
  * Prioritas: libur > alpa/belum_absen > belum_clock_out > telat_clock_out
  * > curang > telat > normal.

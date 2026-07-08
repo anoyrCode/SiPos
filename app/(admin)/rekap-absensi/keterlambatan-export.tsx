@@ -23,6 +23,7 @@ type CurangRow = {
   pegawaiId: string;
   nama: string;
   tanggal: string;
+  menitLebihAwal: number;
 };
 
 export function KeterlambatanExport({
@@ -60,8 +61,9 @@ export function KeterlambatanExport({
         rows: curang.map((r) => ({
           Pegawai: r.nama,
           Tanggal: formatDateID(r.tanggal),
+          "Menit Lebih Awal": r.menitLebihAwal,
         })),
-        colWidths: [28, 14],
+        colWidths: [28, 14, 14],
       },
     ]);
   }

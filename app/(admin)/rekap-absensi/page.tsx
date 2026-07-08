@@ -15,6 +15,7 @@ import {
   computeStatusMasuk,
   computeStatusPulang,
   computeMenitTelatMasuk,
+  computeMenitLebihAwalPulang,
   todayJakarta,
   STATUS_LABEL,
   formatJamWIB,
@@ -51,6 +52,7 @@ export type CurangRow = {
   pegawaiId: string;
   nama: string;
   tanggal: string;
+  menitLebihAwal: number;
 };
 
 const STATUS_VARIANT: Record<
@@ -184,7 +186,12 @@ export default async function Page({
           telatKeluarRows.push({ pegawaiId: p.id, nama: p.nama, tanggal: tgl });
         }
         if (statusPulang === "curang") {
-          curangRows.push({ pegawaiId: p.id, nama: p.nama, tanggal: tgl });
+          curangRows.push({
+            pegawaiId: p.id,
+            nama: p.nama,
+            tanggal: tgl,
+            menitLebihAwal: computeMenitLebihAwalPulang(tgl, record, jadwal),
+          });
         }
       }
     }
@@ -256,6 +263,11 @@ export default async function Page({
       key: "tanggal",
       header: "Tanggal",
       cell: (r) => formatDateID(r.tanggal),
+    },
+    {
+      key: "menit",
+      header: "Menit Lebih Awal",
+      cell: (r) => <span className="font-mono">{r.menitLebihAwal}</span>,
     },
   ];
 
