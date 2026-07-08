@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,6 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/shared/field";
 import { updatePengaturanAbsensi } from "./actions";
+
+const LokasiMapPicker = dynamic(() => import("./lokasi-map-picker"), { ssr: false });
 
 const schema = z.object({
   lokasi_lat: z.number(),
@@ -82,7 +85,7 @@ export function PengaturanAbsensiForm({
           Atur Lokasi & Radius
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Lokasi & Radius Pondok</DialogTitle>
           <DialogDescription>
@@ -91,6 +94,17 @@ export function PengaturanAbsensiForm({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
+          {open && (
+            <LokasiMapPicker
+              lat={form.watch("lokasi_lat")}
+              long={form.watch("lokasi_long")}
+              radiusMeter={form.watch("radius_meter")}
+              onChange={(lat, long) => {
+                form.setValue("lokasi_lat", lat, { shouldValidate: true });
+                form.setValue("lokasi_long", long, { shouldValidate: true });
+              }}
+            />
+          )}
           <Field
             label="Latitude"
             htmlFor="lokasi_lat"
