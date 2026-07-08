@@ -24,6 +24,7 @@ type CurangRow = {
   pegawaiId: string;
   nama: string;
   tanggal: string;
+  jamPulangJadwal: string | null;
   jamPulangAktual: string | null;
   menitLebihAwal: number;
 };
@@ -63,10 +64,11 @@ export function KeterlambatanExport({
         rows: curang.map((r) => ({
           Pegawai: r.nama,
           Tanggal: formatDateID(r.tanggal),
+          "Jadwal Pulang": r.jamPulangJadwal ?? "—",
           "Jam Clock Out": formatJamWIB(r.jamPulangAktual),
           "Menit Lebih Awal": r.menitLebihAwal,
         })),
-        colWidths: [28, 14, 14, 14],
+        colWidths: [28, 14, 14, 14, 14],
       },
     ]);
   }

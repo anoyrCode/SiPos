@@ -52,6 +52,7 @@ export type CurangRow = {
   pegawaiId: string;
   nama: string;
   tanggal: string;
+  jamPulangJadwal: string | null;
   jamPulangAktual: string | null;
   menitLebihAwal: number;
 };
@@ -69,6 +70,12 @@ const STATUS_VARIANT: Record<
   libur: "outline",
   belum_absen: "outline",
 };
+
+/** "HH:MM:SS" (kolom Postgres `time`) -> "HH:MM". Bukan timestamptz, jangan pakai formatJamWIB. */
+function formatJamJadwal(value: string | null): string | null {
+  if (!value) return null;
+  return value.slice(0, 5);
+}
 
 /** Semua tanggal "YYYY-MM-DD" dalam 1 bulan (format bulan: "YYYY-MM"). */
 function datesInMonth(bulan: string): string[] {
@@ -191,6 +198,7 @@ export default async function Page({
             pegawaiId: p.id,
             nama: p.nama,
             tanggal: tgl,
+            jamPulangJadwal: formatJamJadwal(jadwal.jam_pulang_jadwal),
             jamPulangAktual: record?.jam_pulang_aktual ?? null,
             menitLebihAwal: computeMenitLebihAwalPulang(tgl, record, jadwal),
           });
@@ -265,6 +273,11 @@ export default async function Page({
       key: "tanggal",
       header: "Tanggal",
       cell: (r) => formatDateID(r.tanggal),
+    },
+    {
+      key: "jadwalPulang",
+      header: "Jadwal Pulang",
+      cell: (r) => <span className="font-mono">{r.jamPulangJadwal ?? "—"}</span>,
     },
     {
       key: "jamPulang",
