@@ -1,22 +1,28 @@
+import Link from "next/link";
 import { ClipboardCheck } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { requirePerm } from "@/lib/auth/dal";
 import { getStr, type SearchParams } from "@/lib/list-params";
+import { formatDateID } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { SearchInput } from "@/components/shared/search-input";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   computeDayStatus,
+  computeMenitTelatMasuk,
   todayJakarta,
   STATUS_LABEL,
   formatJamWIB,
   type AbsensiStatus,
 } from "@/lib/absensi-status";
 import { DateFilter } from "./date-filter";
+import { BulanFilter } from "./bulan-filter";
 import { StatusFilter } from "./status-filter";
 import { PengaturanAbsensiForm } from "./pengaturan-form";
+import { KeterlambatanExport } from "./keterlambatan-export";
 
 type Row = {
   pegawaiId: string;
@@ -24,6 +30,19 @@ type Row = {
   jamMasukAktual: string | null;
   jamPulangAktual: string | null;
   status: AbsensiStatus;
+};
+
+export type TelatMasukRow = {
+  pegawaiId: string;
+  nama: string;
+  tanggal: string;
+  menitTelat: number;
+};
+
+export type TelatKeluarRow = {
+  pegawaiId: string;
+  nama: string;
+  tanggal: string;
 };
 
 const STATUS_VARIANT: Record<
@@ -40,6 +59,19 @@ const STATUS_VARIANT: Record<
   belum_absen: "outline",
 };
 
+/** Semua tanggal "YYYY-MM-DD" dalam 1 bulan (format bulan: "YYYY-MM"). */
+function datesInMonth(bulan: string): string[] {
+  const [yStr, mStr] = bulan.split("-");
+  const year = Number(yStr);
+  const month = Number(mStr);
+  const lastDay = new Date(year, month, 0).getDate();
+  const dates: string[] = [];
+  for (let d = 1; d <= lastDay; d++) {
+    dates.push(`${yStr}-${mStr}-${String(d).padStart(2, "0")}`);
+  }
+  return dates;
+}
+
 export default async function Page({
   searchParams,
 }: {
@@ -47,9 +79,12 @@ export default async function Page({
 }) {
   await requirePerm("master");
   const sp = await searchParams;
+  const mode = getStr(sp.mode) === "bulanan" ? "bulanan" : "tanggal";
   const tanggal = getStr(sp.tanggal) || todayJakarta();
+  const bulan = getStr(sp.bulan) || todayJakarta().slice(0, 7);
   const q = getStr(sp.q);
   const statusFilter = getStr(sp.status);
+  const monthDates = mode === "bulanan" ? datesInMonth(bulan) : [];
 
   const supabase = await createClient();
 
@@ -62,13 +97,22 @@ export default async function Page({
     if (term) pegawaiQuery = pegawaiQuery.ilike("nama", `%${term}%`);
   }
 
+  const absensiQuery =
+    mode === "bulanan"
+      ? supabase
+          .from("absensi")
+          .select("pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual")
+          .gte("tanggal", monthDates[0])
+          .lte("tanggal", monthDates[monthDates.length - 1])
+      : supabase
+          .from("absensi")
+          .select("pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual")
+          .eq("tanggal", tanggal);
+
   const [{ data: pegawaiList }, { data: absensiRows }, { data: setting }] =
     await Promise.all([
       pegawaiQuery,
-      supabase
-        .from("absensi")
-        .select("pegawai_id, jam_masuk_aktual, jam_pulang_aktual")
-        .eq("tanggal", tanggal),
+      absensiQuery,
       supabase
         .from("absensi_pengaturan")
         .select("lokasi_lat, lokasi_long, radius_meter")
@@ -76,10 +120,12 @@ export default async function Page({
         .maybeSingle(),
     ]);
 
-  const absensiMap = new Map((absensiRows ?? []).map((r) => [r.pegawai_id, r]));
+  const absensiMap = new Map(
+    (absensiRows ?? []).map((r) => [`${r.pegawai_id}_${r.tanggal}`, r]),
+  );
 
   const allRows: Row[] = (pegawaiList ?? []).map((p) => {
-    const record = absensiMap.get(p.id) ?? null;
+    const record = absensiMap.get(`${p.id}_${tanggal}`) ?? null;
     const jadwal = {
       jam_masuk_jadwal: p.jam_masuk_jadwal,
       jam_pulang_jadwal: p.jam_pulang_jadwal,
@@ -99,6 +145,33 @@ export default async function Page({
   const rows: Row[] = isStatusFilterActive
     ? allRows.filter((r) => r.status === statusFilter)
     : allRows;
+
+  const telatMasukRows: TelatMasukRow[] = [];
+  const telatKeluarRows: TelatKeluarRow[] = [];
+
+  if (mode === "bulanan") {
+    for (const p of pegawaiList ?? []) {
+      const jadwal = {
+        jam_masuk_jadwal: p.jam_masuk_jadwal,
+        jam_pulang_jadwal: p.jam_pulang_jadwal,
+        hari_libur: p.hari_libur,
+      };
+      for (const tgl of monthDates) {
+        const record = absensiMap.get(`${p.id}_${tgl}`) ?? null;
+        const status = computeDayStatus(tgl, record, jadwal);
+        if (status === "telat") {
+          telatMasukRows.push({
+            pegawaiId: p.id,
+            nama: p.nama,
+            tanggal: tgl,
+            menitTelat: computeMenitTelatMasuk(tgl, record, jadwal),
+          });
+        } else if (status === "telat_clock_out") {
+          telatKeluarRows.push({ pegawaiId: p.id, nama: p.nama, tanggal: tgl });
+        }
+      }
+    }
+  }
 
   const columns: Column<Row>[] = [
     {
@@ -125,34 +198,113 @@ export default async function Page({
     },
   ];
 
+  const telatMasukColumns: Column<TelatMasukRow>[] = [
+    {
+      key: "nama",
+      header: "Pegawai",
+      cell: (r) => <span className="font-medium">{r.nama}</span>,
+    },
+    {
+      key: "tanggal",
+      header: "Tanggal",
+      cell: (r) => formatDateID(r.tanggal),
+    },
+    {
+      key: "menit",
+      header: "Menit Telat",
+      cell: (r) => <span className="font-mono">{r.menitTelat}</span>,
+    },
+  ];
+
+  const telatKeluarColumns: Column<TelatKeluarRow>[] = [
+    {
+      key: "nama",
+      header: "Pegawai",
+      cell: (r) => <span className="font-medium">{r.nama}</span>,
+    },
+    {
+      key: "tanggal",
+      header: "Tanggal",
+      cell: (r) => formatDateID(r.tanggal),
+    },
+  ];
+
   return (
     <div className="animate-enter space-y-6 p-6 md:p-8">
       <PageHeader
         icon={ClipboardCheck}
         title="Rekap Absensi"
-        description="Rekap kehadiran seluruh pegawai per tanggal."
+        description="Rekap kehadiran seluruh pegawai per tanggal atau per bulan."
       />
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border/70 bg-card p-3 shadow-sm">
         <div className="flex flex-wrap items-end gap-3">
-          <DateFilter value={tanggal} />
+          {mode === "tanggal" ? (
+            <DateFilter value={tanggal} />
+          ) : (
+            <BulanFilter value={bulan} />
+          )}
           <SearchInput placeholder="Cari nama pegawai…" className="w-full sm:w-56" />
-          <StatusFilter value={statusFilter} />
+          {mode === "tanggal" && <StatusFilter value={statusFilter} />}
         </div>
-        <PengaturanAbsensiForm
-          initial={{
-            lokasi_lat: setting?.lokasi_lat ?? null,
-            lokasi_long: setting?.lokasi_long ?? null,
-            radius_meter: setting?.radius_meter ?? 150,
-          }}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 rounded-lg bg-muted p-1">
+            <Button asChild size="sm" variant={mode === "tanggal" ? "default" : "ghost"}>
+              <Link href="/rekap-absensi?mode=tanggal">Per Tanggal</Link>
+            </Button>
+            <Button asChild size="sm" variant={mode === "bulanan" ? "default" : "ghost"}>
+              <Link href="/rekap-absensi?mode=bulanan">Per Bulan</Link>
+            </Button>
+          </div>
+          <PengaturanAbsensiForm
+            initial={{
+              lokasi_lat: setting?.lokasi_lat ?? null,
+              lokasi_long: setting?.lokasi_long ?? null,
+              radius_meter: setting?.radius_meter ?? 150,
+            }}
+          />
+        </div>
       </div>
-      <DataTable
-        columns={columns}
-        rows={rows}
-        getRowId={(r) => r.pegawaiId}
-        isFiltered={!!q || isStatusFilterActive}
-        empty="Belum ada data pegawai."
-      />
+
+      {mode === "tanggal" ? (
+        <DataTable
+          columns={columns}
+          rows={rows}
+          getRowId={(r) => r.pegawaiId}
+          isFiltered={!!q || isStatusFilterActive}
+          empty="Belum ada data pegawai."
+        />
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold">Rekap keterlambatan bulan {bulan}</h2>
+            <KeterlambatanExport
+              bulan={bulan}
+              telatMasuk={telatMasukRows}
+              telatKeluar={telatKeluarRows}
+            />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Telat Clock In</h3>
+            <DataTable
+              columns={telatMasukColumns}
+              rows={telatMasukRows}
+              getRowId={(r) => `${r.pegawaiId}_${r.tanggal}`}
+              isFiltered={!!q}
+              empty="Tidak ada keterlambatan clock in bulan ini."
+            />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Telat Clock Out</h3>
+            <DataTable
+              columns={telatKeluarColumns}
+              rows={telatKeluarRows}
+              getRowId={(r) => `${r.pegawaiId}_${r.tanggal}`}
+              isFiltered={!!q}
+              empty="Tidak ada keterlambatan clock out bulan ini."
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
