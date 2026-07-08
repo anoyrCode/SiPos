@@ -5,6 +5,7 @@ import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { downloadExcelMultiSheet } from "@/lib/export";
 import { formatDateID } from "@/lib/format";
+import { formatJamWIB } from "@/lib/absensi-status";
 
 type TelatMasukRow = {
   pegawaiId: string;
@@ -23,6 +24,7 @@ type CurangRow = {
   pegawaiId: string;
   nama: string;
   tanggal: string;
+  jamPulangAktual: string | null;
   menitLebihAwal: number;
 };
 
@@ -61,9 +63,10 @@ export function KeterlambatanExport({
         rows: curang.map((r) => ({
           Pegawai: r.nama,
           Tanggal: formatDateID(r.tanggal),
+          "Jam Clock Out": formatJamWIB(r.jamPulangAktual),
           "Menit Lebih Awal": r.menitLebihAwal,
         })),
-        colWidths: [28, 14, 14],
+        colWidths: [28, 14, 14, 14],
       },
     ]);
   }

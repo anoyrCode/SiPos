@@ -52,6 +52,7 @@ export type CurangRow = {
   pegawaiId: string;
   nama: string;
   tanggal: string;
+  jamPulangAktual: string | null;
   menitLebihAwal: number;
 };
 
@@ -190,6 +191,7 @@ export default async function Page({
             pegawaiId: p.id,
             nama: p.nama,
             tanggal: tgl,
+            jamPulangAktual: record?.jam_pulang_aktual ?? null,
             menitLebihAwal: computeMenitLebihAwalPulang(tgl, record, jadwal),
           });
         }
@@ -263,6 +265,11 @@ export default async function Page({
       key: "tanggal",
       header: "Tanggal",
       cell: (r) => formatDateID(r.tanggal),
+    },
+    {
+      key: "jamPulang",
+      header: "Jam Clock Out",
+      cell: (r) => <span className="font-mono">{formatJamWIB(r.jamPulangAktual)}</span>,
     },
     {
       key: "menit",
