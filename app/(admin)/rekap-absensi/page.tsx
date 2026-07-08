@@ -245,7 +245,7 @@ export default async function Page({
     },
     {
       key: "menit",
-      header: "Menit Telat",
+      header: "Telat (menit)",
       cell: (r) => (
         <span className="font-mono font-semibold text-negative">{r.menitTelat}</span>
       ),

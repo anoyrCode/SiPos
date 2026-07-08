@@ -47,7 +47,7 @@ export function KeterlambatanExport({
         rows: telatMasuk.map((r) => ({
           Pegawai: r.nama,
           Tanggal: formatDateID(r.tanggal),
-          "Menit Telat": r.menitTelat,
+          "Telat (menit)": r.menitTelat,
         })),
         colWidths: [28, 14, 12],
       },
