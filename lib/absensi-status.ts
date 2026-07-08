@@ -51,6 +51,23 @@ export function computeStatusMasuk(
   return new Date(record.jam_masuk_aktual) > jadwalMasuk ? "telat" : "normal";
 }
 
+/**
+ * Menit keterlambatan clock-in dibanding jadwal, dibulatkan ke bawah.
+ * 0 bila tidak telat, tidak ada record, atau jam_masuk_jadwal null.
+ */
+export function computeMenitTelatMasuk(
+  tanggal: string,
+  record: AbsensiRecord | null,
+  jadwal: JadwalPegawai,
+): number {
+  if (!record?.jam_masuk_aktual || !jadwal.jam_masuk_jadwal) return 0;
+  const jadwalMasuk = jakartaInstant(tanggal, jadwal.jam_masuk_jadwal);
+  const aktual = new Date(record.jam_masuk_aktual);
+  const diffMs = aktual.getTime() - jadwalMasuk.getTime();
+  if (diffMs <= 0) return 0;
+  return Math.floor(diffMs / 60000);
+}
+
 export function computeStatusPulang(
   tanggal: string,
   record: AbsensiRecord | null,
