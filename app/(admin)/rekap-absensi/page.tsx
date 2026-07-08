@@ -47,6 +47,12 @@ export type TelatKeluarRow = {
   tanggal: string;
 };
 
+export type CurangRow = {
+  pegawaiId: string;
+  nama: string;
+  tanggal: string;
+};
+
 const STATUS_VARIANT: Record<
   AbsensiStatus,
   "default" | "primary" | "positive" | "negative" | "warning" | "outline"
@@ -150,6 +156,7 @@ export default async function Page({
 
   const telatMasukRows: TelatMasukRow[] = [];
   const telatKeluarRows: TelatKeluarRow[] = [];
+  const curangRows: CurangRow[] = [];
 
   if (mode === "bulanan") {
     for (const p of pegawaiList ?? []) {
@@ -172,8 +179,12 @@ export default async function Page({
             menitTelat: computeMenitTelatMasuk(tgl, record, jadwal),
           });
         }
-        if (computeStatusPulang(tgl, record, jadwal) === "telat_clock_out") {
+        const statusPulang = computeStatusPulang(tgl, record, jadwal);
+        if (statusPulang === "telat_clock_out") {
           telatKeluarRows.push({ pegawaiId: p.id, nama: p.nama, tanggal: tgl });
+        }
+        if (statusPulang === "curang") {
+          curangRows.push({ pegawaiId: p.id, nama: p.nama, tanggal: tgl });
         }
       }
     }
@@ -223,6 +234,19 @@ export default async function Page({
   ];
 
   const telatKeluarColumns: Column<TelatKeluarRow>[] = [
+    {
+      key: "nama",
+      header: "Pegawai",
+      cell: (r) => <span className="font-medium">{r.nama}</span>,
+    },
+    {
+      key: "tanggal",
+      header: "Tanggal",
+      cell: (r) => formatDateID(r.tanggal),
+    },
+  ];
+
+  const curangColumns: Column<CurangRow>[] = [
     {
       key: "nama",
       header: "Pegawai",
@@ -287,6 +311,7 @@ export default async function Page({
               bulan={bulan}
               telatMasuk={telatMasukRows}
               telatKeluar={telatKeluarRows}
+              curang={curangRows}
             />
           </div>
           <div className="space-y-2">
@@ -307,6 +332,16 @@ export default async function Page({
               getRowId={(r) => `${r.pegawaiId}_${r.tanggal}`}
               isFiltered={!!q}
               empty="Tidak ada keterlambatan clock out bulan ini."
+            />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Curang</h3>
+            <DataTable
+              columns={curangColumns}
+              rows={curangRows}
+              getRowId={(r) => `${r.pegawaiId}_${r.tanggal}`}
+              isFiltered={!!q}
+              empty="Tidak ada kejadian curang bulan ini."
             />
           </div>
         </>

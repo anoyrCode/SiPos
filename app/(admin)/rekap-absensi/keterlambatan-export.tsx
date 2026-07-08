@@ -19,14 +19,22 @@ type TelatKeluarRow = {
   tanggal: string;
 };
 
+type CurangRow = {
+  pegawaiId: string;
+  nama: string;
+  tanggal: string;
+};
+
 export function KeterlambatanExport({
   bulan,
   telatMasuk,
   telatKeluar,
+  curang,
 }: {
   bulan: string;
   telatMasuk: TelatMasukRow[];
   telatKeluar: TelatKeluarRow[];
+  curang: CurangRow[];
 }) {
   function handleExport() {
     downloadExcelMultiSheet(`keterlambatan-${bulan}.xlsx`, [
@@ -42,6 +50,14 @@ export function KeterlambatanExport({
       {
         sheetName: "Telat Clock Out",
         rows: telatKeluar.map((r) => ({
+          Pegawai: r.nama,
+          Tanggal: formatDateID(r.tanggal),
+        })),
+        colWidths: [28, 14],
+      },
+      {
+        sheetName: "Curang",
+        rows: curang.map((r) => ({
           Pegawai: r.nama,
           Tanggal: formatDateID(r.tanggal),
         })),
