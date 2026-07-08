@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { formatDateID } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { STATUS_LABEL, formatJamWIB, type AbsensiStatus } from "@/lib/absensi-status";
 import { clockIn, clockOut } from "./actions";
 
@@ -32,6 +33,12 @@ const STATUS_VARIANT: Record<
   alpa: "negative",
   libur: "outline",
   belum_absen: "outline",
+};
+
+/** Aksen border kiri + tint lembut utk card mobile, cuma utk status yg perlu perhatian. */
+const STATUS_CARD_ACCENT: Partial<Record<AbsensiStatus, string>> = {
+  telat: "border-l-4 border-l-warning bg-warning-soft/40",
+  alpa: "border-l-4 border-l-negative bg-negative-soft/40",
 };
 
 /** Jam:menit:detik WIB dari objek Date, format 24 jam (mis. "14:32:07"). */
@@ -215,7 +222,10 @@ export function AbsensiClient({
             history.map((r) => (
               <div
                 key={r.tanggal}
-                className="rounded-card border border-border/70 bg-card p-3 shadow-sm"
+                className={cn(
+                  "rounded-card border border-border/70 bg-card p-3 shadow-sm",
+                  STATUS_CARD_ACCENT[r.status],
+                )}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium">{formatDateID(r.tanggal)}</span>
