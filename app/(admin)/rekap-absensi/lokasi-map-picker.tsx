@@ -43,8 +43,16 @@ export default function LokasiMapPicker({
   radiusMeter: number;
   onChange: (lat: number, long: number) => void;
 }) {
-  const sudahDiisi = lat !== 0 || long !== 0;
-  const center: [number, number] = sudahDiisi ? [lat, long] : INDONESIA_CENTER;
+  // Field Latitude/Longitude/Radius bisa sesaat jadi NaN saat sedang diketik
+  // ulang (react-hook-form `valueAsNumber` menghasilkan NaN utk input kosong
+  // atau setengah jalan, mis. "-" doang) — Leaflet lempar error kalau dikasih
+  // NaN, jadi jatuhkan ke 0 dulu sampai angkanya valid lagi.
+  const safeLat = Number.isFinite(lat) ? lat : 0;
+  const safeLong = Number.isFinite(long) ? long : 0;
+  const safeRadius = Number.isFinite(radiusMeter) ? radiusMeter : 0;
+
+  const sudahDiisi = safeLat !== 0 || safeLong !== 0;
+  const center: [number, number] = sudahDiisi ? [safeLat, safeLong] : INDONESIA_CENTER;
   const zoom = sudahDiisi ? FOCUSED_ZOOM : INDONESIA_ZOOM;
 
   return (
@@ -55,7 +63,7 @@ export default function LokasiMapPicker({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <Marker
-          position={[lat, long]}
+          position={[safeLat, safeLong]}
           draggable
           eventHandlers={{
             dragend: (e) => {
@@ -65,7 +73,7 @@ export default function LokasiMapPicker({
             },
           }}
         />
-        <Circle center={[lat, long]} radius={radiusMeter} />
+        <Circle center={[safeLat, safeLong]} radius={safeRadius} />
         <ClickHandler onChange={onChange} />
       </MapContainer>
     </div>
