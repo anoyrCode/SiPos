@@ -26,7 +26,11 @@ type LokasiStatus =
   | { kind: "checking" }
   | { kind: "dalam"; jarakMeter: number }
   | { kind: "luar"; kurangMeter: number }
+  | { kind: "kurang_akurat"; akurasiMeter: number }
   | { kind: "error" };
+
+/** Di atas ini, pembacaan GPS dianggap kurang bisa dipercaya (mis. sinyal indoor). */
+const AKURASI_BURUK_METER = 50;
 
 const STATUS_VARIANT: Record<
   AbsensiStatus,
@@ -98,6 +102,13 @@ export function AbsensiClient({
     setLokasiStatus({ kind: "checking" });
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        if (pos.coords.accuracy > AKURASI_BURUK_METER) {
+          setLokasiStatus({
+            kind: "kurang_akurat",
+            akurasiMeter: Math.round(pos.coords.accuracy),
+          });
+          return;
+        }
         const jarak = haversineDistanceMeters(
           pos.coords.latitude,
           pos.coords.longitude,
@@ -225,6 +236,12 @@ export function AbsensiClient({
                     <Badge variant="warning">
                       Di luar radius — masih ~{lokasiStatus.kurangMeter}m lagi
                     </Badge>
+                  )}
+                  {lokasiStatus.kind === "kurang_akurat" && (
+                    <p className="text-xs text-muted-foreground">
+                      Sinyal GPS kurang akurat (±{lokasiStatus.akurasiMeter}m). Coba pindah
+                      ke luar ruangan atau tunggu sinyal lebih baik.
+                    </p>
                   )}
                   {lokasiStatus.kind === "error" && (
                     <p className="text-xs text-muted-foreground">
