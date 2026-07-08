@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   computeDayStatus,
+  computeStatusMasuk,
+  computeStatusPulang,
   computeMenitTelatMasuk,
   todayJakarta,
   STATUS_LABEL,
@@ -158,15 +160,19 @@ export default async function Page({
       };
       for (const tgl of monthDates) {
         const record = absensiMap.get(`${p.id}_${tgl}`) ?? null;
-        const status = computeDayStatus(tgl, record, jadwal);
-        if (status === "telat") {
+        // Dicek independen (bukan computeDayStatus) — 1 hari bisa masuk ke
+        // kedua tabel sekaligus, mis. telat clock-in DAN curang/telat clock-out
+        // di hari yang sama. computeDayStatus cuma cocok utk 1 badge ringkasan
+        // (dipakai tabel "Per Tanggal"), bukan utk daftar independen begini.
+        if (computeStatusMasuk(tgl, record, jadwal) === "telat") {
           telatMasukRows.push({
             pegawaiId: p.id,
             nama: p.nama,
             tanggal: tgl,
             menitTelat: computeMenitTelatMasuk(tgl, record, jadwal),
           });
-        } else if (status === "telat_clock_out") {
+        }
+        if (computeStatusPulang(tgl, record, jadwal) === "telat_clock_out") {
           telatKeluarRows.push({ pegawaiId: p.id, nama: p.nama, tanggal: tgl });
         }
       }
