@@ -246,7 +246,7 @@ export default async function Page({
     {
       key: "menit",
       header: "Menit Telat",
-      cell: (r) => <span className="font-mono">{r.menitTelat}</span>,
+      cell: (r) => <span className="font-mono font-semibold text-warning">{r.menitTelat}</span>,
     },
   ];
 
@@ -287,7 +287,9 @@ export default async function Page({
     {
       key: "menit",
       header: "Menit Lebih Awal",
-      cell: (r) => <span className="font-mono">{r.menitLebihAwal}</span>,
+      cell: (r) => (
+        <span className="font-mono font-semibold text-negative">{r.menitLebihAwal}</span>
+      ),
     },
   ];
 
