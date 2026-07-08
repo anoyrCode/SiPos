@@ -6,13 +6,15 @@ import { PageHeader } from "@/components/shared/page-header";
 import { computeDayStatus, type JadwalPegawai } from "@/lib/absensi-status";
 import { AbsensiClient, type AbsensiHistoryRow } from "./absensi-client";
 
-function lastNDatesJakarta(n: number): string[] {
+/** Tanggal 1 s.d. hari ini di bulan berjalan (Asia/Jakarta), urutan terbaru dulu. */
+function datesThisMonthJakarta(): string[] {
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });
+  const todayStr = fmt.format(new Date());
+  const [y, m, dStr] = todayStr.split("-");
+  const dayOfMonth = Number(dStr);
   const dates: string[] = [];
-  for (let i = 0; i < n; i++) {
-    const d = new Date();
-    d.setUTCDate(d.getUTCDate() - i);
-    dates.push(fmt.format(d));
+  for (let d = dayOfMonth; d >= 1; d--) {
+    dates.push(`${y}-${m}-${String(d).padStart(2, "0")}`);
   }
   return dates;
 }
@@ -40,7 +42,7 @@ export default async function Page() {
     hari_libur: pegawai?.hari_libur ?? null,
   };
 
-  const dates = lastNDatesJakarta(14);
+  const dates = datesThisMonthJakarta();
   const from = dates[dates.length - 1];
   const to = dates[0];
 

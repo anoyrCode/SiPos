@@ -172,7 +172,7 @@ export function AbsensiClient({
                     onClick={() => handleClock("out")}
                     disabled={loading}
                     size="lg"
-                    variant="outline"
+                    variant="destructive"
                     className="h-14 w-full text-base"
                   >
                     <LogOut data-icon="inline-start" />
@@ -195,7 +195,7 @@ export function AbsensiClient({
       </Card>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-semibold">Riwayat 14 Hari Terakhir</h2>
+        <h2 className="text-sm font-semibold">Riwayat Bulan Ini</h2>
 
         <div className="hidden md:block">
           <DataTable
