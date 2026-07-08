@@ -6,7 +6,8 @@ export type AbsensiStatus =
   | "belum_clock_out"
   | "alpa"
   | "libur"
-  | "belum_absen";
+  | "belum_absen"
+  | "masuk_libur";
 
 export type AbsensiRecord = {
   jam_masuk_aktual: string | null;
@@ -100,10 +101,19 @@ export function computeMenitLebihAwalPulang(
   return Math.floor(diffMs / 60000);
 }
 
+/** Apakah tanggal ini adalah hari libur tetap pegawai (pegawai.hari_libur). */
+export function isHariLiburPegawai(tanggal: string, jadwal: JadwalPegawai): boolean {
+  return jadwal.hari_libur !== null && dayOfWeek(tanggal) === jadwal.hari_libur;
+}
+
 /**
  * Status harian keseluruhan untuk 1 pegawai pada 1 tanggal.
- * Prioritas: libur > alpa/belum_absen > belum_clock_out > telat_clock_out
- * > curang > telat > normal.
+ * Prioritas: libur > masuk_libur > alpa/belum_absen > belum_clock_out
+ * > telat_clock_out > curang > telat > normal.
+ * "masuk_libur" berlaku kalau tanggal ini hari libur pegawai TAPI ada
+ * record (clock in dan/atau clock out) — menang atas semua evaluasi
+ * telat/curang/belum_clock_out di bawahnya, karena di hari libur pegawai
+ * tidak wajib mengikuti jadwal jam kerja normal sama sekali.
  * "alpa" hanya berlaku utk tanggal < hari ini (WIB); hari ini tanpa
  * record tampil "belum_absen" (harinya belum lewat). "belum_clock_out"
  * berlaku utk tanggal < hari ini yang sudah clock in tapi belum clock out
@@ -115,12 +125,12 @@ export function computeDayStatus(
   record: AbsensiRecord | null,
   jadwal: JadwalPegawai,
 ): AbsensiStatus {
-  const isLibur =
-    jadwal.hari_libur !== null && dayOfWeek(tanggal) === jadwal.hari_libur;
+  const isLibur = isHariLiburPegawai(tanggal, jadwal);
   const hasRecord = !!(record?.jam_masuk_aktual || record?.jam_pulang_aktual);
   const isPast = tanggal < todayJakarta();
 
   if (isLibur && !hasRecord) return "libur";
+  if (isLibur && hasRecord) return "masuk_libur";
   if (!hasRecord) return isPast ? "alpa" : "belum_absen";
 
   if (isPast && record?.jam_masuk_aktual && !record?.jam_pulang_aktual) {
@@ -144,6 +154,7 @@ export const STATUS_LABEL: Record<AbsensiStatus, string> = {
   alpa: "Alpa",
   libur: "Libur",
   belum_absen: "Belum Absen",
+  masuk_libur: "Masuk di Hari Libur",
 };
 
 /** Format timestamptz jadi "HH.mm" di zona waktu Jakarta, "—" bila kosong. */

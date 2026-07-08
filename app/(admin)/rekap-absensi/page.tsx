@@ -16,6 +16,7 @@ import {
   computeStatusPulang,
   computeMenitTelatMasuk,
   computeMenitLebihAwalPulang,
+  isHariLiburPegawai,
   todayJakarta,
   STATUS_LABEL,
   formatJamWIB,
@@ -69,6 +70,7 @@ const STATUS_VARIANT: Record<
   alpa: "negative",
   libur: "outline",
   belum_absen: "outline",
+  masuk_libur: "primary",
 };
 
 /** "HH:MM:SS" (kolom Postgres `time`) -> "HH:MM". Bukan timestamptz, jangan pakai formatJamWIB. */
@@ -176,11 +178,13 @@ export default async function Page({
         hari_libur: p.hari_libur,
       };
       for (const tgl of monthDates) {
+        if (isHariLiburPegawai(tgl, jadwal)) continue;
         const record = absensiMap.get(`${p.id}_${tgl}`) ?? null;
         // Dicek independen (bukan computeDayStatus) — 1 hari bisa masuk ke
         // kedua tabel sekaligus, mis. telat clock-in DAN curang/telat clock-out
         // di hari yang sama. computeDayStatus cuma cocok utk 1 badge ringkasan
         // (dipakai tabel "Per Tanggal"), bukan utk daftar independen begini.
+        // Hari libur pegawai dikecualikan total dari laporan bulanan (di atas).
         if (computeStatusMasuk(tgl, record, jadwal) === "telat") {
           telatMasukRows.push({
             pegawaiId: p.id,

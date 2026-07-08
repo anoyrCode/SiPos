@@ -40,12 +40,14 @@ const STATUS_VARIANT: Record<
   alpa: "negative",
   libur: "outline",
   belum_absen: "outline",
+  masuk_libur: "primary",
 };
 
 /** Tint background lembut utk card mobile, cuma utk status yg perlu perhatian. */
 const STATUS_CARD_ACCENT: Partial<Record<AbsensiStatus, string>> = {
   telat: "bg-warning-soft/40",
   alpa: "bg-negative-soft/40",
+  masuk_libur: "bg-primary/10",
 };
 
 /** Jam:menit:detik WIB dari objek Date, format 24 jam (mis. "14:32:07"). */
