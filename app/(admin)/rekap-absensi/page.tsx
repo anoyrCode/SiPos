@@ -94,7 +94,8 @@ export default async function Page({
     };
   });
 
-  const isStatusFilterActive = !!statusFilter && statusFilter in STATUS_LABEL;
+  const isStatusFilterActive =
+    !!statusFilter && Object.hasOwn(STATUS_LABEL, statusFilter);
   const rows: Row[] = isStatusFilterActive
     ? allRows.filter((r) => r.status === statusFilter)
     : allRows;
