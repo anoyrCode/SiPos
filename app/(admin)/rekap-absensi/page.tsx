@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requirePerm } from "@/lib/auth/dal";
 import { getStr, type SearchParams } from "@/lib/list-params";
 import { PageHeader } from "@/components/shared/page-header";
+import { SearchInput } from "@/components/shared/search-input";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,6 +15,7 @@ import {
   type AbsensiStatus,
 } from "@/lib/absensi-status";
 import { DateFilter } from "./date-filter";
+import { StatusFilter } from "./status-filter";
 import { PengaturanAbsensiForm } from "./pengaturan-form";
 
 type Row = {
@@ -46,14 +48,23 @@ export default async function Page({
   await requirePerm("master");
   const sp = await searchParams;
   const tanggal = getStr(sp.tanggal) || todayJakarta();
+  const q = getStr(sp.q);
+  const statusFilter = getStr(sp.status);
 
   const supabase = await createClient();
+
+  let pegawaiQuery = supabase
+    .from("pegawai")
+    .select("id, nama, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur")
+    .order("nama");
+  if (q) {
+    const term = q.replace(/[,()*%_]/g, " ").trim();
+    if (term) pegawaiQuery = pegawaiQuery.ilike("nama", `%${term}%`);
+  }
+
   const [{ data: pegawaiList }, { data: absensiRows }, { data: setting }] =
     await Promise.all([
-      supabase
-        .from("pegawai")
-        .select("id, nama, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur")
-        .order("nama"),
+      pegawaiQuery,
       supabase
         .from("absensi")
         .select("pegawai_id, jam_masuk_aktual, jam_pulang_aktual")
@@ -67,7 +78,7 @@ export default async function Page({
 
   const absensiMap = new Map((absensiRows ?? []).map((r) => [r.pegawai_id, r]));
 
-  const rows: Row[] = (pegawaiList ?? []).map((p) => {
+  const allRows: Row[] = (pegawaiList ?? []).map((p) => {
     const record = absensiMap.get(p.id) ?? null;
     const jadwal = {
       jam_masuk_jadwal: p.jam_masuk_jadwal,
@@ -82,6 +93,11 @@ export default async function Page({
       status: computeDayStatus(tanggal, record, jadwal),
     };
   });
+
+  const isStatusFilterActive = !!statusFilter && statusFilter in STATUS_LABEL;
+  const rows: Row[] = isStatusFilterActive
+    ? allRows.filter((r) => r.status === statusFilter)
+    : allRows;
 
   const columns: Column<Row>[] = [
     {
@@ -116,7 +132,11 @@ export default async function Page({
         description="Rekap kehadiran seluruh pegawai per tanggal."
       />
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border/70 bg-card p-3 shadow-sm">
-        <DateFilter value={tanggal} />
+        <div className="flex flex-wrap items-end gap-3">
+          <DateFilter value={tanggal} />
+          <SearchInput placeholder="Cari nama pegawai…" className="w-full sm:w-56" />
+          <StatusFilter value={statusFilter} />
+        </div>
         <PengaturanAbsensiForm
           initial={{
             lokasi_lat: setting?.lokasi_lat ?? null,
@@ -129,6 +149,7 @@ export default async function Page({
         columns={columns}
         rows={rows}
         getRowId={(r) => r.pegawaiId}
+        isFiltered={!!q || isStatusFilterActive}
         empty="Belum ada data pegawai."
       />
     </div>
