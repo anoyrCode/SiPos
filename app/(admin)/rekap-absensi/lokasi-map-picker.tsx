@@ -3,17 +3,21 @@
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Circle, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
-// Fix ikon marker default Leaflet yang rusak di bundler Next.js/webpack.
-delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x.src,
-  iconUrl: markerIcon.src,
-  shadowUrl: markerShadow.src,
+// Fix ikon marker default Leaflet: import gambar dari node_modules tidak
+// ke-resolve dengan benar di bawah Turbopack (properti `.src` jadi undefined,
+// Leaflet lempar error "iconUrl not set"). Pakai URL CDN langsung sebagai
+// gantinya — tidak bergantung pada bundler untuk aset paket ini.
+const DEFAULT_ICON = L.icon({
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
 });
+L.Marker.prototype.options.icon = DEFAULT_ICON;
 
 const INDONESIA_CENTER: [number, number] = [-2.5, 118];
 const INDONESIA_ZOOM = 5;
