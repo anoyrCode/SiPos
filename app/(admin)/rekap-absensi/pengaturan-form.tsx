@@ -85,7 +85,7 @@ export function PengaturanAbsensiForm({
           Atur Lokasi & Radius
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Lokasi & Radius Pondok</DialogTitle>
           <DialogDescription>
