@@ -9,7 +9,7 @@ export const poinSchema = z.object({
   nilai_poin: z
     .number({ error: "Nilai harus berupa angka." })
     .int("Harus bilangan bulat.")
-    .min(0, "Minimal 0."),
+    .min(1, "Minimal 1."),
   level: z.string().trim().optional(),
   keterangan: z.string().trim().optional(),
   is_aktif: z.boolean(),

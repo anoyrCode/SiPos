@@ -22,7 +22,7 @@ export const inputPoinSchema = z.object({
   nilai_poin: z
     .number({ error: "Nilai harus berupa angka." })
     .int("Harus bilangan bulat.")
-    .min(0, "Minimal 0."),
+    .min(1, "Minimal 1."),
   is_override: z.boolean(),
   tanggal_kejadian: z.string().min(1, "Tanggal wajib diisi."),
   catatan: z.string().optional(),
