@@ -1,6 +1,7 @@
 import { GraduationCap, Trash2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { requireSantri } from "@/lib/auth/dal";
 import {
   getStr,
   parseListParams,
@@ -34,6 +35,7 @@ export default async function Page({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await requireSantri();
   const sp = await searchParams;
   const { page, perPage, q, from, to } = parseListParams(sp);
   const statusFilter = getStr(sp.status);
@@ -112,7 +114,7 @@ export default async function Page({
             action={deleteSantri}
             id={r.id}
             title="Hapus santri?"
-            description={`"${r.nama}" akan dihapus permanen.`}
+            description={`"${r.nama}" akan dihapus permanen, termasuk rekam medisnya. (Santri dengan riwayat poin tidak bisa dihapus.)`}
             trigger={
               <Button variant="ghost" size="icon-sm" aria-label="Hapus">
                 <Trash2 />

@@ -2,7 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
+import { redirect } from "next/navigation";
+
 import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/dal";
+import { homePathForProfile } from "@/lib/auth/roles";
 import { formatDateID, orDash } from "@/lib/format";
 import {
   Card,
@@ -58,6 +62,11 @@ export default async function Page({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const profile = await requireAuth();
+  if (!(profile.perms.master || profile.perms.laporan)) {
+    redirect(homePathForProfile(profile));
+  }
+
   const { id } = await params;
   const supabase = await createClient();
 

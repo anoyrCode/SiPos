@@ -54,6 +54,27 @@ export async function deleteLevelPoin(id: string): Promise<FormResult> {
   if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
+
+  // master_poin.level cuma snapshot text nama level (tanpa FK) — kalau masih
+  // dipakai, hapus bikin baris itu nunjuk ke level yang sudah hilang.
+  const { data: level } = await supabase
+    .from("master_level_poin")
+    .select("nama")
+    .eq("id", id)
+    .maybeSingle();
+  if (level?.nama) {
+    const { count } = await supabase
+      .from("master_poin")
+      .select("id", { count: "exact", head: true })
+      .eq("level", level.nama);
+    if ((count ?? 0) > 0) {
+      return {
+        ok: false,
+        error: `Level masih dipakai ${count} poin. Ubah level poin tersebut dulu.`,
+      };
+    }
+  }
+
   const { error } = await supabase
     .from("master_level_poin")
     .delete()

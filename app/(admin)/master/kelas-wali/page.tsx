@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LogOut, Network, Plus, School, Users } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { requirePerm } from "@/lib/auth/dal";
 import { getStr, type SearchParams } from "@/lib/list-params";
 import { orDash } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
@@ -43,6 +44,7 @@ export default async function Page({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await requirePerm("master");
   const sp = await searchParams;
   const supabase = await createClient();
 

@@ -1,6 +1,7 @@
 import { Trash2, Users } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { requirePegawai } from "@/lib/auth/dal";
 import {
   parseListParams,
   totalPages,
@@ -23,6 +24,7 @@ export default async function Page({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await requirePegawai();
   const sp = await searchParams;
   const { page, perPage, q, from, to } = parseListParams(sp);
 
@@ -99,7 +101,7 @@ export default async function Page({
             action={deletePegawai}
             id={r.id}
             title="Hapus pegawai?"
-            description={`"${r.nama}" akan dihapus permanen.`}
+            description={`"${r.nama}" akan dihapus permanen, termasuk seluruh riwayat absensinya.`}
             trigger={
               <Button variant="ghost" size="icon-sm" aria-label="Hapus">
                 <Trash2 />

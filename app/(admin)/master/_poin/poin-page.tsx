@@ -1,6 +1,7 @@
 import { ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { requirePerm } from "@/lib/auth/dal";
 import {
   parseListParams,
   totalPages,
@@ -25,6 +26,7 @@ export async function PoinPage({
   tipe: PoinTipe;
   searchParams: Promise<SearchParams>;
 }) {
+  await requirePerm("master");
   const sp = await searchParams;
   const { page, perPage, q, from, to } = parseListParams(sp);
   const isPos = tipe === "POSITIF";

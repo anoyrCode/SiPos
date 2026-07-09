@@ -1,6 +1,7 @@
 import { Award, Trash2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { requirePerm } from "@/lib/auth/dal";
 import {
   parseListParams,
   totalPages,
@@ -22,6 +23,7 @@ export default async function Page({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await requirePerm("master");
   const sp = await searchParams;
   const { page, perPage, q, from, to } = parseListParams(sp);
 
