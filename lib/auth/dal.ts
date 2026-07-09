@@ -16,6 +16,10 @@ export type Profile = {
   roleName: string;
   /** Nama tampilan (pegawai/wali tertaut) — fallback ke email. */
   name: string;
+  /** Jabatan pegawai (mis. "Musyrif") — null bila bukan pegawai. */
+  jabatan: string | null;
+  /** Shift pegawai (1/2/3) — null bila belum diatur / bukan pegawai. */
+  shift: 1 | 2 | 3 | null;
   pegawai_id: string | null;
   wali_id: string | null;
   perms: Perms;
@@ -87,7 +91,7 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   const { data } = await supabase
     .from("profiles")
     .select(
-      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_absensi), pegawai:pegawai(nama), wali:wali(nama)",
+      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_absensi), pegawai:pegawai(nama, jabatan, shift), wali:wali(nama)",
     )
     .eq("id", user.id)
     .single();
@@ -98,6 +102,13 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   const embedNama = (e: NamaEmbed): string | null =>
     e ? (Array.isArray(e) ? (e[0]?.nama ?? null) : e.nama) : null;
 
+  type PegawaiRow = {
+    nama: string | null;
+    jabatan: string | null;
+    shift: number | null;
+  } | null;
+  type PegawaiEmbed = PegawaiRow | PegawaiRow[];
+
   const row = data as unknown as {
     id: string;
     email: string | null;
@@ -105,10 +116,13 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
     pegawai_id: string | null;
     wali_id: string | null;
     app_role: AppRoleRow | AppRoleRow[];
-    pegawai: NamaEmbed;
+    pegawai: PegawaiEmbed;
     wali: NamaEmbed;
   };
   const appRole = Array.isArray(row.app_role) ? row.app_role[0] : row.app_role;
+  const pegawaiRow = Array.isArray(row.pegawai)
+    ? (row.pegawai[0] ?? null)
+    : row.pegawai;
   const fallbackName =
     row.role === "admin"
       ? "Administrator"
@@ -116,8 +130,7 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
         ? "Wali Santri"
         : "Pegawai";
 
-  const linkedName =
-    embedNama(row.pegawai) ?? embedNama(row.wali) ?? null;
+  const linkedName = pegawaiRow?.nama ?? embedNama(row.wali) ?? null;
   const name = linkedName || row.email?.split("@")[0] || "Pengguna";
 
   return {
@@ -126,6 +139,8 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
     role: row.role,
     roleName: appRole?.nama ?? fallbackName,
     name,
+    jabatan: pegawaiRow?.jabatan ?? null,
+    shift: (pegawaiRow?.shift as 1 | 2 | 3 | null) ?? null,
     pegawai_id: row.pegawai_id,
     wali_id: row.wali_id,
     perms: resolvePerms(row.role, appRole ?? null),
@@ -235,6 +250,33 @@ export async function requirePerm(
 ): Promise<Profile> {
   const profile = await requireAuth();
   if (!profile.perms[perm]) {
+    redirect(homePathForProfile(profile));
+  }
+  return profile;
+}
+
+/** Wajib boleh kelola data santri (master penuh atau perm khusus santri). */
+export async function requireSantri(): Promise<Profile> {
+  const profile = await requireAuth();
+  if (!(profile.perms.master || profile.perms.santri)) {
+    redirect(homePathForProfile(profile));
+  }
+  return profile;
+}
+
+/** Wajib boleh kelola data pegawai (master penuh atau perm khusus pegawai). */
+export async function requirePegawai(): Promise<Profile> {
+  const profile = await requireAuth();
+  if (!(profile.perms.master || profile.perms.pegawai)) {
+    redirect(homePathForProfile(profile));
+  }
+  return profile;
+}
+
+/** Wajib boleh kelola akun staff (akun penuh atau perm khusus akun staff). */
+export async function requireAkunStaff(): Promise<Profile> {
+  const profile = await requireAuth();
+  if (!(profile.perms.akun || profile.perms.akun_staff)) {
     redirect(homePathForProfile(profile));
   }
   return profile;

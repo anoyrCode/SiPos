@@ -23,6 +23,8 @@ export default async function AdminLayout({
       nav={navForProfile(profile)}
       name={profile.name}
       roleLabel={profile.roleName}
+      jabatan={profile.jabatan}
+      shift={profile.shift}
       email={profile.email}
     >
       {children}

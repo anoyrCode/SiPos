@@ -9,7 +9,7 @@ import { SiposMark } from "./sipos-mark";
 import { NavCurrentTitle } from "./nav-current-title";
 import { ThemeToggle } from "./theme-toggle";
 
-function initials(name: string | null): string {
+export function initials(name: string | null): string {
   if (!name) return "?";
   const parts = name.trim().split(/[\s.\-_]+/).filter(Boolean);
   const s =
@@ -21,16 +21,25 @@ export function AppShell({
   nav,
   name,
   roleLabel,
+  jabatan,
+  shift,
   email,
   children,
 }: {
   nav: NavGroup[];
   name: string;
   roleLabel: string;
+  jabatan?: string | null;
+  shift?: number | null;
   email: string | null;
   children: React.ReactNode;
 }) {
   const ini = initials(name);
+  const subLabel = jabatan
+    ? shift
+      ? `${jabatan} · Shift ${shift}`
+      : jabatan
+    : roleLabel;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -69,7 +78,7 @@ export function AppShell({
                 {name}
               </p>
               <p className="truncate text-[0.7rem] text-muted-foreground">
-                {roleLabel}
+                {subLabel}
               </p>
             </div>
             <div className="flex items-center gap-0.5">
@@ -87,7 +96,7 @@ export function AppShell({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b bg-card/80 px-4 py-3 backdrop-blur md:hidden">
           <div className="flex items-center gap-2">
-            <MobileNav nav={nav} />
+            <MobileNav nav={nav} name={name} subLabel={subLabel} />
             <NavCurrentTitle nav={nav} />
           </div>
           <div className="flex items-center gap-0.5">
