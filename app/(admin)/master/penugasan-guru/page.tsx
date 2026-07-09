@@ -80,6 +80,7 @@ export default async function Page({
   let query = supabase
     .from("pegawai")
     .select("id, nama, jabatan", { count: "exact" })
+    .in("jabatan", ["Musyrif", "Musyrifah"])
     .order("nama");
   if (q) {
     const term = q.replace(/[,()*]/g, " ").trim();
