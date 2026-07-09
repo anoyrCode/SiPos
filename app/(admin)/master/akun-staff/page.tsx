@@ -81,9 +81,13 @@ export default async function Page({
   const pegawai = pegData ?? [];
 
   // Peran sempit (akun_staff tanpa akun penuh) tidak boleh melihat/menetapkan
-  // akun & peran admin/akun-penuh — cegah eskalasi hak akses.
+  // akun & peran admin/akun-penuh — cegah eskalasi hak akses. profiles.role
+  // = "admin" juga harus disaring, bukan cuma app_role.is_super/perm_akun —
+  // akun bootstrap pertama punya role="admin" dengan app_role_id null.
   if (!hasFullAkun) {
-    rows = rows.filter((r) => !(r.app_role?.is_super || r.app_role?.perm_akun));
+    rows = rows.filter(
+      (r) => r.role !== "admin" && !(r.app_role?.is_super || r.app_role?.perm_akun),
+    );
     roles = roles.filter((r) => !(r.is_super || r.perm_akun));
   }
 

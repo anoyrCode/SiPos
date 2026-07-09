@@ -38,13 +38,15 @@ async function assertAccountTouchable(userId: string): Promise<string | null> {
   const admin = createAdminClient();
   const { data: acc } = await admin
     .from("profiles")
-    .select("app_role:app_role(is_super, perm_akun)")
+    .select("role, app_role:app_role(is_super, perm_akun)")
     .eq("id", userId)
     .maybeSingle();
   const role = (
     Array.isArray(acc?.app_role) ? acc?.app_role[0] : acc?.app_role
   ) as { is_super: boolean; perm_akun: boolean } | undefined;
-  if (role?.is_super || role?.perm_akun) {
+  // profiles.role = "admin" adalah admin walau app_role_id null (mis. akun
+  // bootstrap pertama) — harus tetap terlindungi meski app_role tidak ada.
+  if (acc?.role === "admin" || role?.is_super || role?.perm_akun) {
     return "Tidak boleh mengubah akun admin/akun penuh.";
   }
   return null;
