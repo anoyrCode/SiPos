@@ -16,9 +16,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { getGuruKelas, setGuruKelas } from "./actions";
+import { getPenugasan, setPenugasan, type Shift } from "./actions";
 
 type KelasOpt = { id: string; label: string };
+
+const SHIFTS: Shift[] = [1, 2, 3];
 
 export function PenugasanDialog({
   pegawaiId,
@@ -35,6 +37,7 @@ export function PenugasanDialog({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [shift, setShift] = useState<Shift | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -43,8 +46,9 @@ export function PenugasanDialog({
     setError(null);
     if (o) {
       setLoading(true);
-      const ids = await getGuruKelas(pegawaiId);
-      setSelected(new Set(ids));
+      const penugasan = await getPenugasan(pegawaiId);
+      setSelected(new Set(penugasan.kelasIds));
+      setShift(penugasan.shift);
       setLoading(false);
     }
   }
@@ -61,7 +65,7 @@ export function PenugasanDialog({
   function onSave() {
     setError(null);
     startTransition(async () => {
-      const res = await setGuruKelas(pegawaiId, [...selected]);
+      const res = await setPenugasan(pegawaiId, [...selected], shift);
       if (!res.ok) {
         setError(res.error);
         return;
@@ -86,7 +90,30 @@ export function PenugasanDialog({
           <DialogDescription>{pegawaiNama}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="-mx-2 max-h-[58vh] overflow-y-auto px-2 py-1 scrollbar-thin">
+          <div className="space-y-1.5">
+            <p className="text-sm font-semibold">Shift</p>
+            <div className="flex gap-2">
+              {SHIFTS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setShift((prev) => (prev === s ? null : s))}
+                  aria-pressed={shift === s}
+                  disabled={loading}
+                  className={cn(
+                    "flex-1 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                    shift === s
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  Shift {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="-mx-2 max-h-[50vh] overflow-y-auto px-2 py-1 scrollbar-thin">
             {loading ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 Memuat…

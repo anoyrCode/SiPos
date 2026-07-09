@@ -8,6 +8,8 @@ import { dbErrorMessage, type FormResult } from "@/lib/forms";
 
 const PATH = "/master/penugasan-guru";
 
+export type Shift = 1 | 2 | 3;
+
 async function activeTaId(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<string | null> {
@@ -19,32 +21,50 @@ async function activeTaId(
   return data?.id ?? null;
 }
 
-/** Kelas (TA aktif) yang ditugaskan ke seorang pegawai. */
-export async function getGuruKelas(pegawaiId: string): Promise<string[]> {
-  if (!(await canMaster())) return [];
+export type Penugasan = { kelasIds: string[]; shift: Shift | null };
+
+/** Kelas (TA aktif) + shift yang ditugaskan ke seorang pegawai. */
+export async function getPenugasan(pegawaiId: string): Promise<Penugasan> {
+  if (!(await canMaster())) return { kelasIds: [], shift: null };
   const supabase = await createClient();
   const taId = await activeTaId(supabase);
-  if (!taId) return [];
+
+  const { data: pegawai } = await supabase
+    .from("pegawai")
+    .select("shift")
+    .eq("id", pegawaiId)
+    .maybeSingle();
+
+  if (!taId) return { kelasIds: [], shift: (pegawai?.shift as Shift) ?? null };
+
   const { data } = await supabase
     .from("guru_kelas")
     .select("kelas_id, kelas:kelas!inner(tahun_ajaran_id)")
     .eq("pegawai_id", pegawaiId)
     .eq("kelas.tahun_ajaran_id", taId);
-  return ((data ?? []) as unknown as { kelas_id: string }[]).map(
+  const kelasIds = ((data ?? []) as unknown as { kelas_id: string }[]).map(
     (r) => r.kelas_id,
   );
+  return { kelasIds, shift: (pegawai?.shift as Shift) ?? null };
 }
 
-/** Set penugasan kelas (TA aktif) untuk pegawai = daftar kelasIds. */
-export async function setGuruKelas(
+/** Set penugasan kelas (TA aktif) + shift untuk pegawai. */
+export async function setPenugasan(
   pegawaiId: string,
   kelasIds: string[],
+  shift: Shift | null,
 ): Promise<FormResult> {
   if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
   const taId = await activeTaId(supabase);
   if (!taId) return { ok: false, error: "Belum ada tahun ajaran aktif." };
+
+  const { error: shiftError } = await supabase
+    .from("pegawai")
+    .update({ shift })
+    .eq("id", pegawaiId);
+  if (shiftError) return { ok: false, error: dbErrorMessage(shiftError) };
 
   const { data: cur } = await supabase
     .from("guru_kelas")
