@@ -6,16 +6,20 @@ import { dirname } from "node:path";
 // mendeteksi root karena ada lockfile lain di direktori home.
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 
+const ngrokOrigins = ["*.ngrok-free.app", "*.ngrok-free.dev", "*.ngrok.io", "*.ngrok.app"];
+const isDev = process.env.NODE_ENV !== "production";
+
 const nextConfig: NextConfig = {
   turbopack: {
     root: projectRoot,
   },
   // Izinkan akses dev server via tunnel ngrok (HMR/asset dev-only).
-  allowedDevOrigins: ["*.ngrok-free.app", "*.ngrok-free.dev", "*.ngrok.io", "*.ngrok.app"],
+  allowedDevOrigins: isDev ? ngrokOrigins : undefined,
   experimental: {
     serverActions: {
-      // Izinkan Server Action (mis. Tambah Pegawai) dipanggil dari origin ngrok.
-      allowedOrigins: ["*.ngrok-free.app", "*.ngrok-free.dev", "*.ngrok.io", "*.ngrok.app"],
+      // allowedOrigins juga berlaku di production (proteksi CSRF Server Action) —
+      // wildcard ngrok cuma aman dipakai saat dev, jangan sampai kebawa ke prod.
+      allowedOrigins: isDev ? ngrokOrigins : undefined,
     },
   },
 };
