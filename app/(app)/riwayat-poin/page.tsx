@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DateRangeFilter } from "./date-range-filter";
+import { EditTransaksiDialog } from "./edit-transaksi-dialog";
 import { deleteTransaksi } from "./actions";
 
 type Row = {
@@ -185,17 +186,29 @@ export default async function Page({
             headClassName: "text-right",
             className: "text-right",
             cell: (r: Row) => (
-              <ConfirmDialog
-                action={deleteTransaksi}
-                id={r.id}
-                title="Hapus transaksi poin?"
-                description="Transaksi ini akan dihapus permanen."
-                trigger={
-                  <Button variant="ghost" size="icon-sm" aria-label="Hapus">
-                    <Trash2 />
-                  </Button>
-                }
-              />
+              <div className="flex justify-end">
+                <EditTransaksiDialog
+                  id={r.id}
+                  santriNama={r.santri?.nama ?? "—"}
+                  poinNama={r.master_poin?.nama_poin ?? "—"}
+                  initial={{
+                    tanggal_kejadian: r.tanggal_kejadian,
+                    nilai_poin: r.nilai_poin,
+                    catatan: r.catatan ?? "",
+                  }}
+                />
+                <ConfirmDialog
+                  action={deleteTransaksi}
+                  id={r.id}
+                  title="Hapus transaksi poin?"
+                  description="Transaksi ini akan dihapus permanen."
+                  trigger={
+                    <Button variant="ghost" size="icon-sm" aria-label="Hapus">
+                      <Trash2 />
+                    </Button>
+                  }
+                />
+              </div>
             ),
           } satisfies Column<Row>,
         ]
