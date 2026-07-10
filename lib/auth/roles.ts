@@ -13,6 +13,7 @@ export type Perms = {
   pegawai: boolean; // kelola data pegawai saja (subset dari master)
   akun_staff: boolean; // kelola akun staff saja (subset dari akun)
   absensi: boolean; // clock in/out kehadiran pribadi
+  dashboard: boolean; // lihat Dashboard saja (subset dari master)
 };
 
 export const EMPTY_PERMS: Perms = {
@@ -27,6 +28,7 @@ export const EMPTY_PERMS: Perms = {
   pegawai: false,
   akun_staff: false,
   absensi: false,
+  dashboard: false,
 };
 
 export type NavItem = { href: string; label: string };
@@ -37,7 +39,7 @@ type ProfileLike = { role: Role; perms: Perms };
 /** Halaman beranda default sesuai hak akses (redirect setelah login). */
 export function homePathForProfile({ role, perms }: ProfileLike): string {
   if (role === "wali") return "/anak";
-  if (perms.super || perms.master) return "/dashboard";
+  if (perms.super || perms.master || perms.dashboard) return "/dashboard";
   if (perms.input_poin) return "/input-poin";
   if (perms.laporan) return "/riwayat-poin";
   if (perms.kesehatan || perms.scope_kelas) return "/uks";
@@ -55,7 +57,7 @@ export function navForProfile({ role, perms }: ProfileLike): NavGroup[] {
 
   const groups: NavGroup[] = [];
 
-  if (perms.super || perms.master) {
+  if (perms.super || perms.master || perms.dashboard) {
     groups.push({ items: [{ href: "/dashboard", label: "Dashboard" }] });
   }
 

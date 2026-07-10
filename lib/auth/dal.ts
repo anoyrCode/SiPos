@@ -38,6 +38,7 @@ type AppRoleRow = {
   perm_pegawai: boolean;
   perm_akun_staff: boolean;
   perm_absensi: boolean;
+  perm_dashboard: boolean;
 } | null;
 
 function resolvePerms(role: Role, r: AppRoleRow): Perms {
@@ -56,6 +57,7 @@ function resolvePerms(role: Role, r: AppRoleRow): Perms {
       pegawai: true,
       akun_staff: true,
       absensi: true,
+      dashboard: true,
     };
   }
   return {
@@ -70,6 +72,7 @@ function resolvePerms(role: Role, r: AppRoleRow): Perms {
     pegawai: !!r?.perm_pegawai,
     akun_staff: !!r?.perm_akun_staff,
     absensi: !!r?.perm_absensi,
+    dashboard: !!r?.perm_dashboard,
   };
 }
 
@@ -91,7 +94,7 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   const { data } = await supabase
     .from("profiles")
     .select(
-      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_absensi), pegawai:pegawai(nama, jabatan, shift), wali:wali(nama)",
+      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_absensi, perm_dashboard), pegawai:pegawai(nama, jabatan, shift), wali:wali(nama)",
     )
     .eq("id", user.id)
     .single();
@@ -207,6 +210,12 @@ export async function canKesehatan(): Promise<boolean> {
   return profile?.perms.kesehatan ?? false;
 }
 
+/** True bila boleh lihat Dashboard (master penuh atau perm khusus dashboard). */
+export async function canDashboard(): Promise<boolean> {
+  const profile = await getProfile();
+  return (profile?.perms.master || profile?.perms.dashboard) ?? false;
+}
+
 /** Wajib login; jika tidak → redirect ke /login. */
 export async function requireAuth(): Promise<Profile> {
   const profile = await getProfile();
@@ -237,7 +246,8 @@ export async function requireStaff(): Promise<Profile> {
     p.santri ||
     p.pegawai ||
     p.akun_staff ||
-    p.absensi;
+    p.absensi ||
+    p.dashboard;
   if (profile.role === "wali" || !hasAny) {
     redirect(homePathForProfile(profile));
   }
@@ -277,6 +287,15 @@ export async function requirePegawai(): Promise<Profile> {
 export async function requireAkunStaff(): Promise<Profile> {
   const profile = await requireAuth();
   if (!(profile.perms.akun || profile.perms.akun_staff)) {
+    redirect(homePathForProfile(profile));
+  }
+  return profile;
+}
+
+/** Wajib boleh lihat Dashboard (master penuh atau perm khusus dashboard). */
+export async function requireDashboard(): Promise<Profile> {
+  const profile = await requireAuth();
+  if (!(profile.perms.master || profile.perms.dashboard)) {
     redirect(homePathForProfile(profile));
   }
   return profile;

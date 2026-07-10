@@ -33,7 +33,8 @@ type PermKey =
   | "perm_santri"
   | "perm_pegawai"
   | "perm_akun_staff"
-  | "perm_absensi";
+  | "perm_absensi"
+  | "perm_dashboard";
 
 const PERMS: { key: PermKey; label: string; desc: string }[] = [
   { key: "perm_input_poin", label: "Input poin", desc: "Mencatat poin santri." },
@@ -56,6 +57,11 @@ const PERMS: { key: PermKey; label: string; desc: string }[] = [
     key: "perm_pegawai",
     label: "— Kelola data Pegawai saja",
     desc: "Tambah/edit/hapus data Pegawai, tanpa akses master data lain.",
+  },
+  {
+    key: "perm_dashboard",
+    label: "— Lihat Dashboard saja",
+    desc: "Buka halaman Dashboard, tanpa akses kelola master data lain.",
   },
   {
     key: "perm_akun",
@@ -98,6 +104,7 @@ export function PeranForm({ initial }: { initial?: PeranRow }) {
     perm_pegawai: initial?.perm_pegawai ?? false,
     perm_akun_staff: initial?.perm_akun_staff ?? false,
     perm_absensi: initial?.perm_absensi ?? false,
+    perm_dashboard: initial?.perm_dashboard ?? false,
   };
 
   const form = useForm<PeranInput>({
