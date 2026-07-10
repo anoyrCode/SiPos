@@ -5,8 +5,6 @@ import {
   ArrowLeft,
   HeartPulse,
   PieChart,
-  ShieldAlert,
-  ShieldCheck,
   ThumbsDown,
   ThumbsUp,
   TrendingUp,
@@ -17,7 +15,9 @@ import { orDash } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { KomposisiPoin, PerkembanganMingguan } from "./charts";
+import { computeSantriStatusLevel, santriStatusTone } from "@/lib/santri-status";
+import { SantriStatusBadge } from "@/components/shared/santri-status-badge";
+import { KomposisiPoin, PerkembanganSkor } from "./charts";
 import { RiwayatList } from "./riwayat-list";
 import { RekamMedisList } from "./rekam-medis-list";
 
@@ -37,16 +37,7 @@ function initials(nama: string): string {
   return (s || "?").toUpperCase();
 }
 
-function weekStart(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`);
-  const day = (d.getDay() + 6) % 7; // Senin = 0
-  d.setDate(d.getDate() - day);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate(),
-  ).padStart(2, "0")}`;
-}
-
-function weekLabel(iso: string): string {
+function tanggalLabel(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString("id-ID", {
     day: "numeric",
     month: "short",
@@ -123,25 +114,20 @@ export default async function Page({
     .filter((t) => t.tipe === "NEGATIF")
     .reduce((a, t) => a + t.nilai_poin, 0);
   const net = pos - neg;
-  const baik = net >= 0;
+  const statusLevel = computeSantriStatusLevel(net, neg);
+  const tone = santriStatusTone(statusLevel);
 
-  // Perkembangan skor kumulatif per minggu (urut lama → baru).
-  const weekMap = new Map<string, { pos: number; neg: number }>();
-  for (const t of tx) {
-    const k = weekStart(t.tanggal_kejadian);
-    const e = weekMap.get(k) ?? { pos: 0, neg: 0 };
-    if (t.tipe === "POSITIF") e.pos += t.nilai_poin;
-    else e.neg += t.nilai_poin;
-    weekMap.set(k, e);
-  }
-  const sortedWeeks = [...weekMap.keys()].sort();
-  const weekly = sortedWeeks.map((k, i) => {
-    const skor = sortedWeeks.slice(0, i + 1).reduce((sum, wk) => {
-      const e = weekMap.get(wk)!;
-      return sum + e.pos - e.neg;
-    }, 0);
-    return { minggu: weekLabel(k), skor };
-  });
+  // Perkembangan skor kumulatif per transaksi (urut lama → baru) — tiap
+  // transaksi jadi 1 titik, jadi tidak perlu menunggu berganti minggu
+  // kalender dulu baru grafiknya muncul.
+  const perkembangan = [...tx].reverse().reduce<
+    { tanggal: string; skor: number }[]
+  >((acc, t) => {
+    const sebelumnya = acc.length > 0 ? acc[acc.length - 1].skor : 0;
+    const skor = sebelumnya + (t.tipe === "POSITIF" ? t.nilai_poin : -t.nilai_poin);
+    acc.push({ tanggal: tanggalLabel(t.tanggal_kejadian), skor });
+    return acc;
+  }, []);
 
   return (
     <div className="animate-enter space-y-4 p-4 md:space-y-6 md:p-8">
@@ -178,19 +164,7 @@ export default async function Page({
                 {santri.nis ? ` · ${santri.nis}` : ""}
                 {ta?.tahun ? ` · ${ta.tahun}` : ""}
               </p>
-              <span
-                className={cn(
-                  "mt-1 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-                  baik ? "bg-white/15 text-white" : "bg-rose-500/25 text-white",
-                )}
-              >
-                {baik ? (
-                  <ShieldCheck className="size-3.5" />
-                ) : (
-                  <ShieldAlert className="size-3.5" />
-                )}
-                {baik ? "Terjaga baik" : "Perlu perhatian"}
-              </span>
+              <SantriStatusBadge level={statusLevel} onHero className="mt-1" />
             </div>
           </div>
           <div className="text-right">
@@ -236,9 +210,9 @@ export default async function Page({
             <span
               className={cn(
                 "flex size-10 items-center justify-center rounded-xl",
-                baik
-                  ? "bg-positive-soft text-positive"
-                  : "bg-negative-soft text-negative",
+                tone === "positive" && "bg-positive-soft text-positive",
+                tone === "warning" && "bg-warning-soft text-warning",
+                tone === "negative" && "bg-negative-soft text-negative",
               )}
             >
               <TrendingUp className="size-5" />
@@ -248,7 +222,9 @@ export default async function Page({
               <p
                 className={cn(
                   "font-heading text-2xl font-bold tabular-nums",
-                  baik ? "text-positive" : "text-negative",
+                  tone === "positive" && "text-positive",
+                  tone === "warning" && "text-warning",
+                  tone === "negative" && "text-negative",
                 )}
               >
                 {net > 0 ? "+" : ""}
@@ -265,11 +241,11 @@ export default async function Page({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="size-4 text-primary" />
-              Perkembangan Skor (per minggu)
+              Perkembangan Skor
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <PerkembanganMingguan data={weekly} />
+            <PerkembanganSkor data={perkembangan} />
           </CardContent>
         </Card>
         <Card>

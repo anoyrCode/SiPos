@@ -23,15 +23,15 @@ const tooltipStyle = {
   boxShadow: "0 10px 30px -12px rgba(0,0,0,0.25)",
 } as const;
 
-export function PerkembanganMingguan({
+export function PerkembanganSkor({
   data,
 }: {
-  data: { minggu: string; skor: number }[];
+  data: { tanggal: string; skor: number }[];
 }) {
   if (data.length < 2) {
     return (
       <div className="flex h-56 items-center justify-center text-center text-sm text-muted-foreground">
-        Belum cukup data untuk grafik mingguan.
+        Belum cukup data untuk grafik perkembangan.
       </div>
     );
   }
@@ -51,11 +51,12 @@ export function PerkembanganMingguan({
             strokeDasharray="3 3"
           />
           <XAxis
-            dataKey="minggu"
+            dataKey="tanggal"
             stroke="var(--muted-foreground)"
             fontSize={12}
             axisLine={false}
             tickLine={false}
+            minTickGap={32}
           />
           <YAxis
             stroke="var(--muted-foreground)"

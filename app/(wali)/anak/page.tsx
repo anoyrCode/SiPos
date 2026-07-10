@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { ChevronRight, ShieldAlert, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { ChevronRight, Sparkles, Users } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth/dal";
 import { Card, CardContent } from "@/components/ui/card";
 import { orDash } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { computeSantriStatusLevel, santriStatusTone } from "@/lib/santri-status";
+import { SantriStatusBadge } from "@/components/shared/santri-status-badge";
 
 type SantriAnak = {
   id: string;
@@ -132,7 +134,8 @@ export default async function Page() {
             const net = e.pos - e.neg;
             const total = e.pos + e.neg;
             const posW = total > 0 ? (e.pos / total) * 100 : 0;
-            const baik = net >= 0;
+            const level = computeSantriStatusLevel(net, e.neg);
+            const tone = santriStatusTone(level);
             return (
               <Link key={s.id} href={`/anak/${s.id}`} className="group">
                 <Card className="h-full transition-all hover:-translate-y-0.5 hover:shadow-md">
@@ -155,21 +158,7 @@ export default async function Page() {
                     </div>
 
                     {/* Status */}
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-                        baik
-                          ? "bg-positive-soft text-positive"
-                          : "bg-negative-soft text-negative",
-                      )}
-                    >
-                      {baik ? (
-                        <ShieldCheck className="size-3.5" />
-                      ) : (
-                        <ShieldAlert className="size-3.5" />
-                      )}
-                      {baik ? "Terjaga baik" : "Perlu perhatian"}
-                    </span>
+                    <SantriStatusBadge level={level} />
 
                     {/* Skor + rincian */}
                     <div className="flex items-end justify-between gap-2">
@@ -178,7 +167,9 @@ export default async function Page() {
                         <p
                           className={cn(
                             "font-heading text-3xl font-bold tabular-nums",
-                            baik ? "text-positive" : "text-negative",
+                            tone === "positive" && "text-positive",
+                            tone === "warning" && "text-warning",
+                            tone === "negative" && "text-negative",
                           )}
                         >
                           {net > 0 ? "+" : ""}
