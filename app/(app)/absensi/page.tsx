@@ -32,7 +32,7 @@ export default async function Page() {
 
   const { data: pegawai } = await supabase
     .from("pegawai")
-    .select("jam_masuk_jadwal, jam_pulang_jadwal, hari_libur")
+    .select("jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_fleksibel")
     .eq("id", pegawaiId)
     .maybeSingle();
 
@@ -49,7 +49,7 @@ export default async function Page() {
   const [{ data: rows }, { data: setting }] = await Promise.all([
     supabase
       .from("absensi")
-      .select("tanggal, jam_masuk_aktual, jam_pulang_aktual")
+      .select("tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen")
       .eq("pegawai_id", pegawaiId)
       .gte("tanggal", from)
       .lte("tanggal", to),
@@ -82,7 +82,11 @@ export default async function Page() {
         description="Clock in/out kehadiran harian berdasarkan lokasi pondok."
       />
       <AbsensiClient
-        hasJadwal={!!jadwal.jam_masuk_jadwal && !!jadwal.jam_pulang_jadwal}
+        hasJadwal={
+          (!!jadwal.jam_masuk_jadwal && !!jadwal.jam_pulang_jadwal) ||
+          !!pegawai?.jadwal_fleksibel
+        }
+        jadwalFleksibel={!!pegawai?.jadwal_fleksibel}
         jamMasukJadwal={formatJamJadwal(jadwal.jam_masuk_jadwal)}
         jamPulangJadwal={formatJamJadwal(jadwal.jam_pulang_jadwal)}
         jamMasukAktual={todayRow?.jam_masuk_aktual ?? null}

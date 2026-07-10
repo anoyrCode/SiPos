@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { haversineDistanceMeters } from "@/lib/geo";
 import { STATUS_LABEL, formatJamWIB, type AbsensiStatus } from "@/lib/absensi-status";
 import { clockIn, clockOut } from "./actions";
+import { IzinDialog } from "./izin-dialog";
 
 export type AbsensiHistoryRow = {
   tanggal: string;
@@ -41,6 +42,9 @@ const STATUS_VARIANT: Record<
   libur: "outline",
   belum_absen: "outline",
   masuk_libur: "primary",
+  izin: "outline",
+  sakit: "warning",
+  cuti: "default",
 };
 
 /** Tint background lembut utk card mobile, cuma utk status yg perlu perhatian. */
@@ -63,6 +67,7 @@ function formatClockWIB(d: Date): string {
 
 export function AbsensiClient({
   hasJadwal,
+  jadwalFleksibel,
   jamMasukJadwal,
   jamPulangJadwal,
   jamMasukAktual,
@@ -74,6 +79,7 @@ export function AbsensiClient({
   radiusMeter,
 }: {
   hasJadwal: boolean;
+  jadwalFleksibel: boolean;
   jamMasukJadwal: string | null;
   jamPulangJadwal: string | null;
   jamMasukAktual: string | null;
@@ -209,10 +215,16 @@ export function AbsensiClient({
                   </p>
                 </div>
               )}
-              {(jamMasukJadwal || jamPulangJadwal) && (
+              {jadwalFleksibel ? (
                 <p className="text-xs text-muted-foreground">
-                  Jadwal: {jamMasukJadwal ?? "—"} – {jamPulangJadwal ?? "—"}
+                  Jadwal fleksibel — tidak terikat jam masuk/pulang tetap.
                 </p>
+              ) : (
+                (jamMasukJadwal || jamPulangJadwal) && (
+                  <p className="text-xs text-muted-foreground">
+                    Jadwal: {jamMasukJadwal ?? "—"} – {jamPulangJadwal ?? "—"}
+                  </p>
+                )
               )}
 
               {lokasiTersedia && (
@@ -285,6 +297,10 @@ export function AbsensiClient({
           )}
         </CardContent>
       </Card>
+
+      <div className="flex justify-center">
+        <IzinDialog />
+      </div>
 
       <div className="space-y-2">
         <h2 className="text-sm font-semibold">Riwayat Bulan Ini</h2>

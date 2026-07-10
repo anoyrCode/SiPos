@@ -7,11 +7,17 @@ export type AbsensiStatus =
   | "alpa"
   | "libur"
   | "belum_absen"
-  | "masuk_libur";
+  | "masuk_libur"
+  | "izin"
+  | "sakit"
+  | "cuti";
+
+export type KategoriAbsen = "izin" | "sakit" | "cuti";
 
 export type AbsensiRecord = {
   jam_masuk_aktual: string | null;
   jam_pulang_aktual: string | null;
+  kategori_absen?: KategoriAbsen | null;
 };
 
 export type JadwalPegawai = {
@@ -119,12 +125,17 @@ export function isHariLiburPegawai(tanggal: string, jadwal: JadwalPegawai): bool
  * berlaku utk tanggal < hari ini yang sudah clock in tapi belum clock out
  * (lupa absen pulang) — dicek SEBELUM status telat/curang/normal biasa,
  * supaya lupa clock out tidak tersamar jadi "Normal".
+ * "izin"/"sakit"/"cuti" (dari kategori_absen, diajukan sendiri pegawai)
+ * MENANG atas semua status lain — pengajuan eksplisit lebih diutamakan
+ * daripada evaluasi otomatis dari jam clock in/out.
  */
 export function computeDayStatus(
   tanggal: string,
   record: AbsensiRecord | null,
   jadwal: JadwalPegawai,
 ): AbsensiStatus {
+  if (record?.kategori_absen) return record.kategori_absen;
+
   const isLibur = isHariLiburPegawai(tanggal, jadwal);
   const hasRecord = !!(record?.jam_masuk_aktual || record?.jam_pulang_aktual);
   const isPast = tanggal < todayJakarta();
@@ -155,6 +166,9 @@ export const STATUS_LABEL: Record<AbsensiStatus, string> = {
   libur: "Libur",
   belum_absen: "Belum Absen",
   masuk_libur: "Masuk di Hari Libur",
+  izin: "Izin",
+  sakit: "Sakit",
+  cuti: "Cuti",
 };
 
 /** Format timestamptz jadi "HH.mm" di zona waktu Jakarta, "—" bila kosong. */

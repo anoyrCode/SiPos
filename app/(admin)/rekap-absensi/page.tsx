@@ -71,6 +71,9 @@ const STATUS_VARIANT: Record<
   libur: "outline",
   belum_absen: "outline",
   masuk_libur: "primary",
+  izin: "outline",
+  sakit: "warning",
+  cuti: "default",
 };
 
 /** "HH:MM:SS" (kolom Postgres `time`) -> "HH:MM". Bukan timestamptz, jangan pakai formatJamWIB. */
@@ -121,12 +124,12 @@ export default async function Page({
     mode === "bulanan"
       ? supabase
           .from("absensi")
-          .select("pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual")
+          .select("pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen")
           .gte("tanggal", monthDates[0])
           .lte("tanggal", monthDates[monthDates.length - 1])
       : supabase
           .from("absensi")
-          .select("pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual")
+          .select("pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen")
           .eq("tanggal", tanggal);
 
   const [{ data: pegawaiList }, { data: absensiRows }, { data: setting }] =

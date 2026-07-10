@@ -5,10 +5,28 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { canAbsensi, getProfile } from "@/lib/auth/dal";
 import { haversineDistanceMeters } from "@/lib/geo";
-import { todayJakarta } from "@/lib/absensi-status";
+import { todayJakarta, type KategoriAbsen } from "@/lib/absensi-status";
 import { dbErrorMessage, type FormResult } from "@/lib/forms";
 
 const PATH = "/absensi";
+const KATEGORI_VALID: KategoriAbsen[] = ["izin", "sakit", "cuti"];
+
+/** Semua tanggal "YYYY-MM-DD" dari start s.d. end (inklusif), maks 31 hari. */
+function enumerateDates(start: string, end: string): string[] {
+  const dates: string[] = [];
+  const cur = new Date(`${start}T00:00:00`);
+  const last = new Date(`${end}T00:00:00`);
+  let guard = 0;
+  while (cur <= last && guard < 31) {
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, "0");
+    const d = String(cur.getDate()).padStart(2, "0");
+    dates.push(`${y}-${m}-${d}`);
+    cur.setDate(cur.getDate() + 1);
+    guard++;
+  }
+  return dates;
+}
 
 async function checkGeofence(lat: number, long: number): Promise<string | null> {
   const supabase = await createClient();
@@ -45,10 +63,10 @@ export async function clockIn(lat: number, long: number): Promise<FormResult> {
   const supabase = await createClient();
   const { data: pegawai } = await supabase
     .from("pegawai")
-    .select("jam_masuk_jadwal")
+    .select("jam_masuk_jadwal, jadwal_fleksibel")
     .eq("id", profile.pegawai_id)
     .maybeSingle();
-  if (!pegawai?.jam_masuk_jadwal) {
+  if (!pegawai?.jam_masuk_jadwal && !pegawai?.jadwal_fleksibel) {
     return { ok: false, error: "Jadwal absensi belum diatur, hubungi admin." };
   }
 
@@ -70,6 +88,64 @@ export async function clockIn(lat: number, long: number): Promise<FormResult> {
     lokasi_masuk_lat: lat,
     lokasi_masuk_long: long,
   });
+  if (error) return { ok: false, error: dbErrorMessage(error) };
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/** Ajukan izin/sakit/cuti sendiri (tanpa approval) utk 1 hari atau rentang. */
+export async function ajukanIzin(input: {
+  tanggal_mulai: string;
+  tanggal_selesai: string;
+  kategori: KategoriAbsen;
+  keterangan?: string;
+}): Promise<FormResult> {
+  if (!(await canAbsensi())) return { ok: false, error: "Tidak diizinkan." };
+  const profile = await getProfile();
+  if (!profile?.pegawai_id) {
+    return { ok: false, error: "Akun ini tidak tertaut ke data pegawai." };
+  }
+  if (!KATEGORI_VALID.includes(input.kategori)) {
+    return { ok: false, error: "Kategori tidak valid." };
+  }
+  if (!input.tanggal_mulai || !input.tanggal_selesai) {
+    return { ok: false, error: "Tanggal wajib diisi." };
+  }
+  if (input.tanggal_selesai < input.tanggal_mulai) {
+    return { ok: false, error: "Tanggal selesai harus sama atau setelah tanggal mulai." };
+  }
+
+  const dates = enumerateDates(input.tanggal_mulai, input.tanggal_selesai);
+  if (dates.length === 0 || dates.length > 31) {
+    return { ok: false, error: "Rentang tanggal maksimal 31 hari." };
+  }
+
+  const supabase = await createClient();
+  const { data: existingRows } = await supabase
+    .from("absensi")
+    .select("tanggal, jam_masuk_aktual, jam_pulang_aktual")
+    .eq("pegawai_id", profile.pegawai_id)
+    .in("tanggal", dates);
+  const conflict = (existingRows ?? []).find(
+    (r) => r.jam_masuk_aktual || r.jam_pulang_aktual,
+  );
+  if (conflict) {
+    return {
+      ok: false,
+      error: `Tanggal ${conflict.tanggal} sudah ada data clock in/out, tidak bisa ditimpa.`,
+    };
+  }
+
+  const rows = dates.map((tanggal) => ({
+    pegawai_id: profile.pegawai_id,
+    tanggal,
+    kategori_absen: input.kategori,
+    keterangan: input.keterangan || null,
+  }));
+  const { error } = await supabase
+    .from("absensi")
+    .upsert(rows, { onConflict: "pegawai_id,tanggal" });
   if (error) return { ok: false, error: dbErrorMessage(error) };
 
   revalidatePath(PATH);
