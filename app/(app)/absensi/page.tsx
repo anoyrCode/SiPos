@@ -6,15 +6,22 @@ import { PageHeader } from "@/components/shared/page-header";
 import { computeDayStatus, type JadwalPegawai } from "@/lib/absensi-status";
 import { AbsensiClient, type AbsensiHistoryRow } from "./absensi-client";
 
-/** Tanggal 1 s.d. hari ini di bulan berjalan (Asia/Jakarta), urutan terbaru dulu. */
+/** Tanggal mulai project dipakai produksi — riwayat sebelum ini tidak ditampilkan (data uji coba). */
+const LAUNCH_DATE = "2026-07-11";
+
+/** Tanggal 1 s.d. hari ini di bulan berjalan (Asia/Jakarta), urutan terbaru dulu, dibatasi LAUNCH_DATE. */
 function datesThisMonthJakarta(): string[] {
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });
   const todayStr = fmt.format(new Date());
+  // Hari ini selalu tetap muncul walau belum lewat LAUNCH_DATE (mis. diakses sehari sebelum go-live).
+  const cutoff = LAUNCH_DATE > todayStr ? todayStr : LAUNCH_DATE;
   const [y, m, dStr] = todayStr.split("-");
   const dayOfMonth = Number(dStr);
   const dates: string[] = [];
   for (let d = dayOfMonth; d >= 1; d--) {
-    dates.push(`${y}-${m}-${String(d).padStart(2, "0")}`);
+    const tanggal = `${y}-${m}-${String(d).padStart(2, "0")}`;
+    if (tanggal < cutoff) break;
+    dates.push(tanggal);
   }
   return dates;
 }
