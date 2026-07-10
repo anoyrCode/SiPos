@@ -8,6 +8,7 @@ import { MobileNav } from "./mobile-nav";
 import { SiposMark } from "./sipos-mark";
 import { NavCurrentTitle } from "./nav-current-title";
 import { ThemeToggle } from "./theme-toggle";
+import { ChangePasswordDialog } from "./change-password-dialog";
 
 export function initials(name: string | null): string {
   if (!name) return "?";
@@ -82,6 +83,7 @@ export function AppShell({
               </p>
             </div>
             <div className="flex items-center gap-0.5">
+              <ChangePasswordDialog />
               <ThemeToggle />
               <form action={logout}>
                 <Button type="submit" variant="ghost" size="icon-sm" aria-label="Keluar">
@@ -100,6 +102,7 @@ export function AppShell({
             <NavCurrentTitle nav={nav} />
           </div>
           <div className="flex items-center gap-0.5">
+            <ChangePasswordDialog />
             <ThemeToggle />
             <form action={logout}>
               <Button type="submit" variant="ghost" size="icon-sm" aria-label="Keluar">

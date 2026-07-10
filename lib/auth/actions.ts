@@ -53,3 +53,20 @@ export async function logout(): Promise<void> {
   await supabase.auth.signOut();
   redirect("/login");
 }
+
+export type ChangePasswordResult = { ok: true } | { ok: false; error: string };
+
+/** Ganti password akun sendiri (staff/wali) — pakai sesi login yang aktif. */
+export async function changeOwnPassword(
+  newPassword: string,
+): Promise<ChangePasswordResult> {
+  if (!newPassword || newPassword.length < 6) {
+    return { ok: false, error: "Password minimal 6 karakter." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) return { ok: false, error: error.message };
+
+  return { ok: true };
+}
