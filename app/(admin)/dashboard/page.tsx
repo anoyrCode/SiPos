@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requirePerm } from "@/lib/auth/dal";
+import { requireDashboard } from "@/lib/auth/dal";
 import { formatDateID } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,7 +71,7 @@ const RANK_STYLE = [
 ];
 
 export default async function Page() {
-  await requirePerm("master");
+  await requireDashboard();
   const supabase = await createClient();
 
   const { data: ta } = await supabase
@@ -84,32 +84,39 @@ export default async function Page() {
   // eslint-disable-next-line react-hooks/purity -- server component, dievaluasi per request
   const sinceISO = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  const [totalSantriRes, guruLRes, guruPRes, mpRes, recentRes] =
-    await Promise.all([
-      supabase
-        .from("santri")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "aktif"),
-      supabase
-        .from("pegawai")
-        .select("id", { count: "exact", head: true })
-        .ilike("jabatan", "%guru%")
-        .eq("jenis_kelamin", "L"),
-      supabase
-        .from("pegawai")
-        .select("id", { count: "exact", head: true })
-        .ilike("jabatan", "%guru%")
-        .eq("jenis_kelamin", "P"),
-      supabase.from("master_poin").select("id, nama_poin, tipe, level"),
-      supabase
-        .from("transaksi_poin")
-        .select(
-          "id, tipe, nilai_poin, tanggal_kejadian, santri:santri(nama), master_poin:master_poin(nama_poin)",
-        )
-        .gte("created_at", sinceISO)
-        .order("created_at", { ascending: false })
-        .limit(50),
-    ]);
+  const [totalSantriRes, pegawaiRes, mpRes, recentRes] = await Promise.all([
+    supabase
+      .from("santri")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "aktif"),
+    supabase
+      .from("pegawai")
+      .select("jenis_kelamin, jabatan, jabatan_tambahan"),
+    supabase.from("master_poin").select("id, nama_poin, tipe, level"),
+    supabase
+      .from("transaksi_poin")
+      .select(
+        "id, tipe, nilai_poin, tanggal_kejadian, santri:santri(nama), master_poin:master_poin(nama_poin)",
+      )
+      .gte("created_at", sinceISO)
+      .order("created_at", { ascending: false })
+      .limit(50),
+  ]);
+
+  // Guru/musyrif: cek jabatan utama ATAU jabatan tambahan.
+  const GURU_PATTERN = /guru|musyrif/i;
+  function isGuruLike(p: { jabatan: string | null; jabatan_tambahan: string[] | null }) {
+    return [p.jabatan, ...(p.jabatan_tambahan ?? [])]
+      .filter((j): j is string => !!j)
+      .some((j) => GURU_PATTERN.test(j));
+  }
+  const pegawaiAll = pegawaiRes.data ?? [];
+  const guruLCount = pegawaiAll.filter(
+    (p) => p.jenis_kelamin === "L" && isGuruLike(p),
+  ).length;
+  const guruPCount = pegawaiAll.filter(
+    (p) => p.jenis_kelamin === "P" && isGuruLike(p),
+  ).length;
 
   let txQuery = supabase
     .from("transaksi_poin")
@@ -262,8 +269,8 @@ export default async function Page() {
 
   const cards = [
     { label: "Total Santri Aktif", value: totalSantriRes.count ?? 0, icon: Users },
-    { label: "Guru Laki-laki", value: guruLRes.count ?? 0, icon: GraduationCap },
-    { label: "Guru Perempuan", value: guruPRes.count ?? 0, icon: GraduationCap },
+    { label: "Guru Laki-laki", value: guruLCount, icon: GraduationCap },
+    { label: "Guru Perempuan", value: guruPCount, icon: GraduationCap },
   ];
 
   return (

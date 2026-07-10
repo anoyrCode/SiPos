@@ -32,7 +32,7 @@ export default async function Page({
   let query = supabase
     .from("pegawai")
     .select(
-      "id, nip, nama, email, jabatan, jenis_kelamin, telp, tempat_lahir, tanggal_lahir, alamat, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur",
+      "id, nip, nama, email, jabatan, jabatan_tambahan, jenis_kelamin, telp, tempat_lahir, tanggal_lahir, alamat, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur",
       { count: "exact" },
     )
     .order("nama", { ascending: true });
@@ -68,7 +68,16 @@ export default async function Page({
     {
       key: "jabatan",
       header: "Jabatan",
-      cell: (r) => orDash(r.jabatan),
+      cell: (r) => (
+        <div className="flex flex-wrap items-center gap-1">
+          <span>{orDash(r.jabatan)}</span>
+          {r.jabatan_tambahan?.map((j) => (
+            <Badge key={j} variant="outline" className="text-[0.65rem]">
+              {j}
+            </Badge>
+          ))}
+        </div>
+      ),
     },
     {
       key: "jenis_kelamin",

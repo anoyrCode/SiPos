@@ -15,17 +15,19 @@ function payload(input: PegawaiInput) {
     nama: input.nama,
     email: input.email || null,
     jabatan: input.jabatan || null,
+    jabatan_tambahan: input.jabatan_tambahan ?? [],
     jenis_kelamin: input.jenis_kelamin ?? null,
     telp: input.telp || null,
     tempat_lahir: input.tempat_lahir || null,
     tanggal_lahir: input.tanggal_lahir || null,
     alamat: input.alamat || null,
-    jam_masuk_jadwal: input.jam_masuk_jadwal || null,
-    jam_pulang_jadwal: input.jam_pulang_jadwal || null,
+    jam_masuk_jadwal: input.jadwal_fleksibel ? null : input.jam_masuk_jadwal || null,
+    jam_pulang_jadwal: input.jadwal_fleksibel ? null : input.jam_pulang_jadwal || null,
     hari_libur:
       input.hari_libur !== undefined && input.hari_libur !== ""
         ? Number(input.hari_libur)
         : null,
+    jadwal_fleksibel: input.jadwal_fleksibel,
   };
 }
 

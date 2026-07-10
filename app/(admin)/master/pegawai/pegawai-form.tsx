@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Pencil, Plus } from "lucide-react";
+import { Check, Pencil, Plus } from "lucide-react";
 
 import {
   Dialog,
@@ -26,7 +26,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Field } from "@/components/shared/field";
+import { cn } from "@/lib/utils";
 import { pegawaiSchema, type PegawaiInput, type PegawaiRow } from "./schema";
 import { createPegawai, updatePegawai } from "./actions";
 
@@ -36,12 +38,14 @@ const JABATAN_OPTIONS = [
   "Kesantrian Akhwat",
   "Kesantrian Ikhwan",
   "Humas",
+  "Tim Media",
   "IT Support (TU)",
   "IT Development",
   "Tim Keamanan",
   "Guru Profesional",
   "Tim Kurikulum",
   "Administrasi",
+  "SDM",
   "Tim Kesehatan",
   "Tim Kepala Sekolah",
   "Tim Maintenance Umum",
@@ -72,6 +76,7 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
     nama: initial?.nama ?? "",
     email: initial?.email ?? "",
     jabatan: initial?.jabatan ?? "",
+    jabatan_tambahan: initial?.jabatan_tambahan ?? [],
     jenis_kelamin: initial?.jenis_kelamin ?? undefined,
     telp: initial?.telp ?? "",
     tempat_lahir: initial?.tempat_lahir ?? "",
@@ -83,11 +88,16 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
       initial?.hari_libur !== null && initial?.hari_libur !== undefined
         ? String(initial.hari_libur)
         : "",
+    jadwal_fleksibel: initial?.jadwal_fleksibel ?? false,
   };
 
   const form = useForm<PegawaiInput>({
     resolver: zodResolver(pegawaiSchema),
     defaultValues: defaults,
+  });
+  const jadwalFleksibel = useWatch({
+    control: form.control,
+    name: "jadwal_fleksibel",
   });
 
   const onSubmit = form.handleSubmit(async (values) => {
@@ -207,6 +217,51 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                   />
                 </Field>
                 <Field
+                  label="Jabatan Tambahan"
+                  className="sm:col-span-2"
+                  hint="Opsional — jabatan lain di luar jabatan utama."
+                  error={form.formState.errors.jabatan_tambahan?.message}
+                >
+                  <Controller
+                    control={form.control}
+                    name="jabatan_tambahan"
+                    render={({ field }) => {
+                      const selected = field.value ?? [];
+                      function toggle(opt: string) {
+                        field.onChange(
+                          selected.includes(opt)
+                            ? selected.filter((o) => o !== opt)
+                            : [...selected, opt],
+                        );
+                      }
+                      return (
+                        <div className="flex flex-wrap gap-2">
+                          {JABATAN_OPTIONS.map((opt) => {
+                            const on = selected.includes(opt);
+                            return (
+                              <button
+                                key={opt}
+                                type="button"
+                                onClick={() => toggle(opt)}
+                                aria-pressed={on}
+                                className={cn(
+                                  "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+                                  on
+                                    ? "border-primary bg-primary/10 text-primary"
+                                    : "border-border text-muted-foreground hover:bg-muted",
+                                )}
+                              >
+                                {on && <Check className="size-3" />}
+                                {opt}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    }}
+                  />
+                </Field>
+                <Field
                   label="Jenis Kelamin"
                   error={form.formState.errors.jenis_kelamin?.message}
                 >
@@ -289,6 +344,30 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                 Jadwal Absensi
               </h3>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Controller
+                  control={form.control}
+                  name="jadwal_fleksibel"
+                  render={({ field }) => (
+                    <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 sm:col-span-2">
+                      <span className="text-sm font-medium">
+                        Jadwal Fleksibel
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          Tidak terikat jam masuk/pulang tetap (mis. satpam).
+                        </span>
+                      </span>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          if (checked) {
+                            form.setValue("jam_masuk_jadwal", "");
+                            form.setValue("jam_pulang_jadwal", "");
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                />
                 <Field
                   label="Jam Masuk"
                   htmlFor="jam_masuk_jadwal"
@@ -297,6 +376,7 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                   <Input
                     id="jam_masuk_jadwal"
                     type="time"
+                    disabled={jadwalFleksibel}
                     {...form.register("jam_masuk_jadwal")}
                   />
                 </Field>
@@ -308,6 +388,7 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                   <Input
                     id="jam_pulang_jadwal"
                     type="time"
+                    disabled={jadwalFleksibel}
                     {...form.register("jam_pulang_jadwal")}
                   />
                 </Field>

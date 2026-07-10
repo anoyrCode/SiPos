@@ -10,6 +10,7 @@ export const pegawaiSchema = z.object({
     .or(z.literal(""))
     .optional(),
   jabatan: z.string().trim().optional(),
+  jabatan_tambahan: z.array(z.string()).optional(),
   jenis_kelamin: z.enum(["L", "P"]).optional(),
   telp: z.string().trim().optional(),
   tempat_lahir: z.string().trim().optional(),
@@ -18,6 +19,7 @@ export const pegawaiSchema = z.object({
   jam_masuk_jadwal: z.string().trim().optional(),
   jam_pulang_jadwal: z.string().trim().optional(),
   hari_libur: z.string().optional(),
+  jadwal_fleksibel: z.boolean(),
 });
 
 export type PegawaiInput = z.infer<typeof pegawaiSchema>;
@@ -28,6 +30,7 @@ export type PegawaiRow = {
   nama: string;
   email: string | null;
   jabatan: string | null;
+  jabatan_tambahan: string[];
   jenis_kelamin: "L" | "P" | null;
   telp: string | null;
   tempat_lahir: string | null;
@@ -36,4 +39,5 @@ export type PegawaiRow = {
   jam_masuk_jadwal: string | null;
   jam_pulang_jadwal: string | null;
   hari_libur: number | null;
+  jadwal_fleksibel: boolean;
 };
