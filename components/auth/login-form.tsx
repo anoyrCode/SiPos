@@ -21,9 +21,11 @@ export function LoginForm() {
   );
 
   return (
-    <div className="animate-enter w-full max-w-sm rounded-2xl border bg-card p-7 shadow-xl shadow-foreground/6 sm:p-8">
-      <div className="mb-7 flex items-center gap-2.5 lg:hidden">
-        <SiposMark className="size-10" />
+    <div className="animate-enter w-full max-w-sm rounded-2xl border bg-card p-7 shadow-xl shadow-primary/10 sm:p-8">
+      <div className="mb-7 flex items-center gap-3 lg:hidden">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/15">
+          <SiposMark className="size-7" />
+        </span>
         <span className="font-heading text-xl font-extrabold tracking-tight">
           <span className="text-foreground">SIPOS</span>{" "}
           <span className="text-primary">Al-Kautsar</span>
@@ -86,7 +88,7 @@ export function LoginForm() {
                 type="tel"
                 inputMode="numeric"
                 autoComplete="username"
-                placeholder="08xxxxxxxxxx"
+                placeholder="Nomor yang terdaftar"
                 className="pl-9"
               />
             </div>

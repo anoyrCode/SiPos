@@ -131,11 +131,24 @@ export default async function LoginPage() {
       <section className="relative flex items-center justify-center overflow-hidden bg-background p-6 sm:p-10">
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full bg-primary/10 blur-3xl"
+          className="pointer-events-none absolute inset-0 opacity-[0.05]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 1px 1px, var(--primary) 1px, transparent 0)",
+            backgroundSize: "26px 26px",
+          }}
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -bottom-28 -left-16 size-80 rounded-full bg-primary/6 blur-3xl"
+          className="pointer-events-none absolute -right-20 -top-24 size-96 rounded-full bg-primary/15 blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-28 -left-20 size-80 rounded-full bg-cyan-200/25 blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-1/4 right-0 size-64 rounded-full bg-primary/10 blur-3xl"
         />
         <LoginForm />
       </section>
