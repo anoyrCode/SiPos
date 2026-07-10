@@ -16,16 +16,19 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   createWaliAccount,
+  deleteWali,
   deleteWaliAccount,
   resetWaliPassword,
 } from "./actions";
 
 export function WaliAccountActions({
   waliId,
+  waliNama,
   hasAccount,
   email,
 }: {
   waliId: string;
+  waliNama: string;
   hasAccount: boolean;
   email: string;
 }) {
@@ -81,6 +84,18 @@ export function WaliAccountActions({
           />
         </>
       )}
+      <ConfirmDialog
+        action={deleteWali}
+        id={waliId}
+        title="Hapus data wali?"
+        description={`Data wali "${waliNama}" akan dihapus permanen, termasuk akun login (jika ada) dan relasi ke semua anaknya.`}
+        confirmLabel="Hapus"
+        trigger={
+          <Button variant="ghost" size="icon-sm" aria-label="Hapus wali">
+            <Trash2 className="text-destructive" />
+          </Button>
+        }
+      />
       {error && <span className="text-xs text-destructive">{error}</span>}
 
       <Dialog

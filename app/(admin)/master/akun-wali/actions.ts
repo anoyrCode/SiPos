@@ -162,6 +162,31 @@ export async function deleteWaliAccount(waliId: string): Promise<FormResult> {
   return { ok: true };
 }
 
+/** Hapus data wali (akun login & relasi ke santri ikut terhapus). */
+export async function deleteWali(waliId: string): Promise<FormResult> {
+  if (!(await canAkun())) return { ok: false, error: "Tidak diizinkan." };
+
+  const supabase = await createClient();
+  const { data: wali } = await supabase
+    .from("wali")
+    .select("id, user_id")
+    .eq("id", waliId)
+    .maybeSingle();
+  if (!wali) return { ok: false, error: "Data wali tidak ditemukan." };
+
+  const admin = createAdminClient();
+  if (wali.user_id) {
+    const { error: authErr } = await admin.auth.admin.deleteUser(wali.user_id);
+    if (authErr) return { ok: false, error: authErr.message };
+  }
+
+  const { error } = await admin.from("wali").delete().eq("id", waliId);
+  if (error) return { ok: false, error: dbErrorMessage(error) };
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
 /** Daftar anak terhubung ke seorang wali (untuk dialog edit relasi). */
 export async function getWaliAnak(
   waliId: string,

@@ -82,6 +82,7 @@ export default async function Page({
       cell: (r) => (
         <WaliAccountActions
           waliId={r.id}
+          waliNama={r.nama ?? r.no_telp}
           hasAccount={Boolean(r.user_id)}
           email={phoneToWaliEmail(r.no_telp)}
         />
