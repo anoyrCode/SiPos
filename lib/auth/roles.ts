@@ -46,7 +46,7 @@ export function homePathForProfile({ role, perms }: ProfileLike): string {
   if (perms.santri || perms.pegawai) return "/master/santri";
   if (perms.akun || perms.akun_staff) return "/master/akun-staff";
   if (perms.absensi) return "/absensi";
-  return "/input-poin"; // fallback aman (halaman menampilkan pesan bila tak berhak)
+  return "/tanpa-akses"; // tidak ada hak akses sama sekali — di luar layout (app), cegah redirect loop
 }
 
 /** Menu navigasi sesuai hak akses. */
