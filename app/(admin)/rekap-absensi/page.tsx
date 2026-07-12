@@ -29,6 +29,7 @@ import { StatusFilter } from "./status-filter";
 import { PengaturanAbsensiForm } from "./pengaturan-form";
 import { KeterlambatanExport } from "./keterlambatan-export";
 import { PersetujuanPanel } from "./persetujuan-panel";
+import { PengajuanStatusFilter } from "./pengajuan-status-filter";
 
 type Row = {
   pegawaiId: string;
@@ -137,6 +138,7 @@ export default async function Page({
           title="Persetujuan Absensi"
           description="Setujui atau tolak pengajuan izin/sakit/cuti pegawai."
         />
+        <PengajuanStatusFilter value={pengajuanStatus} />
         <PersetujuanPanel statusFilter={pengajuanStatus} />
       </div>
     );
@@ -378,7 +380,10 @@ export default async function Page({
       </div>
 
       {mode === "persetujuan" ? (
-        <PersetujuanPanel statusFilter={pengajuanStatus} />
+        <div className="space-y-4">
+          <PengajuanStatusFilter value={pengajuanStatus} />
+          <PersetujuanPanel statusFilter={pengajuanStatus} />
+        </div>
       ) : mode === "tanggal" ? (
         <DataTable
           columns={columns}

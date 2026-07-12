@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
 
 import { createClient } from "@/lib/supabase/server";
 import { canAbsensi, getProfile } from "@/lib/auth/dal";
@@ -160,6 +161,17 @@ export async function ajukanIzin(formData: FormData): Promise<FormResult> {
     };
   }
 
+  let buktiPath: string | null = null;
+  if (file) {
+    buktiPath = `${profile.pegawai_id}/${randomUUID()}.${extFromMime(file.type)}`;
+    const { error: uploadErr } = await supabase.storage
+      .from("bukti-absensi")
+      .upload(buktiPath, file, { contentType: file.type });
+    if (uploadErr) {
+      return { ok: false, error: "Gagal upload bukti. Coba lagi." };
+    }
+  }
+
   const { data: pengajuan, error: pengajuanErr } = await supabase
     .from("absensi_pengajuan")
     .insert({
@@ -168,25 +180,12 @@ export async function ajukanIzin(formData: FormData): Promise<FormResult> {
       tanggal_mulai: tanggalMulai,
       tanggal_selesai: tanggalSelesai,
       keterangan: keterangan || null,
+      bukti_url: buktiPath,
     })
     .select("id")
     .single();
   if (pengajuanErr || !pengajuan) {
     return { ok: false, error: dbErrorMessage(pengajuanErr) };
-  }
-
-  if (file) {
-    const path = `${profile.pegawai_id}/${pengajuan.id}.${extFromMime(file.type)}`;
-    const { error: uploadErr } = await supabase.storage
-      .from("bukti-absensi")
-      .upload(path, file, { contentType: file.type, upsert: true });
-    if (uploadErr) {
-      return { ok: false, error: "Gagal upload bukti. Coba lagi." };
-    }
-    await supabase
-      .from("absensi_pengajuan")
-      .update({ bukti_url: path })
-      .eq("id", pengajuan.id);
   }
 
   const rows = dates.map((tanggal) => ({
