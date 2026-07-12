@@ -5,6 +5,7 @@ import {
   Award,
   BarChart3,
   GraduationCap,
+  MailWarning,
   PieChart,
   TrendingUp,
   Users,
@@ -238,7 +239,23 @@ export default async function Page() {
   const topNeg = negSorted.slice(0, PERINGKAT_N);
   const topPos = posSorted.slice(0, PERINGKAT_N);
 
-  const idSet = new Set([...topNeg, ...topPos].map(([id]) => id));
+  const SP_LEVELS = [
+    { level: 1, ambang: 300 },
+    { level: 2, ambang: 600 },
+    { level: 3, ambang: 900 },
+  ];
+  function spLevelFor(totalNegatif: number): number | null {
+    let level: number | null = null;
+    for (const sp of SP_LEVELS) {
+      if (totalNegatif >= sp.ambang) level = sp.level;
+    }
+    return level;
+  }
+  const spEligible = negSorted.filter(([, v]) => v.neg >= 300);
+
+  const idSet = new Set(
+    [...topNeg, ...topPos, ...spEligible].map(([id]) => id),
+  );
   const nameMap = new Map<string, string>();
   if (idSet.size > 0) {
     const { data: names } = await supabase
@@ -251,6 +268,12 @@ export default async function Page() {
     id,
     nama: nameMap.get(id) ?? "?",
     total: v.pos,
+  }));
+  const perluTindakanSP = spEligible.slice(0, 8).map(([id, v]) => ({
+    id,
+    nama: nameMap.get(id) ?? "?",
+    total: v.neg,
+    sp: spLevelFor(v.neg) ?? 1,
   }));
   const perluPerhatian = negSorted.slice(0, 7).map(([id, v]) => ({
     id,
@@ -329,6 +352,53 @@ export default async function Page() {
           </div>
         </div>
       </section>
+
+      {perluTindakanSP.length > 0 && (
+        <Card className="border-negative/30 bg-negative-soft/40">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2 text-negative">
+                <MailWarning className="size-4" />
+                Perlu Tindakan (Surat Panggilan)
+              </span>
+              <Link
+                href="/surat-panggilan"
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Lihat semua
+              </Link>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {perluTindakanSP.map((s) => (
+                <li key={s.id}>
+                  <Link
+                    href={`/surat-panggilan?sp=${s.sp}`}
+                    className="flex items-center gap-2.5 rounded-xl border border-border/70 bg-card px-3 py-2 transition-colors hover:bg-muted"
+                  >
+                    <Badge
+                      variant={s.sp === 3 ? "negative" : "warning"}
+                      className={cn(
+                        "shrink-0 font-mono",
+                        s.sp === 3 && "animate-pulse",
+                      )}
+                    >
+                      SP{s.sp}
+                    </Badge>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{s.nama}</p>
+                      <p className="text-xs text-muted-foreground">
+                        −{s.total} poin
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Perkembangan + Sebaran level */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
