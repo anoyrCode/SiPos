@@ -33,7 +33,7 @@ export const EMPTY_PERMS: Perms = {
   approve_absensi: false,
 };
 
-export type NavItem = { href: string; label: string };
+export type NavItem = { href: string; label: string; badge?: number };
 export type NavGroup = { title?: string; items: NavItem[] };
 
 type ProfileLike = { role: Role; perms: Perms };
@@ -52,8 +52,11 @@ export function homePathForProfile({ role, perms }: ProfileLike): string {
   return "/tanpa-akses"; // tidak ada hak akses sama sekali — di luar layout (app), cegah redirect loop
 }
 
-/** Menu navigasi sesuai hak akses. */
-export function navForProfile({ role, perms }: ProfileLike): NavGroup[] {
+/** Menu navigasi sesuai hak akses. `pendingApprovalCount` opsional — tampil sbg badge di "Rekap Absensi". */
+export function navForProfile(
+  { role, perms }: ProfileLike,
+  pendingApprovalCount = 0,
+): NavGroup[] {
   if (role === "wali") {
     return [{ items: [{ href: "/anak", label: "Anak Saya" }] }];
   }
@@ -74,7 +77,11 @@ export function navForProfile({ role, perms }: ProfileLike): NavGroup[] {
   }
   if (perms.absensi) transaksi.push({ href: "/absensi", label: "Absensi" });
   if (perms.master || perms.approve_absensi)
-    transaksi.push({ href: "/rekap-absensi", label: "Rekap Absensi" });
+    transaksi.push({
+      href: "/rekap-absensi",
+      label: "Rekap Absensi",
+      badge: pendingApprovalCount > 0 ? pendingApprovalCount : undefined,
+    });
   if (transaksi.length > 0) {
     groups.push({ title: "Transaksi", items: transaksi });
   }

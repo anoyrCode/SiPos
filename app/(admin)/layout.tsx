@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth/dal";
 import { homePathForProfile, navForProfile } from "@/lib/auth/roles";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shared/app-shell";
+import { getPendingApprovalCount } from "@/lib/pending-approval";
 
 export default async function AdminLayout({
   children,
@@ -9,7 +10,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   // Area admin: butuh kelola master ATAU kelola akun (atau super),
-  // termasuk hak akses sempit (santri/pegawai/akun staff/dashboard saja).
+  // termasuk hak akses sempit (santri/pegawai/akun staff/dashboard/approve absensi saja).
   const profile = await requireAuth();
   const p = profile.perms;
   if (
@@ -20,15 +21,20 @@ export default async function AdminLayout({
       p.santri ||
       p.pegawai ||
       p.akun_staff ||
-      p.dashboard
+      p.dashboard ||
+      p.approve_absensi
     )
   ) {
     redirect(homePathForProfile(profile));
   }
 
+  const pendingApprovalCount = await getPendingApprovalCount(
+    p.master || p.super || p.approve_absensi,
+  );
+
   return (
     <AppShell
-      nav={navForProfile(profile)}
+      nav={navForProfile(profile, pendingApprovalCount)}
       name={profile.name}
       roleLabel={profile.roleName}
       jabatan={profile.jabatan}

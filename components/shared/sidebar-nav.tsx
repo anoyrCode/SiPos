@@ -115,8 +115,13 @@ export function SidebarNav({
                   <Icon className="size-[1.05rem]" />
                 </span>
                 <span className="truncate">{item.label}</span>
+                {!!item.badge && (
+                  <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-destructive px-1 text-[0.62rem] font-semibold text-white">
+                    {item.badge > 9 ? "9+" : item.badge}
+                  </span>
+                )}
                 {/* Titik penanda aktif di kanan */}
-                {active && (
+                {active && !item.badge && (
                   <span
                     aria-hidden
                     className="ml-auto size-1.5 rounded-full bg-primary/70"
