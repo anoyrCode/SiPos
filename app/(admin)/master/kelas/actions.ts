@@ -54,6 +54,32 @@ export async function deleteKelas(id: string): Promise<FormResult> {
   if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
+
+  // santri_kelas/guru_kelas pakai on delete cascade — kalau masih ada
+  // santri/musyrif di kelas ini, blokir dulu (jangan diam-diam terhapus).
+  const [santriCount, guruCount] = await Promise.all([
+    supabase
+      .from("santri_kelas")
+      .select("id", { count: "exact", head: true })
+      .eq("kelas_id", id),
+    supabase
+      .from("guru_kelas")
+      .select("id", { count: "exact", head: true })
+      .eq("kelas_id", id),
+  ]);
+  if ((santriCount.count ?? 0) > 0) {
+    return {
+      ok: false,
+      error: `Kelas masih punya ${santriCount.count} santri. Pindahkan santri dulu.`,
+    };
+  }
+  if ((guruCount.count ?? 0) > 0) {
+    return {
+      ok: false,
+      error: `Kelas masih ditugaskan ke ${guruCount.count} musyrif. Ubah penugasan dulu.`,
+    };
+  }
+
   const { error } = await supabase.from("kelas").delete().eq("id", id);
   if (error) return { ok: false, error: dbErrorMessage(error) };
 
