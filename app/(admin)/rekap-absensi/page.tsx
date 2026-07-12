@@ -356,15 +356,30 @@ export default async function Page({
           <SearchInput placeholder="Cari nama pegawai…" className="w-full sm:w-56" />
           {mode === "tanggal" && <StatusFilter value={statusFilter} />}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex gap-1 rounded-lg bg-muted p-1">
-            <Button asChild size="sm" variant={mode === "tanggal" ? "default" : "ghost"}>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <div className="flex w-full gap-1 rounded-lg bg-muted p-1 sm:w-auto">
+            <Button
+              asChild
+              size="sm"
+              variant={mode === "tanggal" ? "default" : "ghost"}
+              className="flex-1 sm:flex-none"
+            >
               <Link href="/rekap-absensi?mode=tanggal">Per Tanggal</Link>
             </Button>
-            <Button asChild size="sm" variant={mode === "bulanan" ? "default" : "ghost"}>
+            <Button
+              asChild
+              size="sm"
+              variant={mode === "bulanan" ? "default" : "ghost"}
+              className="flex-1 sm:flex-none"
+            >
               <Link href="/rekap-absensi?mode=bulanan">Per Bulan</Link>
             </Button>
-            <Button asChild size="sm" variant={mode === "persetujuan" ? "default" : "ghost"}>
+            <Button
+              asChild
+              size="sm"
+              variant={mode === "persetujuan" ? "default" : "ghost"}
+              className="flex-1 sm:flex-none"
+            >
               <Link href="/rekap-absensi?mode=persetujuan">Persetujuan</Link>
             </Button>
           </div>
@@ -375,6 +390,7 @@ export default async function Page({
               radius_meter: setting?.radius_meter ?? 150,
               toleransi_menit: toleransiMenit,
             }}
+            triggerClassName="w-full sm:w-auto"
           />
         </div>
       </div>

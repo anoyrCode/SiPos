@@ -178,11 +178,21 @@ export default async function Page({
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border/70 bg-card p-3 shadow-sm">
         <TaFilter options={taOptions} value={taId} />
-        <div className="flex gap-1 rounded-lg bg-muted p-1">
-          <Button asChild size="sm" variant={mode === "kelas" ? "default" : "ghost"}>
+        <div className="flex w-full gap-1 rounded-lg bg-muted p-1 sm:w-auto">
+          <Button
+            asChild
+            size="sm"
+            variant={mode === "kelas" ? "default" : "ghost"}
+            className="flex-1 sm:flex-none"
+          >
             <Link href={`/laporan?ta=${taId}&mode=kelas`}>Per Kelas</Link>
           </Button>
-          <Button asChild size="sm" variant={mode === "santri" ? "default" : "ghost"}>
+          <Button
+            asChild
+            size="sm"
+            variant={mode === "santri" ? "default" : "ghost"}
+            className="flex-1 sm:flex-none"
+          >
             <Link href={`/laporan?ta=${taId}&mode=santri`}>Per Santri</Link>
           </Button>
         </div>

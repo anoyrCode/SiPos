@@ -29,17 +29,21 @@ const schema = z.object({
   lokasi_lat: z.number(),
   lokasi_long: z.number(),
   radius_meter: z.number().min(10).max(5000),
+  toleransi_menit: z.number().min(0).max(60),
 });
 type PengaturanInput = z.infer<typeof schema>;
 
 export function PengaturanAbsensiForm({
   initial,
+  triggerClassName,
 }: {
   initial: {
     lokasi_lat: number | null;
     lokasi_long: number | null;
     radius_meter: number;
+    toleransi_menit: number;
   };
+  triggerClassName?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -49,6 +53,7 @@ export function PengaturanAbsensiForm({
     lokasi_lat: initial.lokasi_lat ?? 0,
     lokasi_long: initial.lokasi_long ?? 0,
     radius_meter: initial.radius_meter,
+    toleransi_menit: initial.toleransi_menit,
   };
 
   const form = useForm<PengaturanInput>({
@@ -80,7 +85,7 @@ export function PengaturanAbsensiForm({
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="secondary">
+        <Button variant="secondary" className={triggerClassName}>
           <Settings data-icon="inline-start" />
           Atur Lokasi & Radius
         </Button>
@@ -138,6 +143,18 @@ export function PengaturanAbsensiForm({
               id="radius_meter"
               type="number"
               {...form.register("radius_meter", { valueAsNumber: true })}
+            />
+          </Field>
+          <Field
+            label="Toleransi Keterlambatan (menit)"
+            htmlFor="toleransi_menit"
+            hint="Clock-in dalam rentang ini tidak dianggap telat & tidak masuk laporan HRD."
+            error={form.formState.errors.toleransi_menit?.message}
+          >
+            <Input
+              id="toleransi_menit"
+              type="number"
+              {...form.register("toleransi_menit", { valueAsNumber: true })}
             />
           </Field>
           {serverError && (
