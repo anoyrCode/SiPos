@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ClipboardCheck } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireApproveAbsensi } from "@/lib/auth/dal";
+import { requireRekapAbsensiAkses } from "@/lib/auth/dal";
 import { getStr, type SearchParams } from "@/lib/list-params";
 import { formatDateID } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
@@ -109,16 +109,18 @@ export default async function Page({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const profile = await requireApproveAbsensi();
+  const profile = await requireRekapAbsensiAkses();
   const isMaster = profile.perms.master || profile.perms.super;
+  const canApprove = isMaster || profile.perms.approve_absensi;
+  const canViewRekap = isMaster || profile.perms.rekap_absensi;
   const sp = await searchParams;
   const modeRaw = getStr(sp.mode);
   const mode =
-    modeRaw === "persetujuan"
+    modeRaw === "persetujuan" && canApprove
       ? "persetujuan"
-      : isMaster && modeRaw === "bulanan"
+      : modeRaw === "bulanan" && canViewRekap
         ? "bulanan"
-        : isMaster
+        : canViewRekap
           ? "tanggal"
           : "persetujuan";
   const pengajuanStatus: PengajuanStatus =
@@ -133,10 +135,10 @@ export default async function Page({
   const statusFilter = getStr(sp.status);
   const monthDates = mode === "bulanan" ? datesInMonth(bulan) : [];
 
-  if (!isMaster) {
-    // Approver tanpa akses Master Data penuh: skip semua query rekap
-    // tanggal/bulanan (data GPS & jam kerja SEMUA pegawai), langsung ke
-    // tampilan Persetujuan saja.
+  if (!canViewRekap) {
+    // Approver tanpa akses rekap (perm_master/perm_rekap_absensi): skip semua
+    // query rekap tanggal/bulanan (data GPS & jam kerja SEMUA pegawai),
+    // langsung ke tampilan Persetujuan saja.
     return (
       <div className="animate-enter space-y-6 p-6 md:p-8">
         <PageHeader
@@ -265,7 +267,7 @@ export default async function Page({
   }
 
   let pengajuanBulananRows: PengajuanBulananRow[] = [];
-  if (mode === "bulanan") {
+  if (mode === "bulanan" && canApprove) {
     const { data: pengajuanRaw } = await supabase
       .from("absensi_pengajuan")
       .select(
@@ -481,25 +483,31 @@ export default async function Page({
             >
               <Link href="/rekap-absensi?mode=bulanan">Per Bulan</Link>
             </Button>
-            <Button
-              asChild
-              size="sm"
-              variant={mode === "persetujuan" ? "default" : "ghost"}
-              className="flex-1 sm:flex-none"
-            >
-              <Link href="/rekap-absensi?mode=persetujuan">Persetujuan</Link>
-            </Button>
+            {canApprove && (
+              <Button
+                asChild
+                size="sm"
+                variant={mode === "persetujuan" ? "default" : "ghost"}
+                className="flex-1 sm:flex-none"
+              >
+                <Link href="/rekap-absensi?mode=persetujuan">Persetujuan</Link>
+              </Button>
+            )}
           </div>
-          <PengaturanAbsensiForm
-            initial={{
-              lokasi_lat: setting?.lokasi_lat ?? null,
-              lokasi_long: setting?.lokasi_long ?? null,
-              radius_meter: setting?.radius_meter ?? 150,
-              toleransi_menit: toleransiMenit,
-            }}
-            triggerClassName="w-full sm:w-auto"
-          />
-          <LiburKhususDialog initial={liburKhususList} />
+          {isMaster && (
+            <>
+              <PengaturanAbsensiForm
+                initial={{
+                  lokasi_lat: setting?.lokasi_lat ?? null,
+                  lokasi_long: setting?.lokasi_long ?? null,
+                  radius_meter: setting?.radius_meter ?? 150,
+                  toleransi_menit: toleransiMenit,
+                }}
+                triggerClassName="w-full sm:w-auto"
+              />
+              <LiburKhususDialog initial={liburKhususList} />
+            </>
+          )}
         </div>
       </div>
 
@@ -557,19 +565,21 @@ export default async function Page({
               empty="Tidak ada kejadian curang bulan ini."
             />
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold">Pengajuan Izin/Sakit/Cuti</h3>
-              <PengajuanBulananExport bulan={bulan} rows={pengajuanBulananRows} />
+          {canApprove && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold">Pengajuan Izin/Sakit/Cuti</h3>
+                <PengajuanBulananExport bulan={bulan} rows={pengajuanBulananRows} />
+              </div>
+              <DataTable
+                columns={pengajuanBulananColumns}
+                rows={pengajuanBulananRows}
+                getRowId={(r) => r.pengajuanId}
+                isFiltered={!!q}
+                empty="Tidak ada pengajuan izin/sakit/cuti bulan ini."
+              />
             </div>
-            <DataTable
-              columns={pengajuanBulananColumns}
-              rows={pengajuanBulananRows}
-              getRowId={(r) => r.pengajuanId}
-              isFiltered={!!q}
-              empty="Tidak ada pengajuan izin/sakit/cuti bulan ini."
-            />
-          </div>
+          )}
         </>
       )}
     </div>

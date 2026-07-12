@@ -35,7 +35,8 @@ type PermKey =
   | "perm_akun_staff"
   | "perm_absensi"
   | "perm_dashboard"
-  | "perm_approve_absensi";
+  | "perm_approve_absensi"
+  | "perm_rekap_absensi";
 
 const PERMS: { key: PermKey; label: string; desc: string }[] = [
   { key: "perm_input_poin", label: "Input poin", desc: "Mencatat poin santri." },
@@ -85,6 +86,11 @@ const PERMS: { key: PermKey; label: string; desc: string }[] = [
     desc: "Menyetujui/menolak pengajuan izin/sakit/cuti pegawai lain, tanpa akses master data lain.",
   },
   {
+    key: "perm_rekap_absensi",
+    label: "— Lihat Rekap Kehadiran (Semua Pegawai)",
+    desc: "Buka rekap kehadiran per tanggal/bulan (termasuk laporan keterlambatan), tanpa akses master data lain & tanpa bisa approve izin.",
+  },
+  {
     key: "perm_kesehatan",
     label: "Kelola rekam medis (UKS)",
     desc: "Mencatat & melihat rekam medis santri di UKS.",
@@ -112,6 +118,7 @@ export function PeranForm({ initial }: { initial?: PeranRow }) {
     perm_absensi: initial?.perm_absensi ?? false,
     perm_dashboard: initial?.perm_dashboard ?? false,
     perm_approve_absensi: initial?.perm_approve_absensi ?? false,
+    perm_rekap_absensi: initial?.perm_rekap_absensi ?? false,
   };
 
   const form = useForm<PeranInput>({

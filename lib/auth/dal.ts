@@ -40,6 +40,7 @@ type AppRoleRow = {
   perm_absensi: boolean;
   perm_dashboard: boolean;
   perm_approve_absensi: boolean;
+  perm_rekap_absensi: boolean;
 } | null;
 
 function resolvePerms(role: Role, r: AppRoleRow): Perms {
@@ -60,6 +61,7 @@ function resolvePerms(role: Role, r: AppRoleRow): Perms {
       absensi: true,
       dashboard: true,
       approve_absensi: true,
+      rekap_absensi: true,
     };
   }
   return {
@@ -76,6 +78,7 @@ function resolvePerms(role: Role, r: AppRoleRow): Perms {
     absensi: !!r?.perm_absensi,
     dashboard: !!r?.perm_dashboard,
     approve_absensi: !!r?.perm_approve_absensi,
+    rekap_absensi: !!r?.perm_rekap_absensi,
   };
 }
 
@@ -97,7 +100,7 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   const { data } = await supabase
     .from("profiles")
     .select(
-      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_absensi, perm_dashboard, perm_approve_absensi), pegawai:pegawai(nama, jabatan, shift), wali:wali(nama)",
+      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_absensi, perm_dashboard, perm_approve_absensi, perm_rekap_absensi), pegawai:pegawai(nama, jabatan, shift), wali:wali(nama)",
     )
     .eq("id", user.id)
     .single();
@@ -234,6 +237,22 @@ export async function requireApproveAbsensi(): Promise<Profile> {
   return profile;
 }
 
+/** True bila boleh lihat rekap kehadiran semua pegawai (master penuh atau perm khusus). */
+export async function canRekapAbsensi(): Promise<boolean> {
+  const profile = await getProfile();
+  return (profile?.perms.master || profile?.perms.rekap_absensi) ?? false;
+}
+
+/** Wajib boleh akses halaman Rekap Absensi (lihat rekap, approve pengajuan, atau master). */
+export async function requireRekapAbsensiAkses(): Promise<Profile> {
+  const profile = await requireAuth();
+  const p = profile.perms;
+  if (!(p.master || p.approve_absensi || p.rekap_absensi)) {
+    redirect(homePathForProfile(profile));
+  }
+  return profile;
+}
+
 /** Wajib login; jika tidak → redirect ke /login. */
 export async function requireAuth(): Promise<Profile> {
   const profile = await getProfile();
@@ -266,7 +285,8 @@ export async function requireStaff(): Promise<Profile> {
     p.akun_staff ||
     p.absensi ||
     p.dashboard ||
-    p.approve_absensi;
+    p.approve_absensi ||
+    p.rekap_absensi;
   if (profile.role === "wali" || !hasAny) {
     redirect(homePathForProfile(profile));
   }
