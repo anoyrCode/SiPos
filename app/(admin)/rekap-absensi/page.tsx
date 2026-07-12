@@ -22,6 +22,7 @@ import {
   formatJamWIB,
   type AbsensiStatus,
   type PengajuanStatus,
+  PENGAJUAN_STATUS_LABEL,
 } from "@/lib/absensi-status";
 import { DateFilter } from "./date-filter";
 import { BulanFilter } from "./bulan-filter";
@@ -30,6 +31,10 @@ import { PengaturanAbsensiForm } from "./pengaturan-form";
 import { KeterlambatanExport } from "./keterlambatan-export";
 import { PersetujuanPanel } from "./persetujuan-panel";
 import { PengajuanStatusFilter } from "./pengajuan-status-filter";
+import {
+  PengajuanBulananExport,
+  type PengajuanBulananRow,
+} from "./pengajuan-bulanan-export";
 
 type Row = {
   pegawaiId: string;
@@ -251,6 +256,100 @@ export default async function Page({
     }
   }
 
+  let pengajuanBulananRows: PengajuanBulananRow[] = [];
+  if (mode === "bulanan") {
+    const { data: pengajuanRaw } = await supabase
+      .from("absensi_pengajuan")
+      .select(
+        "id, kategori, tanggal_mulai, tanggal_selesai, status, keterangan, alasan_penolakan, pegawai:pegawai(nama)",
+      )
+      .lte("tanggal_mulai", monthDates[monthDates.length - 1])
+      .gte("tanggal_selesai", monthDates[0])
+      .order("tanggal_mulai");
+
+    type PegawaiEmbed = { nama: string } | { nama: string }[] | null;
+    const embedNama = (e: PegawaiEmbed): string =>
+      e ? (Array.isArray(e) ? (e[0]?.nama ?? "—") : e.nama) : "—";
+
+    pengajuanBulananRows = (
+      (pengajuanRaw ?? []) as unknown as {
+        id: string;
+        kategori: PengajuanBulananRow["kategori"];
+        tanggal_mulai: string;
+        tanggal_selesai: string;
+        status: PengajuanBulananRow["status"];
+        keterangan: string | null;
+        alasan_penolakan: string | null;
+        pegawai: PegawaiEmbed;
+      }[]
+    ).map((r) => {
+      const hari =
+        Math.round(
+          (new Date(`${r.tanggal_selesai}T00:00:00`).getTime() -
+            new Date(`${r.tanggal_mulai}T00:00:00`).getTime()) /
+            86400000,
+        ) + 1;
+      return {
+        pengajuanId: r.id,
+        nama: embedNama(r.pegawai),
+        kategori: r.kategori,
+        tanggalMulai: r.tanggal_mulai,
+        tanggalSelesai: r.tanggal_selesai,
+        jumlahHari: hari,
+        status: r.status,
+        keterangan: r.keterangan,
+        alasanPenolakan: r.alasan_penolakan,
+      };
+    });
+  }
+
+  const pengajuanBulananColumns: Column<PengajuanBulananRow>[] = [
+    {
+      key: "nama",
+      header: "Pegawai",
+      cell: (r) => <span className="font-medium">{r.nama}</span>,
+    },
+    {
+      key: "kategori",
+      header: "Kategori",
+      cell: (r) => (
+        <Badge variant="outline">
+          {r.kategori === "izin" ? "Izin" : r.kategori === "sakit" ? "Sakit" : "Cuti"}
+        </Badge>
+      ),
+    },
+    {
+      key: "tanggal",
+      header: "Tanggal",
+      cell: (r) =>
+        r.tanggalMulai === r.tanggalSelesai
+          ? formatDateID(r.tanggalMulai)
+          : `${formatDateID(r.tanggalMulai)} – ${formatDateID(r.tanggalSelesai)}`,
+    },
+    {
+      key: "hari",
+      header: "Jumlah Hari",
+      cell: (r) => <span className="font-mono">{r.jumlahHari}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      cell: (r) => (
+        <Badge
+          variant={
+            r.status === "disetujui"
+              ? "positive"
+              : r.status === "ditolak"
+                ? "negative"
+                : "warning"
+          }
+        >
+          {PENGAJUAN_STATUS_LABEL[r.status]}
+        </Badge>
+      ),
+    },
+  ];
+
   const columns: Column<Row>[] = [
     {
       key: "nama",
@@ -447,6 +546,19 @@ export default async function Page({
               getRowId={(r) => `${r.pegawaiId}_${r.tanggal}`}
               isFiltered={!!q}
               empty="Tidak ada kejadian curang bulan ini."
+            />
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold">Pengajuan Izin/Sakit/Cuti</h3>
+              <PengajuanBulananExport bulan={bulan} rows={pengajuanBulananRows} />
+            </div>
+            <DataTable
+              columns={pengajuanBulananColumns}
+              rows={pengajuanBulananRows}
+              getRowId={(r) => r.pengajuanId}
+              isFiltered={!!q}
+              empty="Tidak ada pengajuan izin/sakit/cuti bulan ini."
             />
           </div>
         </>
