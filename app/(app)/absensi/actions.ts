@@ -94,29 +94,52 @@ export async function clockIn(lat: number, long: number): Promise<FormResult> {
   return { ok: true };
 }
 
-/** Ajukan izin/sakit/cuti sendiri (tanpa approval) utk 1 hari atau rentang. */
-export async function ajukanIzin(input: {
-  tanggal_mulai: string;
-  tanggal_selesai: string;
-  kategori: KategoriAbsen;
-  keterangan?: string;
-}): Promise<FormResult> {
+const MAX_BUKTI_BYTES = 5 * 1024 * 1024;
+const ALLOWED_BUKTI_TYPES = ["image/jpeg", "image/png", "application/pdf"];
+
+function extFromMime(mime: string): string {
+  if (mime === "application/pdf") return "pdf";
+  if (mime === "image/png") return "png";
+  return "jpg";
+}
+
+/** Ajukan izin/sakit/cuti sendiri (approval oleh HRD/admin) utk 1 hari/rentang. */
+export async function ajukanIzin(formData: FormData): Promise<FormResult> {
   if (!(await canAbsensi())) return { ok: false, error: "Tidak diizinkan." };
   const profile = await getProfile();
   if (!profile?.pegawai_id) {
     return { ok: false, error: "Akun ini tidak tertaut ke data pegawai." };
   }
-  if (!KATEGORI_VALID.includes(input.kategori)) {
+
+  const kategori = String(formData.get("kategori") ?? "");
+  const tanggalMulai = String(formData.get("tanggal_mulai") ?? "");
+  const tanggalSelesai = String(formData.get("tanggal_selesai") ?? "");
+  const keterangan = String(formData.get("keterangan") ?? "");
+  const bukti = formData.get("bukti");
+  const file = bukti instanceof File && bukti.size > 0 ? bukti : null;
+
+  if (!KATEGORI_VALID.includes(kategori as KategoriAbsen)) {
     return { ok: false, error: "Kategori tidak valid." };
   }
-  if (!input.tanggal_mulai || !input.tanggal_selesai) {
+  if (!tanggalMulai || !tanggalSelesai) {
     return { ok: false, error: "Tanggal wajib diisi." };
   }
-  if (input.tanggal_selesai < input.tanggal_mulai) {
+  if (tanggalSelesai < tanggalMulai) {
     return { ok: false, error: "Tanggal selesai harus sama atau setelah tanggal mulai." };
   }
+  if (kategori === "sakit" && !file) {
+    return { ok: false, error: "Bukti surat dokter wajib untuk kategori Sakit." };
+  }
+  if (file) {
+    if (file.size > MAX_BUKTI_BYTES) {
+      return { ok: false, error: "Ukuran file bukti maksimal 5MB." };
+    }
+    if (!ALLOWED_BUKTI_TYPES.includes(file.type)) {
+      return { ok: false, error: "Format bukti harus JPG, PNG, atau PDF." };
+    }
+  }
 
-  const dates = enumerateDates(input.tanggal_mulai, input.tanggal_selesai);
+  const dates = enumerateDates(tanggalMulai, tanggalSelesai);
   if (dates.length === 0 || dates.length > 31) {
     return { ok: false, error: "Rentang tanggal maksimal 31 hari." };
   }
@@ -137,11 +160,41 @@ export async function ajukanIzin(input: {
     };
   }
 
+  const { data: pengajuan, error: pengajuanErr } = await supabase
+    .from("absensi_pengajuan")
+    .insert({
+      pegawai_id: profile.pegawai_id,
+      kategori,
+      tanggal_mulai: tanggalMulai,
+      tanggal_selesai: tanggalSelesai,
+      keterangan: keterangan || null,
+    })
+    .select("id")
+    .single();
+  if (pengajuanErr || !pengajuan) {
+    return { ok: false, error: dbErrorMessage(pengajuanErr) };
+  }
+
+  if (file) {
+    const path = `${profile.pegawai_id}/${pengajuan.id}.${extFromMime(file.type)}`;
+    const { error: uploadErr } = await supabase.storage
+      .from("bukti-absensi")
+      .upload(path, file, { contentType: file.type, upsert: true });
+    if (uploadErr) {
+      return { ok: false, error: "Gagal upload bukti. Coba lagi." };
+    }
+    await supabase
+      .from("absensi_pengajuan")
+      .update({ bukti_url: path })
+      .eq("id", pengajuan.id);
+  }
+
   const rows = dates.map((tanggal) => ({
     pegawai_id: profile.pegawai_id,
     tanggal,
-    kategori_absen: input.kategori,
-    keterangan: input.keterangan || null,
+    kategori_absen: kategori as KategoriAbsen,
+    keterangan: keterangan || null,
+    pengajuan_id: pengajuan.id,
   }));
   const { error } = await supabase
     .from("absensi")

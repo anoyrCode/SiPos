@@ -37,12 +37,14 @@ export function IzinDialog() {
   const [mulai, setMulai] = useState("");
   const [selesai, setSelesai] = useState("");
   const [keterangan, setKeterangan] = useState("");
+  const [bukti, setBukti] = useState<File | null>(null);
 
   function reset() {
     setKategori("izin");
     setMulai("");
     setSelesai("");
     setKeterangan("");
+    setBukti(null);
     setError(null);
   }
 
@@ -52,13 +54,18 @@ export function IzinDialog() {
       setError("Tanggal wajib diisi.");
       return;
     }
+    if (kategori === "sakit" && !bukti) {
+      setError("Bukti surat dokter wajib untuk kategori Sakit.");
+      return;
+    }
     setPending(true);
-    const res = await ajukanIzin({
-      tanggal_mulai: mulai,
-      tanggal_selesai: selesai,
-      kategori,
-      keterangan,
-    });
+    const formData = new FormData();
+    formData.set("kategori", kategori);
+    formData.set("tanggal_mulai", mulai);
+    formData.set("tanggal_selesai", selesai);
+    formData.set("keterangan", keterangan);
+    if (bukti) formData.set("bukti", bukti);
+    const res = await ajukanIzin(formData);
     setPending(false);
     if (!res.ok) {
       setError(res.error);
@@ -66,7 +73,7 @@ export function IzinDialog() {
     }
     setOpen(false);
     reset();
-    toast.success("Pengajuan tercatat.");
+    toast.success("Pengajuan tercatat, menunggu persetujuan.");
     router.refresh();
   }
 
@@ -88,7 +95,8 @@ export function IzinDialog() {
         <DialogHeader className="-mx-6 -mt-6 border-b px-6 pb-4 pt-6">
           <DialogTitle>Ajukan Izin/Sakit/Cuti</DialogTitle>
           <DialogDescription>
-            Hari yang diajukan tidak akan dihitung Alpa/Telat.
+            Menunggu persetujuan HRD/admin. Hari yang diajukan tidak dihitung
+            Alpa/Telat selama menunggu.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -131,6 +139,23 @@ export function IzinDialog() {
                 id="keterangan"
                 value={keterangan}
                 onChange={(e) => setKeterangan(e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Bukti Surat Dokter"
+              htmlFor="bukti"
+              required={kategori === "sakit"}
+              hint={
+                kategori === "sakit"
+                  ? "Wajib untuk kategori Sakit. JPG/PNG/PDF, maks 5MB."
+                  : "Opsional. JPG/PNG/PDF, maks 5MB."
+              }
+            >
+              <Input
+                id="bukti"
+                type="file"
+                accept=".jpg,.jpeg,.png,.pdf"
+                onChange={(e) => setBukti(e.target.files?.[0] ?? null)}
               />
             </Field>
           </div>
