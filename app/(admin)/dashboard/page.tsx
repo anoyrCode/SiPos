@@ -6,7 +6,9 @@ import {
   BarChart3,
   GraduationCap,
   MailWarning,
+  Minus,
   PieChart,
+  TrendingDown,
   TrendingUp,
   Users,
 } from "lucide-react";
@@ -55,6 +57,21 @@ function enumerateMonths(start: string, end: string): string[] {
 
 const TOP_N = 7;
 
+/** Persentase perubahan dibanding tahun sebelumnya + arah (naik/turun/tetap). */
+function formatDelta(
+  current: number,
+  previous: number,
+): { text: string; direction: "up" | "down" | "flat" } {
+  if (previous === 0) {
+    return current === 0
+      ? { text: "0%", direction: "flat" }
+      : { text: "Baru", direction: "up" };
+  }
+  const pct = Math.round(((current - previous) / previous) * 100);
+  if (pct === 0) return { text: "0%", direction: "flat" };
+  return { text: `${pct > 0 ? "+" : ""}${pct}%`, direction: pct > 0 ? "up" : "down" };
+}
+
 // Warna juara 1–3 (emas / perak / perunggu) untuk peringkat kelas.
 const RANK_STYLE = [
   {
@@ -80,6 +97,16 @@ export default async function Page() {
     .select("id, tahun, tanggal_mulai, tanggal_selesai")
     .eq("is_aktif", true)
     .maybeSingle();
+
+  // Tahun ajaran sebelumnya (utk perbandingan) — diurutkan dari teks "tahun"
+  // (format "YYYY/YYYY", urut leksikografis = urut kronologis).
+  const { data: taListAll } = await supabase
+    .from("tahun_ajaran")
+    .select("id, tahun")
+    .order("tahun", { ascending: false });
+  const taIdx = (taListAll ?? []).findIndex((t) => t.id === ta?.id);
+  const taSebelumnya =
+    taIdx >= 0 ? (taListAll ?? [])[taIdx + 1] : undefined;
 
   // Aktivitas terbaru: hanya 1 hari terakhir (24 jam)
   // eslint-disable-next-line react-hooks/purity -- server component, dievaluasi per request
@@ -125,6 +152,35 @@ export default async function Page() {
   if (ta?.id) txQuery = txQuery.eq("tahun_ajaran_id", ta.id);
   const { data: txData } = await txQuery;
   const tx = (txData ?? []) as Tx[];
+
+  // Perbandingan dgn tahun ajaran sebelumnya (kalau ada).
+  let perbandinganTa: {
+    taSebelumnyaLabel: string;
+    posAktif: number;
+    posSebelumnya: number;
+    negAktif: number;
+    negSebelumnya: number;
+    jumlahAktif: number;
+    jumlahSebelumnya: number;
+  } | null = null;
+  if (taSebelumnya) {
+    const { data: txSebelumnyaData } = await supabase
+      .from("transaksi_poin")
+      .select("tipe, nilai_poin")
+      .eq("tahun_ajaran_id", taSebelumnya.id);
+    const txSebelumnya = txSebelumnyaData ?? [];
+    const sum = (rows: { tipe: string; nilai_poin: number }[], tipe: string) =>
+      rows.filter((r) => r.tipe === tipe).reduce((s, r) => s + r.nilai_poin, 0);
+    perbandinganTa = {
+      taSebelumnyaLabel: taSebelumnya.tahun,
+      posAktif: sum(tx, "POSITIF"),
+      posSebelumnya: sum(txSebelumnya, "POSITIF"),
+      negAktif: sum(tx, "NEGATIF"),
+      negSebelumnya: sum(txSebelumnya, "NEGATIF"),
+      jumlahAktif: tx.length,
+      jumlahSebelumnya: txSebelumnya.length,
+    };
+  }
 
   // Penempatan santri per kelas (tahun ajaran aktif) — untuk chart poin per kelas
   const skQuery = supabase
@@ -396,6 +452,87 @@ export default async function Page() {
                 </li>
               ))}
             </ol>
+          </CardContent>
+        </Card>
+      )}
+
+      {perbandinganTa && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="size-4 text-primary" />
+              Perbandingan Tahun Ajaran
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-3 text-xs text-muted-foreground">
+              {ta?.tahun ?? "—"} dibanding {perbandinganTa.taSebelumnyaLabel}
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {(
+                [
+                  {
+                    label: "Poin Positif",
+                    current: perbandinganTa.posAktif,
+                    previous: perbandinganTa.posSebelumnya,
+                    goodDirection: "up" as const,
+                  },
+                  {
+                    label: "Poin Negatif",
+                    current: perbandinganTa.negAktif,
+                    previous: perbandinganTa.negSebelumnya,
+                    goodDirection: "down" as const,
+                  },
+                  {
+                    label: "Jumlah Transaksi",
+                    current: perbandinganTa.jumlahAktif,
+                    previous: perbandinganTa.jumlahSebelumnya,
+                    goodDirection: null,
+                  },
+                ] as const
+              ).map((m) => {
+                const delta = formatDelta(m.current, m.previous);
+                const isGood =
+                  m.goodDirection !== null && delta.direction === m.goodDirection;
+                const isBad =
+                  m.goodDirection !== null &&
+                  delta.direction !== "flat" &&
+                  delta.direction !== m.goodDirection;
+                const Icon =
+                  delta.direction === "up"
+                    ? TrendingUp
+                    : delta.direction === "down"
+                      ? TrendingDown
+                      : Minus;
+                return (
+                  <div
+                    key={m.label}
+                    className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2.5"
+                  >
+                    <p className="text-xs text-muted-foreground">{m.label}</p>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <span className="font-mono text-lg font-semibold tabular-nums">
+                        {m.current}
+                      </span>
+                      <span
+                        className={cn(
+                          "flex items-center gap-0.5 text-xs font-medium",
+                          isGood && "text-positive",
+                          isBad && "text-negative",
+                          !isGood && !isBad && "text-muted-foreground",
+                        )}
+                      >
+                        <Icon className="size-3" />
+                        {delta.text}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Sebelumnya: {m.previous}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       )}
