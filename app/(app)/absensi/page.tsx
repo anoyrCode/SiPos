@@ -5,6 +5,7 @@ import { requirePerm } from "@/lib/auth/dal";
 import { PageHeader } from "@/components/shared/page-header";
 import { computeDayStatus, type JadwalPegawai } from "@/lib/absensi-status";
 import { AbsensiClient, type AbsensiHistoryRow } from "./absensi-client";
+import { PengajuanList, type PengajuanRow } from "./pengajuan-list";
 
 /** Tanggal mulai project dipakai produksi — riwayat sebelum ini tidak ditampilkan (data uji coba). */
 const LAUNCH_DATE = "2026-07-11";
@@ -53,7 +54,7 @@ export default async function Page() {
   const from = dates[dates.length - 1];
   const to = dates[0];
 
-  const [{ data: rows }, { data: setting }] = await Promise.all([
+  const [{ data: rows }, { data: setting }, { data: pengajuanRows }] = await Promise.all([
     supabase
       .from("absensi")
       .select("tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen")
@@ -62,11 +63,17 @@ export default async function Page() {
       .lte("tanggal", to),
     supabase
       .from("absensi_pengaturan")
-      .select("lokasi_lat, lokasi_long, radius_meter")
+      .select("lokasi_lat, lokasi_long, radius_meter, toleransi_menit")
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("absensi_pengajuan")
+      .select("id, kategori, tanggal_mulai, tanggal_selesai, status, alasan_penolakan")
+      .eq("pegawai_id", pegawaiId)
+      .order("created_at", { ascending: false }),
   ]);
 
+  const toleransiMenit = setting?.toleransi_menit ?? 0;
   const rowMap = new Map((rows ?? []).map((r) => [r.tanggal, r]));
 
   const history: AbsensiHistoryRow[] = dates.map((tanggal) => {
@@ -75,11 +82,20 @@ export default async function Page() {
       tanggal,
       jamMasukAktual: record?.jam_masuk_aktual ?? null,
       jamPulangAktual: record?.jam_pulang_aktual ?? null,
-      status: computeDayStatus(tanggal, record, jadwal),
+      status: computeDayStatus(tanggal, record, jadwal, toleransiMenit),
     };
   });
 
   const todayRow = rowMap.get(to) ?? null;
+
+  const pengajuanList: PengajuanRow[] = (pengajuanRows ?? []).map((r) => ({
+    id: r.id,
+    kategori: r.kategori as PengajuanRow["kategori"],
+    tanggalMulai: r.tanggal_mulai,
+    tanggalSelesai: r.tanggal_selesai,
+    status: r.status as PengajuanRow["status"],
+    alasanPenolakan: r.alasan_penolakan,
+  }));
 
   return (
     <div className="animate-enter space-y-6 p-6 md:p-8">
@@ -104,6 +120,7 @@ export default async function Page() {
         lokasiLong={setting?.lokasi_long ?? null}
         radiusMeter={setting?.radius_meter ?? null}
       />
+      <PengajuanList items={pengajuanList} />
     </div>
   );
 }

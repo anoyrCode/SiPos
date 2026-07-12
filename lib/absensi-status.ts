@@ -51,26 +51,30 @@ export function computeStatusMasuk(
   tanggal: string,
   record: AbsensiRecord | null,
   jadwal: JadwalPegawai,
+  toleransiMenit = 0,
 ): "normal" | "telat" | "belum_absen" {
   if (!record?.jam_masuk_aktual) return "belum_absen";
   if (!jadwal.jam_masuk_jadwal) return "normal";
   const jadwalMasuk = jakartaInstant(tanggal, jadwal.jam_masuk_jadwal);
-  return new Date(record.jam_masuk_aktual) > jadwalMasuk ? "telat" : "normal";
+  const batasToleransi = new Date(jadwalMasuk.getTime() + toleransiMenit * 60000);
+  return new Date(record.jam_masuk_aktual) > batasToleransi ? "telat" : "normal";
 }
 
 /**
- * Menit keterlambatan clock-in dibanding jadwal, dibulatkan ke bawah.
- * 0 bila tidak telat, tidak ada record, atau jam_masuk_jadwal null.
+ * Menit keterlambatan clock-in dibanding jadwal (setelah dikurangi
+ * toleransi), dibulatkan ke bawah. 0 bila tidak telat (termasuk masih
+ * dalam toleransi), tidak ada record, atau jam_masuk_jadwal null.
  */
 export function computeMenitTelatMasuk(
   tanggal: string,
   record: AbsensiRecord | null,
   jadwal: JadwalPegawai,
+  toleransiMenit = 0,
 ): number {
   if (!record?.jam_masuk_aktual || !jadwal.jam_masuk_jadwal) return 0;
   const jadwalMasuk = jakartaInstant(tanggal, jadwal.jam_masuk_jadwal);
   const aktual = new Date(record.jam_masuk_aktual);
-  const diffMs = aktual.getTime() - jadwalMasuk.getTime();
+  const diffMs = aktual.getTime() - jadwalMasuk.getTime() - toleransiMenit * 60000;
   if (diffMs <= 0) return 0;
   return Math.floor(diffMs / 60000);
 }
@@ -133,6 +137,7 @@ export function computeDayStatus(
   tanggal: string,
   record: AbsensiRecord | null,
   jadwal: JadwalPegawai,
+  toleransiMenit = 0,
 ): AbsensiStatus {
   if (record?.kategori_absen) return record.kategori_absen;
 
@@ -148,7 +153,7 @@ export function computeDayStatus(
     return "belum_clock_out";
   }
 
-  const statusMasuk = computeStatusMasuk(tanggal, record, jadwal);
+  const statusMasuk = computeStatusMasuk(tanggal, record, jadwal, toleransiMenit);
   const statusPulang = computeStatusPulang(tanggal, record, jadwal);
   if (statusPulang === "telat_clock_out") return "telat_clock_out";
   if (statusPulang === "curang") return "curang";
@@ -180,3 +185,11 @@ export function formatJamWIB(value: string | null): string {
     timeZone: "Asia/Jakarta",
   }).format(new Date(value));
 }
+
+export type PengajuanStatus = "menunggu" | "disetujui" | "ditolak";
+
+export const PENGAJUAN_STATUS_LABEL: Record<PengajuanStatus, string> = {
+  menunggu: "Menunggu",
+  disetujui: "Disetujui",
+  ditolak: "Ditolak",
+};
