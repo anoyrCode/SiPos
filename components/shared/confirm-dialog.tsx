@@ -22,6 +22,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel = "Hapus",
+  successMessage = "Data berhasil dihapus.",
 }: {
   action: (id: string) => Promise<FormResult>;
   id: string;
@@ -29,6 +30,7 @@ export function ConfirmDialog({
   title: string;
   description?: string;
   confirmLabel?: string;
+  successMessage?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export function ConfirmDialog({
       const res = await action(id);
       if (res.ok) {
         setOpen(false);
-        toast.success("Data berhasil dihapus.");
+        toast.success(successMessage);
       } else {
         setError(res.error);
         toast.error(res.error);

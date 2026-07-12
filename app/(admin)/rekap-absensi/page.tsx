@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ClipboardCheck } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requirePerm } from "@/lib/auth/dal";
+import { requireApproveAbsensi } from "@/lib/auth/dal";
 import { getStr, type SearchParams } from "@/lib/list-params";
 import { formatDateID } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
@@ -21,12 +21,14 @@ import {
   STATUS_LABEL,
   formatJamWIB,
   type AbsensiStatus,
+  type PengajuanStatus,
 } from "@/lib/absensi-status";
 import { DateFilter } from "./date-filter";
 import { BulanFilter } from "./bulan-filter";
 import { StatusFilter } from "./status-filter";
 import { PengaturanAbsensiForm } from "./pengaturan-form";
 import { KeterlambatanExport } from "./keterlambatan-export";
+import { PersetujuanPanel } from "./persetujuan-panel";
 
 type Row = {
   pegawaiId: string;
@@ -100,14 +102,45 @@ export default async function Page({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  await requirePerm("master");
+  const profile = await requireApproveAbsensi();
+  const isMaster = profile.perms.master || profile.perms.super;
   const sp = await searchParams;
-  const mode = getStr(sp.mode) === "bulanan" ? "bulanan" : "tanggal";
+  const modeRaw = getStr(sp.mode);
+  const mode =
+    modeRaw === "persetujuan"
+      ? "persetujuan"
+      : isMaster && modeRaw === "bulanan"
+        ? "bulanan"
+        : isMaster
+          ? "tanggal"
+          : "persetujuan";
+  const pengajuanStatus: PengajuanStatus =
+    getStr(sp.pstatus) === "disetujui"
+      ? "disetujui"
+      : getStr(sp.pstatus) === "ditolak"
+        ? "ditolak"
+        : "menunggu";
   const tanggal = getStr(sp.tanggal) || todayJakarta();
   const bulan = getStr(sp.bulan) || todayJakarta().slice(0, 7);
   const q = getStr(sp.q);
   const statusFilter = getStr(sp.status);
   const monthDates = mode === "bulanan" ? datesInMonth(bulan) : [];
+
+  if (!isMaster) {
+    // Approver tanpa akses Master Data penuh: skip semua query rekap
+    // tanggal/bulanan (data GPS & jam kerja SEMUA pegawai), langsung ke
+    // tampilan Persetujuan saja.
+    return (
+      <div className="animate-enter space-y-6 p-6 md:p-8">
+        <PageHeader
+          icon={ClipboardCheck}
+          title="Persetujuan Absensi"
+          description="Setujui atau tolak pengajuan izin/sakit/cuti pegawai."
+        />
+        <PersetujuanPanel statusFilter={pengajuanStatus} />
+      </div>
+    );
+  }
 
   const supabase = await createClient();
 
@@ -138,10 +171,12 @@ export default async function Page({
       absensiQuery,
       supabase
         .from("absensi_pengaturan")
-        .select("lokasi_lat, lokasi_long, radius_meter")
+        .select("lokasi_lat, lokasi_long, radius_meter, toleransi_menit")
         .limit(1)
         .maybeSingle(),
     ]);
+
+  const toleransiMenit = setting?.toleransi_menit ?? 0;
 
   const absensiMap = new Map(
     (absensiRows ?? []).map((r) => [`${r.pegawai_id}_${r.tanggal}`, r]),
@@ -159,7 +194,7 @@ export default async function Page({
       nama: p.nama,
       jamMasukAktual: record?.jam_masuk_aktual ?? null,
       jamPulangAktual: record?.jam_pulang_aktual ?? null,
-      status: computeDayStatus(tanggal, record, jadwal),
+      status: computeDayStatus(tanggal, record, jadwal, toleransiMenit),
     };
   });
 
@@ -188,12 +223,12 @@ export default async function Page({
         // di hari yang sama. computeDayStatus cuma cocok utk 1 badge ringkasan
         // (dipakai tabel "Per Tanggal"), bukan utk daftar independen begini.
         // Hari libur pegawai dikecualikan total dari laporan bulanan (di atas).
-        if (computeStatusMasuk(tgl, record, jadwal) === "telat") {
+        if (computeStatusMasuk(tgl, record, jadwal, toleransiMenit) === "telat") {
           telatMasukRows.push({
             pegawaiId: p.id,
             nama: p.nama,
             tanggal: tgl,
-            menitTelat: computeMenitTelatMasuk(tgl, record, jadwal),
+            menitTelat: computeMenitTelatMasuk(tgl, record, jadwal, toleransiMenit),
           });
         }
         const statusPulang = computeStatusPulang(tgl, record, jadwal);
@@ -327,18 +362,24 @@ export default async function Page({
             <Button asChild size="sm" variant={mode === "bulanan" ? "default" : "ghost"}>
               <Link href="/rekap-absensi?mode=bulanan">Per Bulan</Link>
             </Button>
+            <Button asChild size="sm" variant={mode === "persetujuan" ? "default" : "ghost"}>
+              <Link href="/rekap-absensi?mode=persetujuan">Persetujuan</Link>
+            </Button>
           </div>
           <PengaturanAbsensiForm
             initial={{
               lokasi_lat: setting?.lokasi_lat ?? null,
               lokasi_long: setting?.lokasi_long ?? null,
               radius_meter: setting?.radius_meter ?? 150,
+              toleransi_menit: toleransiMenit,
             }}
           />
         </div>
       </div>
 
-      {mode === "tanggal" ? (
+      {mode === "persetujuan" ? (
+        <PersetujuanPanel statusFilter={pengajuanStatus} />
+      ) : mode === "tanggal" ? (
         <DataTable
           columns={columns}
           rows={rows}
