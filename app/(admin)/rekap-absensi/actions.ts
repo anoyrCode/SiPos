@@ -106,18 +106,47 @@ export async function tolakPengajuan(
   return { ok: true };
 }
 
+const MAX_RENTANG_LIBUR_HARI = 180;
+
+/** Daftar tanggal "YYYY-MM-DD" dari mulai s.d. selesai (inklusif). */
+function dateRange(mulai: string, selesai: string): string[] {
+  const dates: string[] = [];
+  const cur = new Date(`${mulai}T00:00:00Z`);
+  const end = new Date(`${selesai}T00:00:00Z`);
+  while (cur <= end) {
+    dates.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return dates;
+}
+
 export async function addLiburKhusus(
-  tanggal: string,
+  tanggalMulai: string,
+  tanggalSelesai: string,
   keterangan: string,
 ): Promise<FormResult> {
   if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
-  if (!tanggal) return { ok: false, error: "Tanggal wajib diisi." };
+  if (!tanggalMulai || !tanggalSelesai) {
+    return { ok: false, error: "Tanggal wajib diisi." };
+  }
   if (!keterangan.trim()) return { ok: false, error: "Keterangan wajib diisi." };
+  if (tanggalSelesai < tanggalMulai) {
+    return { ok: false, error: "Tanggal selesai tidak boleh sebelum tanggal mulai." };
+  }
+
+  const dates = dateRange(tanggalMulai, tanggalSelesai);
+  if (dates.length > MAX_RENTANG_LIBUR_HARI) {
+    return {
+      ok: false,
+      error: `Rentang tanggal maksimal ${MAX_RENTANG_LIBUR_HARI} hari.`,
+    };
+  }
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("libur_khusus")
-    .insert({ tanggal, keterangan: keterangan.trim() });
+  const { error } = await supabase.from("libur_khusus").upsert(
+    dates.map((tanggal) => ({ tanggal, keterangan: keterangan.trim() })),
+    { onConflict: "tanggal" },
+  );
   if (error) return { ok: false, error: dbErrorMessage(error) };
 
   revalidatePath(PATH);

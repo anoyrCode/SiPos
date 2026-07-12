@@ -27,23 +27,29 @@ export function LiburKhususDialog({ initial }: { initial: LiburKhususRow[] }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tanggal, setTanggal] = useState("");
+  const [tanggalMulai, setTanggalMulai] = useState("");
+  const [tanggalSelesai, setTanggalSelesai] = useState("");
   const [keterangan, setKeterangan] = useState("");
 
   async function onAdd() {
     setError(null);
-    if (!tanggal || !keterangan.trim()) {
+    if (!tanggalMulai || !keterangan.trim()) {
       setError("Tanggal dan keterangan wajib diisi.");
       return;
     }
     setPending(true);
-    const res = await addLiburKhusus(tanggal, keterangan);
+    const res = await addLiburKhusus(
+      tanggalMulai,
+      tanggalSelesai || tanggalMulai,
+      keterangan,
+    );
     setPending(false);
     if (!res.ok) {
       setError(res.error);
       return;
     }
-    setTanggal("");
+    setTanggalMulai("");
+    setTanggalSelesai("");
     setKeterangan("");
     toast.success("Hari libur khusus ditambahkan.");
     router.refresh();
@@ -64,23 +70,34 @@ export function LiburKhususDialog({ initial }: { initial: LiburKhususRow[] }) {
           <DialogTitle>Hari Libur Khusus Pondok</DialogTitle>
           <DialogDescription>
             Tanggal di daftar ini otomatis dikecualikan dari Alpa/Telat untuk
-            semua pegawai (mis. libur nasional, acara pondok).
+            semua pegawai (mis. libur nasional, libur semester, acara pondok).
+            Bisa pilih rentang tanggal sekaligus.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-end">
-          <Field label="Tanggal" htmlFor="libur-tanggal">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Dari Tanggal" htmlFor="libur-tanggal-mulai">
             <Input
-              id="libur-tanggal"
+              id="libur-tanggal-mulai"
               type="date"
-              value={tanggal}
-              onChange={(e) => setTanggal(e.target.value)}
-              className="sm:w-40"
+              value={tanggalMulai}
+              onChange={(e) => setTanggalMulai(e.target.value)}
             />
           </Field>
+          <Field label="Sampai Tanggal (opsional)" htmlFor="libur-tanggal-selesai">
+            <Input
+              id="libur-tanggal-selesai"
+              type="date"
+              min={tanggalMulai || undefined}
+              value={tanggalSelesai}
+              onChange={(e) => setTanggalSelesai(e.target.value)}
+            />
+          </Field>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
           <Field label="Keterangan" htmlFor="libur-keterangan">
             <Input
               id="libur-keterangan"
-              placeholder="mis. Libur Idul Fitri"
+              placeholder="mis. Libur Semester Ganjil"
               value={keterangan}
               onChange={(e) => setKeterangan(e.target.value)}
             />
