@@ -111,8 +111,17 @@ export function computeMenitLebihAwalPulang(
   return Math.floor(diffMs / 60000);
 }
 
-/** Apakah tanggal ini adalah hari libur tetap pegawai (pegawai.hari_libur). */
-export function isHariLiburPegawai(tanggal: string, jadwal: JadwalPegawai): boolean {
+/**
+ * Apakah tanggal ini hari libur bagi pegawai — hari libur tetap mingguan
+ * (pegawai.hari_libur) ATAU hari libur khusus pondok (berlaku semua pegawai,
+ * mis. libur nasional/acara pondok).
+ */
+export function isHariLiburPegawai(
+  tanggal: string,
+  jadwal: JadwalPegawai,
+  liburKhususSet?: Set<string>,
+): boolean {
+  if (liburKhususSet?.has(tanggal)) return true;
   return jadwal.hari_libur !== null && dayOfWeek(tanggal) === jadwal.hari_libur;
 }
 
@@ -138,10 +147,11 @@ export function computeDayStatus(
   record: AbsensiRecord | null,
   jadwal: JadwalPegawai,
   toleransiMenit = 0,
+  liburKhususSet?: Set<string>,
 ): AbsensiStatus {
   if (record?.kategori_absen) return record.kategori_absen;
 
-  const isLibur = isHariLiburPegawai(tanggal, jadwal);
+  const isLibur = isHariLiburPegawai(tanggal, jadwal, liburKhususSet);
   const hasRecord = !!(record?.jam_masuk_aktual || record?.jam_pulang_aktual);
   const isPast = tanggal < todayJakarta();
 

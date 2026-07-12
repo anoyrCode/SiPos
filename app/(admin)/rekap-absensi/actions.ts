@@ -105,3 +105,37 @@ export async function tolakPengajuan(
   revalidatePath("/absensi");
   return { ok: true };
 }
+
+export async function addLiburKhusus(
+  tanggal: string,
+  keterangan: string,
+): Promise<FormResult> {
+  if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
+  if (!tanggal) return { ok: false, error: "Tanggal wajib diisi." };
+  if (!keterangan.trim()) return { ok: false, error: "Keterangan wajib diisi." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("libur_khusus")
+    .insert({ tanggal, keterangan: keterangan.trim() });
+  if (error) return { ok: false, error: dbErrorMessage(error) };
+
+  revalidatePath(PATH);
+  revalidatePath("/absensi");
+  return { ok: true };
+}
+
+export async function deleteLiburKhusus(tanggal: string): Promise<FormResult> {
+  if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("libur_khusus")
+    .delete()
+    .eq("tanggal", tanggal);
+  if (error) return { ok: false, error: dbErrorMessage(error) };
+
+  revalidatePath(PATH);
+  revalidatePath("/absensi");
+  return { ok: true };
+}

@@ -31,6 +31,7 @@ import { PengaturanAbsensiForm } from "./pengaturan-form";
 import { KeterlambatanExport } from "./keterlambatan-export";
 import { PersetujuanPanel } from "./persetujuan-panel";
 import { PengajuanStatusFilter } from "./pengajuan-status-filter";
+import { LiburKhususDialog, type LiburKhususRow } from "./libur-khusus-dialog";
 import {
   PengajuanBulananExport,
   type PengajuanBulananRow,
@@ -172,18 +173,25 @@ export default async function Page({
           .select("pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen")
           .eq("tanggal", tanggal);
 
-  const [{ data: pegawaiList }, { data: absensiRows }, { data: setting }] =
-    await Promise.all([
-      pegawaiQuery,
-      absensiQuery,
-      supabase
-        .from("absensi_pengaturan")
-        .select("lokasi_lat, lokasi_long, radius_meter, toleransi_menit")
-        .limit(1)
-        .maybeSingle(),
-    ]);
+  const [
+    { data: pegawaiList },
+    { data: absensiRows },
+    { data: setting },
+    { data: liburKhususRows },
+  ] = await Promise.all([
+    pegawaiQuery,
+    absensiQuery,
+    supabase
+      .from("absensi_pengaturan")
+      .select("lokasi_lat, lokasi_long, radius_meter, toleransi_menit")
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("libur_khusus").select("tanggal, keterangan").order("tanggal"),
+  ]);
 
   const toleransiMenit = setting?.toleransi_menit ?? 0;
+  const liburKhususList: LiburKhususRow[] = liburKhususRows ?? [];
+  const liburKhususSet = new Set(liburKhususList.map((l) => l.tanggal));
 
   const absensiMap = new Map(
     (absensiRows ?? []).map((r) => [`${r.pegawai_id}_${r.tanggal}`, r]),
@@ -201,7 +209,7 @@ export default async function Page({
       nama: p.nama,
       jamMasukAktual: record?.jam_masuk_aktual ?? null,
       jamPulangAktual: record?.jam_pulang_aktual ?? null,
-      status: computeDayStatus(tanggal, record, jadwal, toleransiMenit),
+      status: computeDayStatus(tanggal, record, jadwal, toleransiMenit, liburKhususSet),
     };
   });
 
@@ -223,7 +231,7 @@ export default async function Page({
         hari_libur: p.hari_libur,
       };
       for (const tgl of monthDates) {
-        if (isHariLiburPegawai(tgl, jadwal)) continue;
+        if (isHariLiburPegawai(tgl, jadwal, liburKhususSet)) continue;
         const record = absensiMap.get(`${p.id}_${tgl}`) ?? null;
         // Dicek independen (bukan computeDayStatus) — 1 hari bisa masuk ke
         // kedua tabel sekaligus, mis. telat clock-in DAN curang/telat clock-out
@@ -491,6 +499,7 @@ export default async function Page({
             }}
             triggerClassName="w-full sm:w-auto"
           />
+          <LiburKhususDialog initial={liburKhususList} />
         </div>
       </div>
 

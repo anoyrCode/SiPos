@@ -54,26 +54,29 @@ export default async function Page() {
   const from = dates[dates.length - 1];
   const to = dates[0];
 
-  const [{ data: rows }, { data: setting }, { data: pengajuanRows }] = await Promise.all([
-    supabase
-      .from("absensi")
-      .select("tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen")
-      .eq("pegawai_id", pegawaiId)
-      .gte("tanggal", from)
-      .lte("tanggal", to),
-    supabase
-      .from("absensi_pengaturan")
-      .select("lokasi_lat, lokasi_long, radius_meter, toleransi_menit")
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("absensi_pengajuan")
-      .select("id, kategori, tanggal_mulai, tanggal_selesai, status, alasan_penolakan")
-      .eq("pegawai_id", pegawaiId)
-      .order("created_at", { ascending: false }),
-  ]);
+  const [{ data: rows }, { data: setting }, { data: pengajuanRows }, { data: liburKhususRows }] =
+    await Promise.all([
+      supabase
+        .from("absensi")
+        .select("tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen")
+        .eq("pegawai_id", pegawaiId)
+        .gte("tanggal", from)
+        .lte("tanggal", to),
+      supabase
+        .from("absensi_pengaturan")
+        .select("lokasi_lat, lokasi_long, radius_meter, toleransi_menit")
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("absensi_pengajuan")
+        .select("id, kategori, tanggal_mulai, tanggal_selesai, status, alasan_penolakan")
+        .eq("pegawai_id", pegawaiId)
+        .order("created_at", { ascending: false }),
+      supabase.from("libur_khusus").select("tanggal"),
+    ]);
 
   const toleransiMenit = setting?.toleransi_menit ?? 0;
+  const liburKhususSet = new Set((liburKhususRows ?? []).map((l) => l.tanggal));
   const rowMap = new Map((rows ?? []).map((r) => [r.tanggal, r]));
 
   const history: AbsensiHistoryRow[] = dates.map((tanggal) => {
@@ -82,7 +85,7 @@ export default async function Page() {
       tanggal,
       jamMasukAktual: record?.jam_masuk_aktual ?? null,
       jamPulangAktual: record?.jam_pulang_aktual ?? null,
-      status: computeDayStatus(tanggal, record, jadwal, toleransiMenit),
+      status: computeDayStatus(tanggal, record, jadwal, toleransiMenit, liburKhususSet),
     };
   });
 
