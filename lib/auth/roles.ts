@@ -14,6 +14,7 @@ export type Perms = {
   akun_staff: boolean; // kelola akun staff saja (subset dari akun)
   absensi: boolean; // clock in/out kehadiran pribadi
   dashboard: boolean; // lihat Dashboard saja (subset dari master)
+  approve_absensi: boolean; // approve/tolak pengajuan izin/sakit/cuti pegawai lain
 };
 
 export const EMPTY_PERMS: Perms = {
@@ -29,6 +30,7 @@ export const EMPTY_PERMS: Perms = {
   akun_staff: false,
   absensi: false,
   dashboard: false,
+  approve_absensi: false,
 };
 
 export type NavItem = { href: string; label: string };
@@ -45,6 +47,7 @@ export function homePathForProfile({ role, perms }: ProfileLike): string {
   if (perms.kesehatan || perms.scope_kelas) return "/uks";
   if (perms.santri || perms.pegawai) return "/master/santri";
   if (perms.akun || perms.akun_staff) return "/master/akun-staff";
+  if (perms.approve_absensi) return "/rekap-absensi";
   if (perms.absensi) return "/absensi";
   return "/tanpa-akses"; // tidak ada hak akses sama sekali — di luar layout (app), cegah redirect loop
 }
@@ -70,7 +73,8 @@ export function navForProfile({ role, perms }: ProfileLike): NavGroup[] {
     transaksi.push({ href: "/surat-panggilan", label: "Surat Panggilan" });
   }
   if (perms.absensi) transaksi.push({ href: "/absensi", label: "Absensi" });
-  if (perms.master) transaksi.push({ href: "/rekap-absensi", label: "Rekap Absensi" });
+  if (perms.master || perms.approve_absensi)
+    transaksi.push({ href: "/rekap-absensi", label: "Rekap Absensi" });
   if (transaksi.length > 0) {
     groups.push({ title: "Transaksi", items: transaksi });
   }
