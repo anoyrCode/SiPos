@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
 import { pegawaiSchema, type PegawaiInput, type PegawaiRow } from "./schema";
 import { createPegawai, updatePegawai } from "./actions";
 
-const JABATAN_OPTIONS = [
+export const JABATAN_OPTIONS = [
   "Musyrif",
   "Musyrifah",
   "Kesantrian Akhwat",

@@ -3,6 +3,7 @@ import { Trash2, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requirePegawai } from "@/lib/auth/dal";
 import {
+  getStr,
   parseListParams,
   totalPages,
   type SearchParams,
@@ -17,6 +18,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PegawaiForm } from "./pegawai-form";
 import { deletePegawai } from "./actions";
+import { JenisKelaminFilter } from "./jenis-kelamin-filter";
+import { JabatanFilter } from "./jabatan-filter";
 import type { PegawaiRow } from "./schema";
 
 export default async function Page({
@@ -27,6 +30,8 @@ export default async function Page({
   await requirePegawai();
   const sp = await searchParams;
   const { page, perPage, q, from, to } = parseListParams(sp);
+  const jkFilter = getStr(sp.jk);
+  const jabatanFilter = getStr(sp.jabatan).trim();
 
   const supabase = await createClient();
   let query = supabase
@@ -40,8 +45,28 @@ export default async function Page({
     const term = q.replace(/[,()*]/g, " ").trim();
     if (term) query = query.or(`nama.ilike.*${term}*,nip.ilike.*${term}*`);
   }
-  const { data, count } = await query.range(from, to);
+  if (jkFilter === "L" || jkFilter === "P") {
+    query = query.eq("jenis_kelamin", jkFilter);
+  }
+  if (jabatanFilter) {
+    const term = jabatanFilter.replace(/[,()*{}]/g, " ").trim();
+    if (term) query = query.or(`jabatan.eq.${term},jabatan_tambahan.cs.{${term}}`);
+  }
+  const [{ data, count }, { data: jabatanRows }] = await Promise.all([
+    query.range(from, to),
+    supabase.from("pegawai").select("jabatan, jabatan_tambahan"),
+  ]);
   const rows = (data ?? []) as PegawaiRow[];
+
+  const jabatanOptions = Array.from(
+    new Set(
+      (jabatanRows ?? []).flatMap((r) =>
+        [r.jabatan, ...(r.jabatan_tambahan ?? [])].filter(
+          (j): j is string => !!j,
+        ),
+      ),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
 
   const columns: Column<PegawaiRow>[] = [
     {
@@ -131,6 +156,8 @@ export default async function Page({
       />
       <div className="flex flex-wrap items-center gap-2.5 rounded-card border border-border/70 bg-card p-3 shadow-sm">
         <SearchInput placeholder="Cari nama atau NIP…" />
+        <JenisKelaminFilter value={jkFilter} />
+        <JabatanFilter value={jabatanFilter} options={jabatanOptions} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <PegawaiForm />
         </div>
@@ -139,7 +166,7 @@ export default async function Page({
         columns={columns}
         rows={rows}
         getRowId={(r) => r.id}
-        isFiltered={!!q}
+        isFiltered={!!q || !!jkFilter || !!jabatanFilter}
         empty="Belum ada data pegawai."
         emptyHint="Tambah pegawai dengan tombol di atas."
       />
