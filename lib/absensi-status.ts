@@ -10,9 +10,9 @@ export type AbsensiStatus =
   | "masuk_libur"
   | "izin"
   | "sakit"
-  | "cuti";
+  | "belum_mulai";
 
-export type KategoriAbsen = "izin" | "sakit" | "cuti";
+export type KategoriAbsen = "izin" | "sakit";
 
 export type AbsensiRecord = {
   jam_masuk_aktual: string | null;
@@ -138,9 +138,13 @@ export function isHariLiburPegawai(
  * berlaku utk tanggal < hari ini yang sudah clock in tapi belum clock out
  * (lupa absen pulang) — dicek SEBELUM status telat/curang/normal biasa,
  * supaya lupa clock out tidak tersamar jadi "Normal".
- * "izin"/"sakit"/"cuti" (dari kategori_absen, diajukan sendiri pegawai)
+ * "izin"/"sakit" (dari kategori_absen, diajukan sendiri pegawai)
  * MENANG atas semua status lain — pengajuan eksplisit lebih diutamakan
  * daripada evaluasi otomatis dari jam clock in/out.
+ * "belum_mulai": tanggal sebelum `tanggalMulai` (tanggal sistem absensi
+ * mulai dipakai, diatur admin) — MENANG atas SEMUA status lain termasuk
+ * kategori_absen, supaya tanggal sebelum go-live tidak pernah tampil
+ * Alpa/Libur/dll walau kebetulan ada data lama.
  */
 export function computeDayStatus(
   tanggal: string,
@@ -148,7 +152,9 @@ export function computeDayStatus(
   jadwal: JadwalPegawai,
   toleransiMenit = 0,
   liburKhususSet?: Set<string>,
+  tanggalMulai?: string | null,
 ): AbsensiStatus {
+  if (tanggalMulai && tanggal < tanggalMulai) return "belum_mulai";
   if (record?.kategori_absen) return record.kategori_absen;
 
   const isLibur = isHariLiburPegawai(tanggal, jadwal, liburKhususSet);
@@ -173,17 +179,17 @@ export function computeDayStatus(
 
 export const STATUS_LABEL: Record<AbsensiStatus, string> = {
   normal: "Normal",
-  telat: "Telat",
-  curang: "Curang",
-  telat_clock_out: "Telat Clock Out",
+  telat: "Terlambat",
+  curang: "Pulang Sebelum Waktunya",
+  telat_clock_out: "Terlambat Clock Out",
   belum_clock_out: "Belum Clock Out",
   alpa: "Alpa",
   libur: "Libur",
   belum_absen: "Belum Absen",
-  masuk_libur: "Masuk di Hari Libur",
+  masuk_libur: "Lembur",
   izin: "Izin",
   sakit: "Sakit",
-  cuti: "Cuti",
+  belum_mulai: "Belum Mulai",
 };
 
 /** Format timestamptz jadi "HH.mm" di zona waktu Jakarta, "—" bila kosong. */

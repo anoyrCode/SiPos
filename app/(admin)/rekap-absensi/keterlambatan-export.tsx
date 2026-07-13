@@ -30,29 +30,31 @@ type CurangRow = {
 };
 
 export function KeterlambatanExport({
-  bulan,
+  dari,
+  sampai,
   telatMasuk,
   telatKeluar,
   curang,
 }: {
-  bulan: string;
+  dari: string;
+  sampai: string;
   telatMasuk: TelatMasukRow[];
   telatKeluar: TelatKeluarRow[];
   curang: CurangRow[];
 }) {
   function handleExport() {
-    downloadExcelMultiSheet(`keterlambatan-${bulan}.xlsx`, [
+    downloadExcelMultiSheet(`keterlambatan-${dari}_${sampai}.xlsx`, [
       {
-        sheetName: "Telat Clock In",
+        sheetName: "Terlambat Clock In",
         rows: telatMasuk.map((r) => ({
           Pegawai: r.nama,
           Tanggal: formatDateID(r.tanggal),
-          "Telat (menit)": r.menitTelat,
+          "Terlambat (menit)": r.menitTelat,
         })),
         colWidths: [28, 14, 12],
       },
       {
-        sheetName: "Telat Clock Out",
+        sheetName: "Terlambat Clock Out",
         rows: telatKeluar.map((r) => ({
           Pegawai: r.nama,
           Tanggal: formatDateID(r.tanggal),
@@ -60,7 +62,7 @@ export function KeterlambatanExport({
         colWidths: [28, 14],
       },
       {
-        sheetName: "Curang",
+        sheetName: "Pulang Sebelum Waktunya",
         rows: curang.map((r) => ({
           Pegawai: r.nama,
           Tanggal: formatDateID(r.tanggal),

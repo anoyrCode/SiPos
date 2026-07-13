@@ -7,21 +7,23 @@ import { computeDayStatus, type JadwalPegawai } from "@/lib/absensi-status";
 import { AbsensiClient, type AbsensiHistoryRow } from "./absensi-client";
 import { PengajuanList, type PengajuanRow } from "./pengajuan-list";
 
-/** Tanggal mulai project dipakai produksi — riwayat sebelum ini tidak ditampilkan (data uji coba). */
-const LAUNCH_DATE = "2026-07-11";
-
-/** Tanggal 1 s.d. hari ini di bulan berjalan (Asia/Jakarta), urutan terbaru dulu, dibatasi LAUNCH_DATE. */
-function datesThisMonthJakarta(): string[] {
+/**
+ * Tanggal 1 s.d. hari ini di bulan berjalan (Asia/Jakarta), urutan terbaru
+ * dulu, dibatasi `tanggalMulai` (tanggal sistem absensi mulai dipakai,
+ * diatur admin) bila diisi — supaya riwayat sebelum go-live (data uji coba)
+ * tidak ikut ditampilkan.
+ */
+function datesThisMonthJakarta(tanggalMulai: string | null): string[] {
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });
   const todayStr = fmt.format(new Date());
-  // Hari ini selalu tetap muncul walau belum lewat LAUNCH_DATE (mis. diakses sehari sebelum go-live).
-  const cutoff = LAUNCH_DATE > todayStr ? todayStr : LAUNCH_DATE;
+  // Hari ini selalu tetap muncul walau belum lewat tanggalMulai (mis. diakses sehari sebelum go-live).
+  const cutoff = tanggalMulai && tanggalMulai <= todayStr ? tanggalMulai : null;
   const [y, m, dStr] = todayStr.split("-");
   const dayOfMonth = Number(dStr);
   const dates: string[] = [];
   for (let d = dayOfMonth; d >= 1; d--) {
     const tanggal = `${y}-${m}-${String(d).padStart(2, "0")}`;
-    if (tanggal < cutoff) break;
+    if (cutoff && tanggal < cutoff) break;
     dates.push(tanggal);
   }
   return dates;
@@ -50,11 +52,18 @@ export default async function Page() {
     hari_libur: pegawai?.hari_libur ?? null,
   };
 
-  const dates = datesThisMonthJakarta();
+  const { data: setting } = await supabase
+    .from("absensi_pengaturan")
+    .select("lokasi_lat, lokasi_long, radius_meter, toleransi_menit, tanggal_mulai")
+    .limit(1)
+    .maybeSingle();
+  const tanggalMulai = setting?.tanggal_mulai ?? null;
+
+  const dates = datesThisMonthJakarta(tanggalMulai);
   const from = dates[dates.length - 1];
   const to = dates[0];
 
-  const [{ data: rows }, { data: setting }, { data: pengajuanRows }, { data: liburKhususRows }] =
+  const [{ data: rows }, { data: pengajuanRows }, { data: liburKhususRows }] =
     await Promise.all([
       supabase
         .from("absensi")
@@ -62,11 +71,6 @@ export default async function Page() {
         .eq("pegawai_id", pegawaiId)
         .gte("tanggal", from)
         .lte("tanggal", to),
-      supabase
-        .from("absensi_pengaturan")
-        .select("lokasi_lat, lokasi_long, radius_meter, toleransi_menit")
-        .limit(1)
-        .maybeSingle(),
       supabase
         .from("absensi_pengajuan")
         .select("id, kategori, tanggal_mulai, tanggal_selesai, status, alasan_penolakan")
@@ -85,7 +89,14 @@ export default async function Page() {
       tanggal,
       jamMasukAktual: record?.jam_masuk_aktual ?? null,
       jamPulangAktual: record?.jam_pulang_aktual ?? null,
-      status: computeDayStatus(tanggal, record, jadwal, toleransiMenit, liburKhususSet),
+      status: computeDayStatus(
+        tanggal,
+        record,
+        jadwal,
+        toleransiMenit,
+        liburKhususSet,
+        tanggalMulai,
+      ),
     };
   });
 

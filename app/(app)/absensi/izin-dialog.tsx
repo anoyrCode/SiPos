@@ -88,15 +88,15 @@ export function IzinDialog() {
       <DialogTrigger asChild>
         <Button type="button" variant="outline" className="w-full max-w-xs">
           <CalendarPlus data-icon="inline-start" />
-          Ajukan Izin/Sakit/Cuti
+          Ajukan Izin/Sakit
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader className="-mx-6 -mt-6 border-b px-6 pb-4 pt-6">
-          <DialogTitle>Ajukan Izin/Sakit/Cuti</DialogTitle>
+          <DialogTitle>Ajukan Izin/Sakit</DialogTitle>
           <DialogDescription>
             Menunggu persetujuan HRD/admin. Hari yang diajukan tidak dihitung
-            Alpa/Telat selama menunggu.
+            Alpa/Terlambat selama menunggu.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -112,7 +112,6 @@ export function IzinDialog() {
                 <SelectContent>
                   <SelectItem value="izin">Izin</SelectItem>
                   <SelectItem value="sakit">Sakit</SelectItem>
-                  <SelectItem value="cuti">Cuti</SelectItem>
                 </SelectContent>
               </Select>
             </Field>

@@ -69,7 +69,7 @@ export function LiburKhususDialog({ initial }: { initial: LiburKhususRow[] }) {
         <DialogHeader>
           <DialogTitle>Hari Libur Khusus Pondok</DialogTitle>
           <DialogDescription>
-            Tanggal di daftar ini otomatis dikecualikan dari Alpa/Telat untuk
+            Tanggal di daftar ini otomatis dikecualikan dari Alpa/Terlambat untuk
             semua pegawai (mis. libur nasional, libur semester, acara pondok).
             Bisa pilih rentang tanggal sekaligus.
           </DialogDescription>

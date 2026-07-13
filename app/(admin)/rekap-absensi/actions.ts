@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import { canApproveAbsensi, canMaster, getProfile } from "@/lib/auth/dal";
+import { canApproveAbsensi, canRekapAbsensi, getProfile } from "@/lib/auth/dal";
 import { dbErrorMessage, type FormResult } from "@/lib/forms";
 
 const PATH = "/rekap-absensi";
@@ -13,8 +13,9 @@ export async function updatePengaturanAbsensi(input: {
   lokasi_long: number;
   radius_meter: number;
   toleransi_menit: number;
+  tanggal_mulai: string | null;
 }): Promise<FormResult> {
-  if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canRekapAbsensi())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
   const { data: setting } = await supabase
@@ -31,6 +32,7 @@ export async function updatePengaturanAbsensi(input: {
       lokasi_long: input.lokasi_long,
       radius_meter: input.radius_meter,
       toleransi_menit: input.toleransi_menit,
+      tanggal_mulai: input.tanggal_mulai,
       updated_at: new Date().toISOString(),
     })
     .eq("id", setting.id);
@@ -125,7 +127,7 @@ export async function addLiburKhusus(
   tanggalSelesai: string,
   keterangan: string,
 ): Promise<FormResult> {
-  if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canRekapAbsensi())) return { ok: false, error: "Tidak diizinkan." };
   if (!tanggalMulai || !tanggalSelesai) {
     return { ok: false, error: "Tanggal wajib diisi." };
   }
@@ -155,7 +157,7 @@ export async function addLiburKhusus(
 }
 
 export async function deleteLiburKhusus(tanggal: string): Promise<FormResult> {
-  if (!(await canMaster())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canRekapAbsensi())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
   const { error } = await supabase

@@ -3,11 +3,12 @@ import { ClipboardCheck } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { requireRekapAbsensiAkses } from "@/lib/auth/dal";
-import { getStr, type SearchParams } from "@/lib/list-params";
+import { getStr, paginateArray, parsePageParamsNamed, type SearchParams } from "@/lib/list-params";
 import { formatDateID } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { SearchInput } from "@/components/shared/search-input";
 import { DataTable, type Column } from "@/components/shared/data-table";
+import { Pagination } from "@/components/shared/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +26,7 @@ import {
   PENGAJUAN_STATUS_LABEL,
 } from "@/lib/absensi-status";
 import { DateFilter } from "./date-filter";
-import { BulanFilter } from "./bulan-filter";
+import { RentangFilter } from "./rentang-filter";
 import { StatusFilter } from "./status-filter";
 import { PengaturanAbsensiForm } from "./pengaturan-form";
 import { KeterlambatanExport } from "./keterlambatan-export";
@@ -43,6 +44,8 @@ type Row = {
   jamMasukAktual: string | null;
   jamPulangAktual: string | null;
   status: AbsensiStatus;
+  overrideLokasi: boolean;
+  overrideAlasan: string | null;
 };
 
 export type TelatMasukRow = {
@@ -82,7 +85,7 @@ const STATUS_VARIANT: Record<
   masuk_libur: "primary",
   izin: "outline",
   sakit: "warning",
-  cuti: "default",
+  belum_mulai: "outline",
 };
 
 /** "HH:MM:SS" (kolom Postgres `time`) -> "HH:MM". Bukan timestamptz, jangan pakai formatJamWIB. */
@@ -91,15 +94,29 @@ function formatJamJadwal(value: string | null): string | null {
   return value.slice(0, 5);
 }
 
-/** Semua tanggal "YYYY-MM-DD" dalam 1 bulan (format bulan: "YYYY-MM"). */
-function datesInMonth(bulan: string): string[] {
-  const [yStr, mStr] = bulan.split("-");
-  const year = Number(yStr);
-  const month = Number(mStr);
-  const lastDay = new Date(year, month, 0).getDate();
+const MAX_RENTANG_HARI = 62;
+
+/** Awal & akhir bulan berjalan (Asia/Jakarta), dipakai sbg default rentang. */
+function currentMonthBounds(): { dari: string; sampai: string } {
+  const [yStr, mStr] = todayJakarta().split("-");
+  const lastDay = new Date(Number(yStr), Number(mStr), 0).getDate();
+  return {
+    dari: `${yStr}-${mStr}-01`,
+    sampai: `${yStr}-${mStr}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
+
+/** Semua tanggal "YYYY-MM-DD" dari dari s.d. sampai (inklusif), dibatasi MAX_RENTANG_HARI. */
+function datesInRange(dari: string, sampai: string): string[] {
   const dates: string[] = [];
-  for (let d = 1; d <= lastDay; d++) {
-    dates.push(`${yStr}-${mStr}-${String(d).padStart(2, "0")}`);
+  const cur = new Date(`${dari}T00:00:00`);
+  const end = new Date(`${sampai}T00:00:00`);
+  while (cur <= end && dates.length < MAX_RENTANG_HARI) {
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, "0");
+    const d = String(cur.getDate()).padStart(2, "0");
+    dates.push(`${y}-${m}-${d}`);
+    cur.setDate(cur.getDate() + 1);
   }
   return dates;
 }
@@ -129,11 +146,17 @@ export default async function Page({
       : getStr(sp.pstatus) === "ditolak"
         ? "ditolak"
         : "menunggu";
+  const persetujuanParams = parsePageParamsNamed(sp, "page", "perPage");
   const tanggal = getStr(sp.tanggal) || todayJakarta();
-  const bulan = getStr(sp.bulan) || todayJakarta().slice(0, 7);
+  const defaultBounds = currentMonthBounds();
+  const dari = getStr(sp.dari) || defaultBounds.dari;
+  const sampaiRaw = getStr(sp.sampai) || defaultBounds.sampai;
+  const sampai = sampaiRaw < dari ? dari : sampaiRaw;
   const q = getStr(sp.q);
   const statusFilter = getStr(sp.status);
-  const monthDates = mode === "bulanan" ? datesInMonth(bulan) : [];
+  const rangeDates = mode === "bulanan" ? datesInRange(dari, sampai) : [];
+  const isRangeClamped =
+    rangeDates.length > 0 && rangeDates[rangeDates.length - 1] < sampai;
 
   if (!canViewRekap) {
     // Approver tanpa akses rekap (perm_master/perm_rekap_absensi): skip semua
@@ -144,10 +167,14 @@ export default async function Page({
         <PageHeader
           icon={ClipboardCheck}
           title="Persetujuan Absensi"
-          description="Setujui atau tolak pengajuan izin/sakit/cuti pegawai."
+          description="Setujui atau tolak pengajuan izin/sakit pegawai."
         />
         <PengajuanStatusFilter value={pengajuanStatus} />
-        <PersetujuanPanel statusFilter={pengajuanStatus} />
+        <PersetujuanPanel
+          statusFilter={pengajuanStatus}
+          page={persetujuanParams.page}
+          perPage={persetujuanParams.perPage}
+        />
       </div>
     );
   }
@@ -167,12 +194,16 @@ export default async function Page({
     mode === "bulanan"
       ? supabase
           .from("absensi")
-          .select("pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen")
-          .gte("tanggal", monthDates[0])
-          .lte("tanggal", monthDates[monthDates.length - 1])
+          .select(
+            "pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen, override_lokasi, override_alasan",
+          )
+          .gte("tanggal", rangeDates[0])
+          .lte("tanggal", rangeDates[rangeDates.length - 1])
       : supabase
           .from("absensi")
-          .select("pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen")
+          .select(
+            "pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen, override_lokasi, override_alasan",
+          )
           .eq("tanggal", tanggal);
 
   const [
@@ -185,13 +216,14 @@ export default async function Page({
     absensiQuery,
     supabase
       .from("absensi_pengaturan")
-      .select("lokasi_lat, lokasi_long, radius_meter, toleransi_menit")
+      .select("lokasi_lat, lokasi_long, radius_meter, toleransi_menit, tanggal_mulai")
       .limit(1)
       .maybeSingle(),
     supabase.from("libur_khusus").select("tanggal, keterangan").order("tanggal"),
   ]);
 
   const toleransiMenit = setting?.toleransi_menit ?? 0;
+  const tanggalMulai = setting?.tanggal_mulai ?? null;
   const liburKhususList: LiburKhususRow[] = liburKhususRows ?? [];
   const liburKhususSet = new Set(liburKhususList.map((l) => l.tanggal));
 
@@ -211,7 +243,16 @@ export default async function Page({
       nama: p.nama,
       jamMasukAktual: record?.jam_masuk_aktual ?? null,
       jamPulangAktual: record?.jam_pulang_aktual ?? null,
-      status: computeDayStatus(tanggal, record, jadwal, toleransiMenit, liburKhususSet),
+      status: computeDayStatus(
+        tanggal,
+        record,
+        jadwal,
+        toleransiMenit,
+        liburKhususSet,
+        tanggalMulai,
+      ),
+      overrideLokasi: record?.override_lokasi ?? false,
+      overrideAlasan: record?.override_alasan ?? null,
     };
   });
 
@@ -220,6 +261,8 @@ export default async function Page({
   const rows: Row[] = isStatusFilterActive
     ? allRows.filter((r) => r.status === statusFilter)
     : allRows;
+  const { page, perPage } = parsePageParamsNamed(sp, "page", "perPage");
+  const pagedRows = paginateArray(rows, page, perPage);
 
   const telatMasukRows: TelatMasukRow[] = [];
   const telatKeluarRows: TelatKeluarRow[] = [];
@@ -232,7 +275,8 @@ export default async function Page({
         jam_pulang_jadwal: p.jam_pulang_jadwal,
         hari_libur: p.hari_libur,
       };
-      for (const tgl of monthDates) {
+      for (const tgl of rangeDates) {
+        if (tanggalMulai && tgl < tanggalMulai) continue;
         if (isHariLiburPegawai(tgl, jadwal, liburKhususSet)) continue;
         const record = absensiMap.get(`${p.id}_${tgl}`) ?? null;
         // Dicek independen (bukan computeDayStatus) — 1 hari bisa masuk ke
@@ -273,8 +317,8 @@ export default async function Page({
       .select(
         "id, kategori, tanggal_mulai, tanggal_selesai, status, keterangan, alasan_penolakan, pegawai:pegawai(nama)",
       )
-      .lte("tanggal_mulai", monthDates[monthDates.length - 1])
-      .gte("tanggal_selesai", monthDates[0])
+      .lte("tanggal_mulai", rangeDates[rangeDates.length - 1])
+      .gte("tanggal_selesai", rangeDates[0])
       .order("tanggal_mulai");
 
     type PegawaiEmbed = { nama: string } | { nama: string }[] | null;
@@ -313,6 +357,19 @@ export default async function Page({
     });
   }
 
+  const masukParams = parsePageParamsNamed(sp, "masukPage", "masukPerPage");
+  const keluarParams = parsePageParamsNamed(sp, "keluarPage", "keluarPerPage");
+  const curangParams = parsePageParamsNamed(sp, "curangPage", "curangPerPage");
+  const pengajuanParams = parsePageParamsNamed(sp, "pengajuanPage", "pengajuanPerPage");
+  const pagedTelatMasuk = paginateArray(telatMasukRows, masukParams.page, masukParams.perPage);
+  const pagedTelatKeluar = paginateArray(telatKeluarRows, keluarParams.page, keluarParams.perPage);
+  const pagedCurang = paginateArray(curangRows, curangParams.page, curangParams.perPage);
+  const pagedPengajuanBulanan = paginateArray(
+    pengajuanBulananRows,
+    pengajuanParams.page,
+    pengajuanParams.perPage,
+  );
+
   const pengajuanBulananColumns: Column<PengajuanBulananRow>[] = [
     {
       key: "nama",
@@ -324,7 +381,7 @@ export default async function Page({
       header: "Kategori",
       cell: (r) => (
         <Badge variant="outline">
-          {r.kategori === "izin" ? "Izin" : r.kategori === "sakit" ? "Sakit" : "Cuti"}
+          {r.kategori === "izin" ? "Izin" : "Sakit"}
         </Badge>
       ),
     },
@@ -383,6 +440,16 @@ export default async function Page({
         <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
       ),
     },
+    {
+      key: "lokasi",
+      header: "Lokasi",
+      cell: (r) =>
+        r.overrideLokasi ? (
+          <Badge variant="warning" title={r.overrideAlasan ?? undefined}>
+            Manual — di luar radius
+          </Badge>
+        ) : null,
+    },
   ];
 
   const telatMasukColumns: Column<TelatMasukRow>[] = [
@@ -398,7 +465,7 @@ export default async function Page({
     },
     {
       key: "menit",
-      header: "Telat (menit)",
+      header: "Terlambat (menit)",
       cell: (r) => (
         <span className="font-mono font-semibold text-negative">{r.menitTelat}</span>
       ),
@@ -453,14 +520,14 @@ export default async function Page({
       <PageHeader
         icon={ClipboardCheck}
         title="Rekap Absensi"
-        description="Rekap kehadiran seluruh pegawai per tanggal atau per bulan."
+        description="Rekap kehadiran seluruh pegawai per tanggal atau per rentang tanggal."
       />
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border/70 bg-card p-3 shadow-sm">
         <div className="flex flex-wrap items-end gap-3">
           {mode === "tanggal" ? (
             <DateFilter value={tanggal} />
           ) : (
-            <BulanFilter value={bulan} />
+            <RentangFilter dari={dari} sampai={sampai} />
           )}
           <SearchInput placeholder="Cari nama pegawai…" className="w-full sm:w-56" />
           {mode === "tanggal" && <StatusFilter value={statusFilter} />}
@@ -481,7 +548,7 @@ export default async function Page({
               variant={mode === "bulanan" ? "default" : "ghost"}
               className="flex-1 sm:flex-none"
             >
-              <Link href="/rekap-absensi?mode=bulanan">Per Bulan</Link>
+              <Link href="/rekap-absensi?mode=bulanan">Per Rentang</Link>
             </Button>
             {canApprove && (
               <Button
@@ -494,7 +561,7 @@ export default async function Page({
               </Button>
             )}
           </div>
-          {isMaster && (
+          {canViewRekap && (
             <>
               <PengaturanAbsensiForm
                 initial={{
@@ -502,6 +569,7 @@ export default async function Page({
                   lokasi_long: setting?.lokasi_long ?? null,
                   radius_meter: setting?.radius_meter ?? 150,
                   toleransi_menit: toleransiMenit,
+                  tanggal_mulai: tanggalMulai,
                 }}
                 triggerClassName="w-full sm:w-auto"
               />
@@ -514,69 +582,128 @@ export default async function Page({
       {mode === "persetujuan" ? (
         <div className="space-y-4">
           <PengajuanStatusFilter value={pengajuanStatus} />
-          <PersetujuanPanel statusFilter={pengajuanStatus} />
+          <PersetujuanPanel
+            statusFilter={pengajuanStatus}
+            page={persetujuanParams.page}
+            perPage={persetujuanParams.perPage}
+          />
         </div>
       ) : mode === "tanggal" ? (
-        <DataTable
-          columns={columns}
-          rows={rows}
-          getRowId={(r) => r.pegawaiId}
-          isFiltered={!!q || isStatusFilterActive}
-          empty="Belum ada data pegawai."
-        />
+        <div className="space-y-3">
+          <DataTable
+            columns={columns}
+            rows={pagedRows.rows}
+            getRowId={(r) => r.pegawaiId}
+            isFiltered={!!q || isStatusFilterActive}
+            empty="Belum ada data pegawai."
+          />
+          <Pagination
+            page={pagedRows.page}
+            perPage={perPage}
+            totalPages={pagedRows.totalPages}
+            totalItems={pagedRows.totalItems}
+          />
+        </div>
       ) : (
         <>
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold">Rekap keterlambatan bulan {bulan}</h2>
+            <div>
+              <h2 className="text-sm font-semibold">
+                Rekap keterlambatan {formatDateID(rangeDates[0])} –{" "}
+                {formatDateID(rangeDates[rangeDates.length - 1])}
+              </h2>
+              {isRangeClamped && (
+                <p className="text-xs text-muted-foreground">
+                  Rentang dibatasi maks {MAX_RENTANG_HARI} hari.
+                </p>
+              )}
+            </div>
             <KeterlambatanExport
-              bulan={bulan}
+              dari={rangeDates[0]}
+              sampai={rangeDates[rangeDates.length - 1]}
               telatMasuk={telatMasukRows}
               telatKeluar={telatKeluarRows}
               curang={curangRows}
             />
           </div>
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Telat Clock In</h3>
+            <h3 className="text-sm font-semibold">Terlambat Clock In</h3>
             <DataTable
               columns={telatMasukColumns}
-              rows={telatMasukRows}
+              rows={pagedTelatMasuk.rows}
               getRowId={(r) => `${r.pegawaiId}_${r.tanggal}`}
               isFiltered={!!q}
-              empty="Tidak ada keterlambatan clock in bulan ini."
+              empty="Tidak ada keterlambatan clock in pada rentang ini."
+            />
+            <Pagination
+              page={pagedTelatMasuk.page}
+              perPage={masukParams.perPage}
+              totalPages={pagedTelatMasuk.totalPages}
+              totalItems={pagedTelatMasuk.totalItems}
+              pageParam="masukPage"
+              perPageParam="masukPerPage"
             />
           </div>
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Telat Clock Out</h3>
+            <h3 className="text-sm font-semibold">Terlambat Clock Out</h3>
             <DataTable
               columns={telatKeluarColumns}
-              rows={telatKeluarRows}
+              rows={pagedTelatKeluar.rows}
               getRowId={(r) => `${r.pegawaiId}_${r.tanggal}`}
               isFiltered={!!q}
-              empty="Tidak ada keterlambatan clock out bulan ini."
+              empty="Tidak ada keterlambatan clock out pada rentang ini."
+            />
+            <Pagination
+              page={pagedTelatKeluar.page}
+              perPage={keluarParams.perPage}
+              totalPages={pagedTelatKeluar.totalPages}
+              totalItems={pagedTelatKeluar.totalItems}
+              pageParam="keluarPage"
+              perPageParam="keluarPerPage"
             />
           </div>
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold">Curang</h3>
+            <h3 className="text-sm font-semibold">Pulang Sebelum Waktunya</h3>
             <DataTable
               columns={curangColumns}
-              rows={curangRows}
+              rows={pagedCurang.rows}
               getRowId={(r) => `${r.pegawaiId}_${r.tanggal}`}
               isFiltered={!!q}
-              empty="Tidak ada kejadian curang bulan ini."
+              empty="Tidak ada kejadian pulang sebelum waktunya pada rentang ini."
+            />
+            <Pagination
+              page={pagedCurang.page}
+              perPage={curangParams.perPage}
+              totalPages={pagedCurang.totalPages}
+              totalItems={pagedCurang.totalItems}
+              pageParam="curangPage"
+              perPageParam="curangPerPage"
             />
           </div>
           {canApprove && (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold">Pengajuan Izin/Sakit/Cuti</h3>
-                <PengajuanBulananExport bulan={bulan} rows={pengajuanBulananRows} />
+                <h3 className="text-sm font-semibold">Pengajuan Izin/Sakit</h3>
+                <PengajuanBulananExport
+                  dari={rangeDates[0]}
+                  sampai={rangeDates[rangeDates.length - 1]}
+                  rows={pengajuanBulananRows}
+                />
               </div>
               <DataTable
                 columns={pengajuanBulananColumns}
-                rows={pengajuanBulananRows}
+                rows={pagedPengajuanBulanan.rows}
                 getRowId={(r) => r.pengajuanId}
                 isFiltered={!!q}
-                empty="Tidak ada pengajuan izin/sakit/cuti bulan ini."
+                empty="Tidak ada pengajuan izin/sakit pada rentang ini."
+              />
+              <Pagination
+                page={pagedPengajuanBulanan.page}
+                perPage={pengajuanParams.perPage}
+                totalPages={pagedPengajuanBulanan.totalPages}
+                totalItems={pagedPengajuanBulanan.totalItems}
+                pageParam="pengajuanPage"
+                perPageParam="pengajuanPerPage"
               />
             </div>
           )}

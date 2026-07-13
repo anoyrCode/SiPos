@@ -30,6 +30,7 @@ const schema = z.object({
   lokasi_long: z.number(),
   radius_meter: z.number().min(10).max(5000),
   toleransi_menit: z.number().min(0).max(60),
+  tanggal_mulai: z.string().nullable(),
 });
 type PengaturanInput = z.infer<typeof schema>;
 
@@ -42,6 +43,7 @@ export function PengaturanAbsensiForm({
     lokasi_long: number | null;
     radius_meter: number;
     toleransi_menit: number;
+    tanggal_mulai: string | null;
   };
   triggerClassName?: string;
 }) {
@@ -54,6 +56,7 @@ export function PengaturanAbsensiForm({
     lokasi_long: initial.lokasi_long ?? 0,
     radius_meter: initial.radius_meter,
     toleransi_menit: initial.toleransi_menit,
+    tanggal_mulai: initial.tanggal_mulai,
   };
 
   const form = useForm<PengaturanInput>({
@@ -63,7 +66,10 @@ export function PengaturanAbsensiForm({
 
   const onSubmit = form.handleSubmit(async (values) => {
     setServerError(null);
-    const res = await updatePengaturanAbsensi(values);
+    const res = await updatePengaturanAbsensi({
+      ...values,
+      tanggal_mulai: values.tanggal_mulai || null,
+    });
     if (!res.ok) {
       setServerError(res.error);
       return;
@@ -155,6 +161,19 @@ export function PengaturanAbsensiForm({
               id="toleransi_menit"
               type="number"
               {...form.register("toleransi_menit", { valueAsNumber: true })}
+            />
+          </Field>
+          <Field
+            label="Tanggal Mulai Digunakan"
+            htmlFor="tanggal_mulai"
+            hint="Tanggal sebelum ini selalu berstatus 'Belum Mulai' (bukan Alpa), utk hindari data uji coba dianggap pelanggaran. Kosongkan bila tidak perlu."
+            error={form.formState.errors.tanggal_mulai?.message}
+          >
+            <Input
+              id="tanggal_mulai"
+              type="date"
+              defaultValue={initial.tanggal_mulai ?? ""}
+              {...form.register("tanggal_mulai")}
             />
           </Field>
           {serverError && (

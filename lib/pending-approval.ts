@@ -2,7 +2,7 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 
-/** Jumlah pengajuan izin/sakit/cuti yang masih "menunggu" — utk badge nav. */
+/** Jumlah pengajuan izin/sakit yang masih "menunggu" — utk badge nav. */
 export async function getPendingApprovalCount(canSeeApproval: boolean): Promise<number> {
   if (!canSeeApproval) return 0;
 

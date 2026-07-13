@@ -8,6 +8,17 @@ import { LogIn, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Field } from "@/components/shared/field";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { formatDateID } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -44,7 +55,7 @@ const STATUS_VARIANT: Record<
   masuk_libur: "primary",
   izin: "outline",
   sakit: "warning",
-  cuti: "default",
+  belum_mulai: "outline",
 };
 
 /** Tint background lembut utk card mobile, cuma utk status yg perlu perhatian. */
@@ -94,6 +105,14 @@ export function AbsensiClient({
   const [loading, setLoading] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
   const [lokasiStatus, setLokasiStatus] = useState<LokasiStatus>({ kind: "checking" });
+  const [confirmAction, setConfirmAction] = useState<"in" | "out" | null>(null);
+  const [overridePrompt, setOverridePrompt] = useState<{
+    action: "in" | "out";
+    message: string;
+  } | null>(null);
+  const [overrideChecked, setOverrideChecked] = useState(false);
+  const [overrideAlasan, setOverrideAlasan] = useState("");
+  const [overrideError, setOverrideError] = useState<string | null>(null);
 
   const lokasiTersedia = lokasiLat !== null && lokasiLong !== null;
 
@@ -154,22 +173,36 @@ export function AbsensiClient({
     });
   }
 
-  async function handleClock(action: "in" | "out") {
+  async function handleClock(action: "in" | "out", override = false, alasan = "") {
     setLoading(true);
     try {
       const pos = await getLocation();
       const fn = action === "in" ? clockIn : clockOut;
-      const res = await fn(pos.coords.latitude, pos.coords.longitude);
+      const res = await fn(pos.coords.latitude, pos.coords.longitude, override, alasan);
       if (!res.ok) {
+        if (res.geofenceFailed) {
+          setOverridePrompt({ action, message: res.error });
+          return;
+        }
+        if (override) {
+          // Gagal saat submit override (mis. alasan kosong) — tampilkan di dalam modal override, bukan toast.
+          setOverrideError(res.error);
+          return;
+        }
         toast.error(res.error);
         return;
       }
       toast.success(action === "in" ? "Clock in berhasil." : "Clock out berhasil.");
+      setOverridePrompt(null);
+      setOverrideChecked(false);
+      setOverrideAlasan("");
+      setOverrideError(null);
       router.refresh();
     } catch {
       toast.error("Gagal mengambil lokasi. Pastikan izin lokasi diaktifkan.");
     } finally {
       setLoading(false);
+      setConfirmAction(null);
     }
   }
 
@@ -261,7 +294,7 @@ export function AbsensiClient({
 
               {!sudahClockIn ? (
                 <Button
-                  onClick={() => handleClock("in")}
+                  onClick={() => setConfirmAction("in")}
                   disabled={loading}
                   size="lg"
                   className="h-14 w-full max-w-xs text-base"
@@ -273,7 +306,7 @@ export function AbsensiClient({
                 <div className="flex w-full max-w-xs flex-col items-center gap-3">
                   <Badge variant="positive">Clock in {formatJamWIB(jamMasukAktual)}</Badge>
                   <Button
-                    onClick={() => handleClock("out")}
+                    onClick={() => setConfirmAction("out")}
                     disabled={loading}
                     size="lg"
                     variant="destructive"
@@ -340,6 +373,125 @@ export function AbsensiClient({
           )}
         </div>
       </div>
+
+      <Dialog
+        open={confirmAction !== null}
+        onOpenChange={(o) => !o && setConfirmAction(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {confirmAction === "in" ? "Konfirmasi Clock In" : "Konfirmasi Clock Out"}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmAction === "in"
+                ? "Anda akan mencatat clock in sekarang. Lanjutkan?"
+                : "Anda akan mencatat clock out sekarang. Lanjutkan?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmAction(null)}
+              disabled={loading}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant={confirmAction === "out" ? "destructive" : "default"}
+              onClick={() => confirmAction && handleClock(confirmAction)}
+              disabled={loading}
+            >
+              {loading
+                ? "Memproses…"
+                : confirmAction === "in"
+                  ? "Ya, Clock In"
+                  : "Ya, Clock Out"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={overridePrompt !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setOverridePrompt(null);
+            setOverrideChecked(false);
+            setOverrideAlasan("");
+            setOverrideError(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Lokasi Di Luar Radius</DialogTitle>
+            <DialogDescription>{overridePrompt?.message}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Kalau lokasi Anda terdeteksi salah karena masalah GPS/sinyal HP,
+              Anda tetap bisa {overridePrompt?.action === "in" ? "clock in" : "clock out"}{" "}
+              dengan pernyataan berikut. Ini akan tercatat & bisa dicek admin.
+            </p>
+            <Field label="Alasan" htmlFor="override-alasan" required>
+              <Textarea
+                id="override-alasan"
+                value={overrideAlasan}
+                onChange={(e) => setOverrideAlasan(e.target.value)}
+                placeholder="mis. GPS error, sinyal lemah di dalam gedung"
+              />
+            </Field>
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 bg-muted/30 p-3">
+              <Switch checked={overrideChecked} onCheckedChange={setOverrideChecked} />
+              <span className="text-sm">
+                Saya menyatakan dengan sejujurnya bahwa saya benar-benar berada
+                di lokasi pondok saat ini.
+              </span>
+            </label>
+            {overrideError && (
+              <p className="text-sm text-destructive">{overrideError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setOverridePrompt(null);
+                setOverrideChecked(false);
+                setOverrideAlasan("");
+                setOverrideError(null);
+              }}
+              disabled={loading}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (!overrideChecked || !overrideAlasan.trim()) {
+                  setOverrideError("Centang pernyataan & isi alasan terlebih dahulu.");
+                  return;
+                }
+                setOverrideError(null);
+                if (overridePrompt) {
+                  handleClock(overridePrompt.action, true, overrideAlasan);
+                }
+              }}
+              disabled={loading}
+            >
+              {loading
+                ? "Memproses…"
+                : overridePrompt?.action === "in"
+                  ? "Tetap Clock In"
+                  : "Tetap Clock Out"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

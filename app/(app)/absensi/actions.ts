@@ -9,8 +9,13 @@ import { haversineDistanceMeters } from "@/lib/geo";
 import { todayJakarta, type KategoriAbsen } from "@/lib/absensi-status";
 import { dbErrorMessage, type FormResult } from "@/lib/forms";
 
+/** Hasil clock in/out — beda dari FormResult krn perlu tandai kegagalan geofence secara khusus (utk munculkan modal override di client). */
+export type ClockResult =
+  | { ok: true }
+  | { ok: false; error: string; geofenceFailed?: boolean };
+
 const PATH = "/absensi";
-const KATEGORI_VALID: KategoriAbsen[] = ["izin", "sakit", "cuti"];
+const KATEGORI_VALID: KategoriAbsen[] = ["izin", "sakit"];
 
 /** Semua tanggal "YYYY-MM-DD" dari start s.d. end (inklusif), maks 31 hari. */
 function enumerateDates(start: string, end: string): string[] {
@@ -51,7 +56,12 @@ async function checkGeofence(lat: number, long: number): Promise<string | null> 
   return null;
 }
 
-export async function clockIn(lat: number, long: number): Promise<FormResult> {
+export async function clockIn(
+  lat: number,
+  long: number,
+  override = false,
+  alasan = "",
+): Promise<ClockResult> {
   if (!(await canAbsensi())) return { ok: false, error: "Tidak diizinkan." };
   const profile = await getProfile();
   if (!profile?.pegawai_id) {
@@ -59,7 +69,12 @@ export async function clockIn(lat: number, long: number): Promise<FormResult> {
   }
 
   const geofenceError = await checkGeofence(lat, long);
-  if (geofenceError) return { ok: false, error: geofenceError };
+  if (geofenceError && !override) {
+    return { ok: false, error: geofenceError, geofenceFailed: true };
+  }
+  if (geofenceError && !alasan.trim()) {
+    return { ok: false, error: "Alasan wajib diisi untuk clock in di luar radius." };
+  }
 
   const supabase = await createClient();
   const { data: pegawai } = await supabase
@@ -88,6 +103,8 @@ export async function clockIn(lat: number, long: number): Promise<FormResult> {
     jam_masuk_aktual: new Date().toISOString(),
     lokasi_masuk_lat: lat,
     lokasi_masuk_long: long,
+    override_lokasi: !!geofenceError,
+    override_alasan: geofenceError ? alasan.trim() : null,
   });
   if (error) return { ok: false, error: dbErrorMessage(error) };
 
@@ -104,7 +121,7 @@ function extFromMime(mime: string): string {
   return "jpg";
 }
 
-/** Ajukan izin/sakit/cuti sendiri (approval oleh HRD/admin) utk 1 hari/rentang. */
+/** Ajukan izin/sakit sendiri (approval oleh HRD/admin) utk 1 hari/rentang. */
 export async function ajukanIzin(formData: FormData): Promise<FormResult> {
   if (!(await canAbsensi())) return { ok: false, error: "Tidak diizinkan." };
   const profile = await getProfile();
@@ -204,7 +221,12 @@ export async function ajukanIzin(formData: FormData): Promise<FormResult> {
   return { ok: true };
 }
 
-export async function clockOut(lat: number, long: number): Promise<FormResult> {
+export async function clockOut(
+  lat: number,
+  long: number,
+  override = false,
+  alasan = "",
+): Promise<ClockResult> {
   if (!(await canAbsensi())) return { ok: false, error: "Tidak diizinkan." };
   const profile = await getProfile();
   if (!profile?.pegawai_id) {
@@ -212,13 +234,18 @@ export async function clockOut(lat: number, long: number): Promise<FormResult> {
   }
 
   const geofenceError = await checkGeofence(lat, long);
-  if (geofenceError) return { ok: false, error: geofenceError };
+  if (geofenceError && !override) {
+    return { ok: false, error: geofenceError, geofenceFailed: true };
+  }
+  if (geofenceError && !alasan.trim()) {
+    return { ok: false, error: "Alasan wajib diisi untuk clock out di luar radius." };
+  }
 
   const supabase = await createClient();
   const tanggal = todayJakarta();
   const { data: existing } = await supabase
     .from("absensi")
-    .select("id, jam_masuk_aktual, jam_pulang_aktual")
+    .select("id, jam_masuk_aktual, jam_pulang_aktual, override_alasan")
     .eq("pegawai_id", profile.pegawai_id)
     .eq("tanggal", tanggal)
     .maybeSingle();
@@ -235,6 +262,14 @@ export async function clockOut(lat: number, long: number): Promise<FormResult> {
       jam_pulang_aktual: new Date().toISOString(),
       lokasi_pulang_lat: lat,
       lokasi_pulang_long: long,
+      ...(geofenceError
+        ? {
+            override_lokasi: true,
+            override_alasan: existing.override_alasan
+              ? `${existing.override_alasan} | Clock out: ${alasan.trim()}`
+              : alasan.trim(),
+          }
+        : {}),
     })
     .eq("id", existing.id);
   if (error) return { ok: false, error: dbErrorMessage(error) };

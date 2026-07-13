@@ -10,7 +10,7 @@ import { PENGAJUAN_STATUS_LABEL, type PengajuanStatus } from "@/lib/absensi-stat
 export type PengajuanBulananRow = {
   pengajuanId: string;
   nama: string;
-  kategori: "izin" | "sakit" | "cuti";
+  kategori: "izin" | "sakit";
   tanggalMulai: string;
   tanggalSelesai: string;
   jumlahHari: number;
@@ -22,19 +22,20 @@ export type PengajuanBulananRow = {
 const KATEGORI_LABEL: Record<PengajuanBulananRow["kategori"], string> = {
   izin: "Izin",
   sakit: "Sakit",
-  cuti: "Cuti",
 };
 
 export function PengajuanBulananExport({
-  bulan,
+  dari,
+  sampai,
   rows,
 }: {
-  bulan: string;
+  dari: string;
+  sampai: string;
   rows: PengajuanBulananRow[];
 }) {
   function handleExport() {
     downloadExcel(
-      `pengajuan-izin-sakit-cuti-${bulan}.xlsx`,
+      `pengajuan-izin-sakit-${dari}_${sampai}.xlsx`,
       "Pengajuan",
       rows.map((r) => ({
         Pegawai: r.nama,

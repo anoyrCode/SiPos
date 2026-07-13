@@ -2,7 +2,9 @@ import { CheckCircle, FileText } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { formatDateID } from "@/lib/format";
+import { totalPages } from "@/lib/list-params";
 import { DataTable, type Column } from "@/components/shared/data-table";
+import { Pagination } from "@/components/shared/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PENGAJUAN_STATUS_LABEL, type PengajuanStatus } from "@/lib/absensi-status";
@@ -13,7 +15,7 @@ import { TolakDialog } from "./tolak-dialog";
 type Row = {
   id: string;
   nama: string;
-  kategori: "izin" | "sakit" | "cuti";
+  kategori: "izin" | "sakit";
   tanggalMulai: string;
   tanggalSelesai: string;
   keterangan: string | null;
@@ -24,7 +26,6 @@ type Row = {
 const KATEGORI_LABEL: Record<Row["kategori"], string> = {
   izin: "Izin",
   sakit: "Sakit",
-  cuti: "Cuti",
 };
 
 const STATUS_VARIANT: Record<PengajuanStatus, "warning" | "positive" | "negative"> = {
@@ -35,17 +36,24 @@ const STATUS_VARIANT: Record<PengajuanStatus, "warning" | "positive" | "negative
 
 export async function PersetujuanPanel({
   statusFilter,
+  page,
+  perPage,
 }: {
   statusFilter: PengajuanStatus;
+  page: number;
+  perPage: number;
 }) {
   const supabase = await createClient();
-  const { data } = await supabase
+  const from = (page - 1) * perPage;
+  const { data, count } = await supabase
     .from("absensi_pengajuan")
     .select(
       "id, kategori, tanggal_mulai, tanggal_selesai, keterangan, status, bukti_url, pegawai:pegawai(nama)",
+      { count: "exact" },
     )
     .eq("status", statusFilter)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(from, from + perPage - 1);
 
   type PegawaiEmbed = { nama: string } | { nama: string }[] | null;
   const embedNama = (e: PegawaiEmbed): string =>
@@ -165,16 +173,24 @@ export async function PersetujuanPanel({
   ];
 
   return (
-    <DataTable
-      columns={columns}
-      rows={rows}
-      getRowId={(r) => r.id}
-      isFiltered={false}
-      empty={
-        statusFilter === "menunggu"
-          ? "Tidak ada pengajuan yang menunggu persetujuan."
-          : "Belum ada riwayat."
-      }
-    />
+    <div className="space-y-3">
+      <DataTable
+        columns={columns}
+        rows={rows}
+        getRowId={(r) => r.id}
+        isFiltered={false}
+        empty={
+          statusFilter === "menunggu"
+            ? "Tidak ada pengajuan yang menunggu persetujuan."
+            : "Belum ada riwayat."
+        }
+      />
+      <Pagination
+        page={page}
+        perPage={perPage}
+        totalPages={totalPages(count, perPage)}
+        totalItems={count ?? 0}
+      />
+    </div>
   );
 }
