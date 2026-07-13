@@ -15,9 +15,9 @@ type GenerateResult =
   | { ok: true; message: string }
   | { ok: false; error: string };
 
-/** Password awal default akun wali = nomor telepon (min 6 karakter). */
-function defaultPassword(noTelp: string): string {
-  return noTelp.length >= 6 ? noTelp : noTelp.padEnd(6, "0");
+/** Password awal default akun wali = "12345678" (sama untuk semua akun). */
+function defaultPassword(): string {
+  return "12345678";
 }
 
 /**
@@ -93,7 +93,7 @@ export async function createWaliAccount(waliId: string): Promise<AccountResult> 
   if (wali.user_id) return { ok: false, error: "Akun sudah dibuat." };
 
   const email = phoneToWaliEmail(wali.no_telp);
-  const password = defaultPassword(wali.no_telp);
+  const password = defaultPassword();
 
   const admin = createAdminClient();
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
@@ -118,7 +118,7 @@ export async function createWaliAccount(waliId: string): Promise<AccountResult> 
   return { ok: true, password };
 }
 
-/** Reset password akun wali ke default (no telp). */
+/** Reset password akun wali ke default ("12345678"). */
 export async function resetWaliPassword(waliId: string): Promise<AccountResult> {
   if (!(await canAkun())) return { ok: false, error: "Tidak diizinkan." };
 
@@ -130,7 +130,7 @@ export async function resetWaliPassword(waliId: string): Promise<AccountResult> 
     .maybeSingle();
   if (!wali?.user_id) return { ok: false, error: "Akun belum dibuat." };
 
-  const password = defaultPassword(wali.no_telp);
+  const password = defaultPassword();
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.updateUserById(wali.user_id, {
     password,
