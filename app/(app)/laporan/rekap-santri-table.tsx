@@ -1,15 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FileSpreadsheet, FileText } from "lucide-react";
 
 import { DataTable, type Column } from "@/components/shared/data-table";
+import { Pagination } from "@/components/shared/pagination";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { downloadExcel } from "@/lib/export";
 import { downloadPdfRekapSantri } from "@/lib/pdf";
+import { parseClientPageParams, paginateArray } from "@/lib/list-params";
 
 export type RekapSantriRow = {
   id: string;
@@ -27,6 +30,7 @@ export function RekapSantriTable({
   rows: RekapSantriRow[];
   taLabel?: string;
 }) {
+  const searchParams = useSearchParams();
   const [q, setQ] = useState("");
   const [loadingPdf, setLoadingPdf] = useState(false);
 
@@ -34,6 +38,9 @@ export function RekapSantriTable({
     const t = q.trim().toLowerCase();
     return t ? rows.filter((r) => r.nama.toLowerCase().includes(t)) : rows;
   }, [q, rows]);
+
+  const { page, perPage } = parseClientPageParams(searchParams);
+  const paged = paginateArray(filtered, page, perPage);
 
   function handleExcelExport() {
     const data = filtered.map((r, i) => ({
@@ -122,9 +129,16 @@ export function RekapSantriTable({
       </div>
       <DataTable
         columns={columns}
-        rows={filtered}
+        rows={paged.rows}
         getRowId={(r) => r.id}
+        isFiltered={q.trim().length > 0}
         empty="Belum ada data poin pada tahun ajaran ini."
+      />
+      <Pagination
+        page={paged.page}
+        perPage={perPage}
+        totalPages={paged.totalPages}
+        totalItems={paged.totalItems}
       />
     </div>
   );

@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileText } from "lucide-react";
 
 import { DataTable, type Column } from "@/components/shared/data-table";
+import { Pagination } from "@/components/shared/pagination";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { orDash } from "@/lib/format";
 import { downloadSuratPanggilan, type PelanggaranItem } from "@/lib/pdf";
+import { parseClientPageParams, paginateArray } from "@/lib/list-params";
 
 const SP_LEVELS = [
   { level: 1, ambang: 300 },
@@ -85,6 +87,9 @@ export function SuratPanggilanTable({
       .filter((r) => r.totalNegatif >= ambang)
       .filter((r) => (t ? r.nama.toLowerCase().includes(t) : true));
   }, [rows, ambang, q]);
+
+  const { page, perPage } = parseClientPageParams(searchParams);
+  const paged = paginateArray(filtered, page, perPage);
 
   async function handlePrint(row: SuratPanggilanRow) {
     setPrintingId(row.id);
@@ -197,10 +202,16 @@ export function SuratPanggilanTable({
 
       <DataTable
         columns={columns}
-        rows={filtered}
+        rows={paged.rows}
         getRowId={(r) => r.id}
         isFiltered={q.trim().length > 0}
         empty={`Tidak ada santri dengan poin negatif ≥ ${ambang} pada tahun ajaran ini.`}
+      />
+      <Pagination
+        page={paged.page}
+        perPage={perPage}
+        totalPages={paged.totalPages}
+        totalItems={paged.totalItems}
       />
     </div>
   );

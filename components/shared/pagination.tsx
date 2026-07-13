@@ -18,11 +18,17 @@ export function Pagination({
   perPage = DEFAULT_PER_PAGE,
   totalPages,
   totalItems,
+  pageParam = "page",
+  perPageParam = "perPage",
 }: {
   page: number;
   perPage?: number;
   totalPages: number;
   totalItems: number;
+  /** Nama query param halaman — beda-beda kalau 1 halaman punya >1 tabel independen. */
+  pageParam?: string;
+  /** Nama query param jumlah baris — pasangan dari `pageParam`. */
+  perPageParam?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -30,14 +36,14 @@ export function Pagination({
 
   function goTo(p: number) {
     const params = new URLSearchParams(searchParams);
-    params.set("page", String(p));
+    params.set(pageParam, String(p));
     router.replace(`${pathname}?${params.toString()}`);
   }
 
   function onPerPageChange(value: string) {
     const params = new URLSearchParams(searchParams);
-    params.set("perPage", value);
-    params.set("page", "1");
+    params.set(perPageParam, value);
+    params.set(pageParam, "1");
     router.replace(`${pathname}?${params.toString()}`);
   }
 

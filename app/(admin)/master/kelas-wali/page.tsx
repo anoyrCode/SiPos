@@ -3,10 +3,16 @@ import { LogOut, Network, Plus, School, Users } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { requirePerm } from "@/lib/auth/dal";
-import { getStr, type SearchParams } from "@/lib/list-params";
+import {
+  getStr,
+  paginateArray,
+  parsePageParamsNamed,
+  type SearchParams,
+} from "@/lib/list-params";
 import { orDash } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable, type Column } from "@/components/shared/data-table";
+import { Pagination } from "@/components/shared/pagination";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   Card,
@@ -71,6 +77,7 @@ export default async function Page({
 
   const kelasId = getStr(sp.kelas);
   const selectedKelas = kelasList.find((k) => k.id === kelasId) ?? null;
+  const { page, perPage } = parsePageParamsNamed(sp, "page", "perPage");
 
   const taOptions = taList.map((t) => ({
     value: t.id,
@@ -124,6 +131,8 @@ export default async function Page({
     );
     available = (activeRes.data ?? []).filter((s) => !placedIds.has(s.id));
   }
+
+  const pagedAnggota = paginateArray(anggota, page, perPage);
 
   const columns: Column<Anggota>[] = [
     {
@@ -248,12 +257,18 @@ export default async function Page({
                   </div>
                   <AddSantri kelasId={selectedKelas.id} available={available} />
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
                   <DataTable
                     columns={columns}
-                    rows={anggota}
+                    rows={pagedAnggota.rows}
                     getRowId={(r) => r.id}
                     empty="Belum ada santri di kelas ini."
+                  />
+                  <Pagination
+                    page={pagedAnggota.page}
+                    perPage={perPage}
+                    totalPages={pagedAnggota.totalPages}
+                    totalItems={pagedAnggota.totalItems}
                   />
                 </CardContent>
               </Card>

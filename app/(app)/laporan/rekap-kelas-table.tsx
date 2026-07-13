@@ -1,14 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { FileSpreadsheet, FileText } from "lucide-react";
 
 import { DataTable, type Column } from "@/components/shared/data-table";
+import { Pagination } from "@/components/shared/pagination";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { downloadExcel } from "@/lib/export";
 import { downloadPdfRekapKelas } from "@/lib/pdf";
+import { parseClientPageParams, paginateArray } from "@/lib/list-params";
 
 export type RekapKelasRow = {
   key: string;
@@ -26,6 +29,7 @@ export function RekapKelasTable({
   rows: RekapKelasRow[];
   taLabel?: string;
 }) {
+  const searchParams = useSearchParams();
   const [q, setQ] = useState("");
   const [loadingPdf, setLoadingPdf] = useState(false);
 
@@ -33,6 +37,9 @@ export function RekapKelasTable({
     const t = q.trim().toLowerCase();
     return t ? rows.filter((r) => r.nama.toLowerCase().includes(t)) : rows;
   }, [q, rows]);
+
+  const { page, perPage } = parseClientPageParams(searchParams);
+  const paged = paginateArray(filtered, page, perPage);
 
   function handleExcelExport() {
     const data = filtered.map((r) => ({
@@ -110,10 +117,16 @@ export function RekapKelasTable({
       </div>
       <DataTable
         columns={columns}
-        rows={filtered}
+        rows={paged.rows}
         getRowId={(r) => r.key}
         isFiltered={q.trim().length > 0}
         empty="Belum ada data."
+      />
+      <Pagination
+        page={paged.page}
+        perPage={perPage}
+        totalPages={paged.totalPages}
+        totalItems={paged.totalItems}
       />
     </div>
   );
