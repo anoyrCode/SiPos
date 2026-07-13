@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { canAkun } from "@/lib/auth/dal";
+import { canAkunWali } from "@/lib/auth/dal";
 import { dbErrorMessage, type FormResult } from "@/lib/forms";
 import { normalizePhone, phoneToWaliEmail } from "@/lib/auth/phone";
 
@@ -25,7 +25,7 @@ function defaultPassword(): string {
  * buat baris `wali` + relasi `wali_santri` (tanpa akun auth dulu).
  */
 export async function generateWaliFromSantri(): Promise<GenerateResult> {
-  if (!(await canAkun())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canAkunWali())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
   const { data: santri, error } = await supabase
@@ -81,7 +81,7 @@ export async function generateWaliFromSantri(): Promise<GenerateResult> {
 
 /** Buat akun auth untuk wali (email sintetis dari no telp). */
 export async function createWaliAccount(waliId: string): Promise<AccountResult> {
-  if (!(await canAkun())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canAkunWali())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
   const { data: wali } = await supabase
@@ -120,7 +120,7 @@ export async function createWaliAccount(waliId: string): Promise<AccountResult> 
 
 /** Reset password akun wali ke default ("12345678"). */
 export async function resetWaliPassword(waliId: string): Promise<AccountResult> {
-  if (!(await canAkun())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canAkunWali())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
   const { data: wali } = await supabase
@@ -142,7 +142,7 @@ export async function resetWaliPassword(waliId: string): Promise<AccountResult> 
 
 /** Hapus akun auth wali (data wali & relasi tetap). */
 export async function deleteWaliAccount(waliId: string): Promise<FormResult> {
-  if (!(await canAkun())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canAkunWali())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
   const { data: wali } = await supabase
@@ -164,7 +164,7 @@ export async function deleteWaliAccount(waliId: string): Promise<FormResult> {
 
 /** Hapus data wali (akun login & relasi ke santri ikut terhapus). */
 export async function deleteWali(waliId: string): Promise<FormResult> {
-  if (!(await canAkun())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canAkunWali())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
   const { data: wali } = await supabase
@@ -191,7 +191,7 @@ export async function deleteWali(waliId: string): Promise<FormResult> {
 export async function getWaliAnak(
   waliId: string,
 ): Promise<{ id: string; santri: { id: string; nis: string | null; nama: string } | null }[]> {
-  if (!(await canAkun())) return [];
+  if (!(await canAkunWali())) return [];
   const supabase = await createClient();
   const { data } = await supabase
     .from("wali_santri")
@@ -207,7 +207,7 @@ export async function getWaliAnak(
 export async function searchSantriForWali(
   term: string,
 ): Promise<{ id: string; nis: string | null; nama: string }[]> {
-  if (!(await canAkun())) return [];
+  if (!(await canAkunWali())) return [];
   const supabase = await createClient();
   let query = supabase.from("santri").select("id, nis, nama").order("nama").limit(20);
   const t = term.replace(/[,()*]/g, " ").trim();
@@ -220,7 +220,7 @@ export async function addSantriToWali(
   waliId: string,
   santriIds: string[],
 ): Promise<FormResult> {
-  if (!(await canAkun())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canAkunWali())) return { ok: false, error: "Tidak diizinkan." };
   if (santriIds.length === 0) return { ok: false, error: "Pilih santri." };
 
   const supabase = await createClient();
@@ -237,7 +237,7 @@ export async function addSantriToWali(
 export async function removeSantriFromWali(
   waliSantriId: string,
 ): Promise<FormResult> {
-  if (!(await canAkun())) return { ok: false, error: "Tidak diizinkan." };
+  if (!(await canAkunWali())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
   const { error } = await supabase

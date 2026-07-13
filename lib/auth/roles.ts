@@ -12,9 +12,10 @@ export type Perms = {
   santri: boolean; // kelola data santri saja (subset dari master)
   pegawai: boolean; // kelola data pegawai saja (subset dari master)
   akun_staff: boolean; // kelola akun staff saja (subset dari akun)
+  akun_wali: boolean; // kelola akun wali saja (subset dari akun)
   absensi: boolean; // clock in/out kehadiran pribadi
   dashboard: boolean; // lihat Dashboard saja (subset dari master)
-  approve_absensi: boolean; // approve/tolak pengajuan izin/sakit/cuti pegawai lain
+  approve_absensi: boolean; // approve/tolak pengajuan izin/sakit pegawai lain
   rekap_absensi: boolean; // lihat rekap kehadiran semua pegawai (subset dari master)
 };
 
@@ -29,6 +30,7 @@ export const EMPTY_PERMS: Perms = {
   santri: false,
   pegawai: false,
   akun_staff: false,
+  akun_wali: false,
   absensi: false,
   dashboard: false,
   approve_absensi: false,
@@ -49,6 +51,7 @@ export function homePathForProfile({ role, perms }: ProfileLike): string {
   if (perms.kesehatan || perms.scope_kelas) return "/uks";
   if (perms.santri || perms.pegawai) return "/master/santri";
   if (perms.akun || perms.akun_staff) return "/master/akun-staff";
+  if (perms.akun_wali) return "/master/akun-wali";
   if (perms.approve_absensi || perms.rekap_absensi) return "/rekap-absensi";
   if (perms.absensi) return "/absensi";
   return "/tanpa-akses"; // tidak ada hak akses sama sekali — di luar layout (app), cegah redirect loop
@@ -110,11 +113,10 @@ export function navForProfile(
   const akunItems: NavItem[] = [];
   if (perms.akun || perms.akun_staff)
     akunItems.push({ href: "/master/akun-staff", label: "Akun Staff" });
+  if (perms.akun || perms.akun_wali)
+    akunItems.push({ href: "/master/akun-wali", label: "Akun Wali" });
   if (perms.akun) {
-    akunItems.push(
-      { href: "/master/akun-wali", label: "Akun Wali" },
-      { href: "/master/peran", label: "Peran & Hak Akses" },
-    );
+    akunItems.push({ href: "/master/peran", label: "Peran & Hak Akses" });
   }
   if (akunItems.length > 0) {
     groups.push({ title: "Akun & Peran", items: akunItems });

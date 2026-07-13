@@ -33,6 +33,7 @@ type PermKey =
   | "perm_santri"
   | "perm_pegawai"
   | "perm_akun_staff"
+  | "perm_akun_wali"
   | "perm_absensi"
   | "perm_dashboard"
   | "perm_approve_absensi"
@@ -76,14 +77,19 @@ const PERMS: { key: PermKey; label: string; desc: string }[] = [
     desc: "Buat/atur Akun Staff saja, tanpa akses Akun Wali & Peran.",
   },
   {
+    key: "perm_akun_wali",
+    label: "— Kelola Akun Wali saja",
+    desc: "Buat/atur Akun Wali saja, tanpa akses Akun Staff & Peran.",
+  },
+  {
     key: "perm_absensi",
     label: "Absensi (clock in/out)",
     desc: "Bisa clock in/out kehadiran sendiri berbasis lokasi pondok.",
   },
   {
     key: "perm_approve_absensi",
-    label: "— Approve Izin/Sakit/Cuti Absensi",
-    desc: "Menyetujui/menolak pengajuan izin/sakit/cuti pegawai lain, tanpa akses master data lain.",
+    label: "— Approve Izin/Sakit Absensi",
+    desc: "Menyetujui/menolak pengajuan izin/sakit pegawai lain, tanpa akses master data lain.",
   },
   {
     key: "perm_rekap_absensi",
@@ -115,6 +121,7 @@ export function PeranForm({ initial }: { initial?: PeranRow }) {
     perm_santri: initial?.perm_santri ?? false,
     perm_pegawai: initial?.perm_pegawai ?? false,
     perm_akun_staff: initial?.perm_akun_staff ?? false,
+    perm_akun_wali: initial?.perm_akun_wali ?? false,
     perm_absensi: initial?.perm_absensi ?? false,
     perm_dashboard: initial?.perm_dashboard ?? false,
     perm_approve_absensi: initial?.perm_approve_absensi ?? false,
