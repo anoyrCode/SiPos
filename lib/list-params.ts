@@ -1,4 +1,5 @@
 export const DEFAULT_PER_PAGE = 10;
+export const PER_PAGE_OPTIONS = [10, 20, 50, 100] as const;
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -17,11 +18,15 @@ export type ListParams = {
 
 export function parseListParams(
   searchParams: SearchParams,
-  perPage = DEFAULT_PER_PAGE,
+  defaultPerPage = DEFAULT_PER_PAGE,
 ): ListParams {
   const pageRaw = Number(getStr(searchParams.page));
   const page =
     Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
+  const perPageRaw = Number(getStr(searchParams.perPage));
+  const perPage = (PER_PAGE_OPTIONS as readonly number[]).includes(perPageRaw)
+    ? perPageRaw
+    : defaultPerPage;
   const q = getStr(searchParams.q).trim();
   const from = (page - 1) * perPage;
   return { page, perPage, q, from, to: from + perPage - 1 };

@@ -4,13 +4,23 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { DEFAULT_PER_PAGE, PER_PAGE_OPTIONS } from "@/lib/list-params";
 
 export function Pagination({
   page,
+  perPage = DEFAULT_PER_PAGE,
   totalPages,
   totalItems,
 }: {
   page: number;
+  perPage?: number;
   totalPages: number;
   totalItems: number;
 }) {
@@ -24,13 +34,37 @@ export function Pagination({
     router.replace(`${pathname}?${params.toString()}`);
   }
 
+  function onPerPageChange(value: string) {
+    const params = new URLSearchParams(searchParams);
+    params.set("perPage", value);
+    params.set("page", "1");
+    router.replace(`${pathname}?${params.toString()}`);
+  }
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm text-muted-foreground">
-        {totalItems === 0
-          ? "Tidak ada data"
-          : `Halaman ${page} dari ${totalPages} · ${totalItems} data`}
-      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-sm text-muted-foreground">
+          {totalItems === 0
+            ? "Tidak ada data"
+            : `Halaman ${page} dari ${totalPages} · ${totalItems} data`}
+        </p>
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm text-muted-foreground">Baris:</span>
+          <Select value={String(perPage)} onValueChange={onPerPageChange}>
+            <SelectTrigger className="h-8 w-18">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PER_PAGE_OPTIONS.map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
       <div className="flex items-center gap-2">
         <Button
           variant="outline"

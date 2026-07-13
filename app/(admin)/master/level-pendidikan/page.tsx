@@ -96,6 +96,7 @@ export default async function Page({
       />
       <Pagination
         page={page}
+        perPage={perPage}
         totalPages={totalPages(count, perPage)}
         totalItems={count ?? 0}
       />
