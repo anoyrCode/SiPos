@@ -44,32 +44,48 @@ export async function generateWaliFromSantri(): Promise<GenerateResult> {
     groups.set(phone, g);
   }
 
-  let createdWali = 0;
-  for (const [phone, g] of groups) {
-    let { data: wali } = await supabase
-      .from("wali")
-      .select("id")
-      .eq("no_telp", phone)
-      .maybeSingle();
-    if (!wali) {
-      const { data: nw, error: insErr } = await supabase
-        .from("wali")
-        .insert({ no_telp: phone, nama: g.nama || "Wali Santri" })
-        .select("id")
-        .single();
-      if (insErr) return { ok: false, error: dbErrorMessage(insErr) };
-      wali = nw;
-      createdWali++;
-    }
-    if (!wali) continue;
+  if (groups.size === 0) {
+    revalidatePath(PATH);
+    return { ok: true, message: "0 nomor wali diproses, 0 akun baru dibuat." };
+  }
 
-    const rows = g.santriIds.map((santri_id) => ({
-      wali_id: wali!.id,
-      santri_id,
-    }));
-    await supabase
+  const phones = [...groups.keys()];
+  const { data: existingWali, error: existErr } = await supabase
+    .from("wali")
+    .select("id, no_telp")
+    .in("no_telp", phones);
+  if (existErr) return { ok: false, error: dbErrorMessage(existErr) };
+
+  const waliIdByPhone = new Map((existingWali ?? []).map((w) => [w.no_telp, w.id]));
+
+  const toInsert = phones
+    .filter((phone) => !waliIdByPhone.has(phone))
+    .map((phone) => ({ no_telp: phone, nama: groups.get(phone)!.nama || "Wali Santri" }));
+
+  let createdWali = 0;
+  if (toInsert.length > 0) {
+    const { data: inserted, error: insErr } = await supabase
+      .from("wali")
+      .insert(toInsert)
+      .select("id, no_telp");
+    if (insErr) return { ok: false, error: dbErrorMessage(insErr) };
+    for (const w of inserted ?? []) {
+      waliIdByPhone.set(w.no_telp, w.id);
+    }
+    createdWali = inserted?.length ?? 0;
+  }
+
+  const relasiRows = [...groups].flatMap(([phone, g]) => {
+    const waliId = waliIdByPhone.get(phone);
+    if (!waliId) return [];
+    return g.santriIds.map((santri_id) => ({ wali_id: waliId, santri_id }));
+  });
+
+  if (relasiRows.length > 0) {
+    const { error: relErr } = await supabase
       .from("wali_santri")
-      .upsert(rows, { onConflict: "wali_id,santri_id", ignoreDuplicates: true });
+      .upsert(relasiRows, { onConflict: "wali_id,santri_id", ignoreDuplicates: true });
+    if (relErr) return { ok: false, error: dbErrorMessage(relErr) };
   }
 
   revalidatePath(PATH);
