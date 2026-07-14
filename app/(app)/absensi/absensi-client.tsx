@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { LogIn, LogOut } from "lucide-react";
+import { ChevronDown, LogIn, LogOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { formatDateID } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -31,7 +32,7 @@ export type AbsensiHistoryRow = {
   tanggal: string;
   jamMasukAktual: string | null;
   jamPulangAktual: string | null;
-  status: AbsensiStatus;
+  statuses: AbsensiStatus[];
 };
 
 type LokasiStatus =
@@ -76,6 +77,40 @@ function formatClockWIB(d: Date): string {
   }).format(d);
 }
 
+/**
+ * Badge status — tampil 1 badge biasa kalau cuma 1 status berlaku, atau
+ * tombol "N Status" yg bisa diklik (popover) kalau lebih dari 1 (mis.
+ * Terlambat masuk DAN Pulang Sebelum Waktunya di hari yang sama).
+ */
+function StatusBadges({ statuses }: { statuses: AbsensiStatus[] }) {
+  if (statuses.length <= 1) {
+    const s = statuses[0] ?? "normal";
+    return <Badge variant={STATUS_VARIANT[s]}>{STATUS_LABEL[s]}</Badge>;
+  }
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-auto gap-1 rounded-full px-2 py-0.5 text-xs"
+        >
+          {statuses.length} Status
+          <ChevronDown className="size-3" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto space-y-1.5 p-2">
+        {statuses.map((s) => (
+          <Badge key={s} variant={STATUS_VARIANT[s]} className="block w-fit">
+            {STATUS_LABEL[s]}
+          </Badge>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function AbsensiClient({
   hasJadwal,
   jadwalFleksibel,
@@ -83,7 +118,7 @@ export function AbsensiClient({
   jamPulangJadwal,
   jamMasukAktual,
   jamPulangAktual,
-  todayStatus,
+  todayStatuses,
   history,
   lokasiLat,
   lokasiLong,
@@ -95,7 +130,7 @@ export function AbsensiClient({
   jamPulangJadwal: string | null;
   jamMasukAktual: string | null;
   jamPulangAktual: string | null;
-  todayStatus: AbsensiStatus;
+  todayStatuses: AbsensiStatus[];
   history: AbsensiHistoryRow[];
   lokasiLat: number | null;
   lokasiLong: number | null;
@@ -225,9 +260,7 @@ export function AbsensiClient({
     {
       key: "status",
       header: "Status",
-      cell: (r) => (
-        <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
-      ),
+      cell: (r) => <StatusBadges statuses={r.statuses} />,
     },
   ];
 
@@ -321,9 +354,7 @@ export function AbsensiClient({
                   <p className="font-mono text-sm">
                     {formatJamWIB(jamMasukAktual)} → {formatJamWIB(jamPulangAktual)}
                   </p>
-                  <Badge variant={STATUS_VARIANT[todayStatus]}>
-                    {STATUS_LABEL[todayStatus]}
-                  </Badge>
+                  <StatusBadges statuses={todayStatuses} />
                 </div>
               )}
             </>
@@ -353,23 +384,26 @@ export function AbsensiClient({
               Belum ada riwayat absensi.
             </p>
           ) : (
-            history.map((r) => (
+            history.map((r) => {
+              const accentKey = r.statuses.find((s) => STATUS_CARD_ACCENT[s]);
+              return (
               <div
                 key={r.tanggal}
                 className={cn(
                   "rounded-card border border-border/70 bg-card p-3 shadow-sm",
-                  STATUS_CARD_ACCENT[r.status],
+                  accentKey && STATUS_CARD_ACCENT[accentKey],
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium">{formatDateID(r.tanggal)}</span>
-                  <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+                  <StatusBadges statuses={r.statuses} />
                 </div>
                 <p className="mt-1 font-mono text-xs text-muted-foreground">
                   {formatJamWIB(r.jamMasukAktual)} → {formatJamWIB(r.jamPulangAktual)}
                 </p>
               </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

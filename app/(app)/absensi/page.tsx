@@ -3,7 +3,7 @@ import { Fingerprint } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requirePerm } from "@/lib/auth/dal";
 import { PageHeader } from "@/components/shared/page-header";
-import { computeDayStatus, type JadwalPegawai } from "@/lib/absensi-status";
+import { computeDayStatusList, type JadwalPegawai } from "@/lib/absensi-status";
 import { AbsensiClient, type AbsensiHistoryRow } from "./absensi-client";
 import { PengajuanList, type PengajuanRow } from "./pengajuan-list";
 
@@ -89,7 +89,7 @@ export default async function Page() {
       tanggal,
       jamMasukAktual: record?.jam_masuk_aktual ?? null,
       jamPulangAktual: record?.jam_pulang_aktual ?? null,
-      status: computeDayStatus(
+      statuses: computeDayStatusList(
         tanggal,
         record,
         jadwal,
@@ -128,7 +128,7 @@ export default async function Page() {
         jamPulangJadwal={formatJamJadwal(jadwal.jam_pulang_jadwal)}
         jamMasukAktual={todayRow?.jam_masuk_aktual ?? null}
         jamPulangAktual={todayRow?.jam_pulang_aktual ?? null}
-        todayStatus={history[0].status}
+        todayStatuses={history[0].statuses}
         history={history}
         lokasiLat={setting?.lokasi_lat ?? null}
         lokasiLong={setting?.lokasi_long ?? null}

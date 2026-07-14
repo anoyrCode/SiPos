@@ -146,6 +146,47 @@ export function isHariLiburPegawai(
  * kategori_absen, supaya tanggal sebelum go-live tidak pernah tampil
  * Alpa/Libur/dll walau kebetulan ada data lama.
  */
+/**
+ * Semua status yang berlaku utk 1 pegawai pada 1 tanggal (bukan cuma yg
+ * "menang"). Untuk hari kerja biasa (bukan libur/izin/dll), Telat (masuk)
+ * dan Curang/Telat Clock Out (pulang) dicek independen — 1 hari BISA kena
+ * keduanya sekaligus (mis. datang telat DAN pulang lebih awal), jadi array
+ * ini bisa berisi lebih dari 1 elemen. Selain itu, selalu 1 elemen.
+ * `computeDayStatus` (di bawah) cuma ambil elemen pertama (status prioritas
+ * tertinggi) — dipakai di tempat yg cuma butuh 1 badge ringkasan.
+ */
+export function computeDayStatusList(
+  tanggal: string,
+  record: AbsensiRecord | null,
+  jadwal: JadwalPegawai,
+  toleransiMenit = 0,
+  liburKhususSet?: Set<string>,
+  tanggalMulai?: string | null,
+): AbsensiStatus[] {
+  if (tanggalMulai && tanggal < tanggalMulai) return ["belum_mulai"];
+  if (record?.kategori_absen) return [record.kategori_absen];
+
+  const isLibur = isHariLiburPegawai(tanggal, jadwal, liburKhususSet);
+  const hasRecord = !!(record?.jam_masuk_aktual || record?.jam_pulang_aktual);
+  const isPast = tanggal < todayJakarta();
+
+  if (isLibur && !hasRecord) return ["libur"];
+  if (isLibur && hasRecord) return ["masuk_libur"];
+  if (!hasRecord) return [isPast ? "alpa" : "belum_absen"];
+
+  if (isPast && record?.jam_masuk_aktual && !record?.jam_pulang_aktual) {
+    return ["belum_clock_out"];
+  }
+
+  const statusMasuk = computeStatusMasuk(tanggal, record, jadwal, toleransiMenit);
+  const statusPulang = computeStatusPulang(tanggal, record, jadwal);
+  const statuses: AbsensiStatus[] = [];
+  if (statusMasuk === "telat") statuses.push("telat");
+  if (statusPulang === "telat_clock_out") statuses.push("telat_clock_out");
+  else if (statusPulang === "curang") statuses.push("curang");
+  return statuses.length > 0 ? statuses : ["normal"];
+}
+
 export function computeDayStatus(
   tanggal: string,
   record: AbsensiRecord | null,
@@ -154,27 +195,21 @@ export function computeDayStatus(
   liburKhususSet?: Set<string>,
   tanggalMulai?: string | null,
 ): AbsensiStatus {
-  if (tanggalMulai && tanggal < tanggalMulai) return "belum_mulai";
-  if (record?.kategori_absen) return record.kategori_absen;
-
-  const isLibur = isHariLiburPegawai(tanggal, jadwal, liburKhususSet);
-  const hasRecord = !!(record?.jam_masuk_aktual || record?.jam_pulang_aktual);
-  const isPast = tanggal < todayJakarta();
-
-  if (isLibur && !hasRecord) return "libur";
-  if (isLibur && hasRecord) return "masuk_libur";
-  if (!hasRecord) return isPast ? "alpa" : "belum_absen";
-
-  if (isPast && record?.jam_masuk_aktual && !record?.jam_pulang_aktual) {
-    return "belum_clock_out";
-  }
-
-  const statusMasuk = computeStatusMasuk(tanggal, record, jadwal, toleransiMenit);
-  const statusPulang = computeStatusPulang(tanggal, record, jadwal);
-  if (statusPulang === "telat_clock_out") return "telat_clock_out";
-  if (statusPulang === "curang") return "curang";
-  if (statusMasuk === "telat") return "telat";
-  return "normal";
+  const statuses = computeDayStatusList(
+    tanggal,
+    record,
+    jadwal,
+    toleransiMenit,
+    liburKhususSet,
+    tanggalMulai,
+  );
+  // Prioritas kalau lebih dari 1: telat_clock_out/curang (pulang) menang
+  // atas telat (masuk) — sama seperti urutan lama, cuma sekarang diturunkan
+  // dari computeDayStatusList supaya 1 sumber kebenaran.
+  return (
+    statuses.find((s) => s === "telat_clock_out" || s === "curang") ??
+    statuses[0]
+  );
 }
 
 export const STATUS_LABEL: Record<AbsensiStatus, string> = {
