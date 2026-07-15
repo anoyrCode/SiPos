@@ -296,6 +296,58 @@ export const STATUS_LABEL: Record<AbsensiStatus, string> = {
   belum_mulai: "Belum Mulai",
 };
 
+export type SesiStatus = { sesi: 1 | 2; status: AbsensiStatus };
+
+/**
+ * Status yang murni berlaku per-sesi (bukan hari-level) — dipakai utk
+ * menentukan sufiks "(Sesi N)" pada label & shortcut penggabungan di
+ * `combineSesiStatuses`. Status lain (Normal, Libur, Lembur, Alpa, Belum
+ * Absen, Izin, Sakit, Belum Mulai) berlaku hari-level, tidak per sesi.
+ */
+const SESI_SPECIFIC_STATUS: ReadonlySet<AbsensiStatus> = new Set([
+  "telat",
+  "curang",
+  "telat_clock_out",
+  "belum_clock_out",
+]);
+
+/**
+ * Gabungkan status Sesi 1 & Sesi 2 (masing-masing dihasilkan
+ * `computeDayStatusList` dipanggil terpisah dgn record/jadwal per sesi)
+ * utk pegawai shift-ganda. `computeDayStatusList` SENDIRI TIDAK DIUBAH —
+ * fungsi ini murni menggabung hasilnya. Kalau kedua sesi menghasilkan
+ * status hari-level yang SAMA (mis. sama-sama "libur", karena hari_libur
+ * dibagi kedua sesi), digabung jadi 1 elemen tanpa sufiks sesi. Selain
+ * itu, tiap status non-"normal" ditandai sesi asalnya — 1 hari bisa
+ * berisi masalah di kedua sesi sekaligus (mis. Terlambat di Sesi 1 DAN
+ * Curang di Sesi 2).
+ */
+export function combineSesiStatuses(
+  statusesSesi1: AbsensiStatus[],
+  statusesSesi2: AbsensiStatus[],
+): SesiStatus[] {
+  const s1 = statusesSesi1[0] ?? "normal";
+  const s2 = statusesSesi2[0] ?? "normal";
+  if (!SESI_SPECIFIC_STATUS.has(s1) && s1 === s2) {
+    return [{ sesi: 1, status: s1 }];
+  }
+
+  const results: SesiStatus[] = [];
+  for (const s of statusesSesi1) {
+    if (s !== "normal") results.push({ sesi: 1, status: s });
+  }
+  for (const s of statusesSesi2) {
+    if (s !== "normal") results.push({ sesi: 2, status: s });
+  }
+  return results.length > 0 ? results : [{ sesi: 1, status: "normal" }];
+}
+
+/** Label tampilan 1 SesiStatus — tambah sufiks "(Sesi N)" hanya utk status per-sesi. */
+export function formatSesiStatusLabel(s: SesiStatus): string {
+  const label = STATUS_LABEL[s.status];
+  return SESI_SPECIFIC_STATUS.has(s.status) ? `${label} (Sesi ${s.sesi})` : label;
+}
+
 /** Format timestamptz jadi "HH.mm" di zona waktu Jakarta, "—" bila kosong. */
 export function formatJamWIB(value: string | null): string {
   if (!value) return "—";
