@@ -28,6 +28,7 @@ import {
   computeMenitTelatMasuk,
   computeMenitLebihAwalPulang,
   combineSesiStatuses,
+  effectiveTanggalMulai,
   formatSesiStatusLabel,
   isHariLiburPegawai,
   resolveJadwalHari,
@@ -235,7 +236,7 @@ export default async function Page({
   let pegawaiQuery = supabase
     .from("pegawai")
     .select(
-      "id, nama, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_harian_berbeda, shift_ganda, jam_masuk_jadwal_2, jam_pulang_jadwal_2",
+      "id, nama, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_harian_berbeda, shift_ganda, jam_masuk_jadwal_2, jam_pulang_jadwal_2, tanggal_mulai_absensi",
     )
     .order("nama");
   if (q) {
@@ -308,6 +309,10 @@ export default async function Page({
         ? (jadwalHarianMap.get(p.id) ?? null)
         : null,
     };
+    const tanggalMulaiEfektif = effectiveTanggalMulai(
+      tanggalMulai,
+      p.tanggal_mulai_absensi,
+    );
 
     let status: AbsensiStatus;
     let sesiStatuses: SesiStatus[] | null = null;
@@ -331,7 +336,7 @@ export default async function Page({
         jadwal,
         toleransiMenit,
         liburKhususSet,
-        tanggalMulai,
+        tanggalMulaiEfektif,
       );
       const statusesSesi2 = computeDayStatusList(
         tanggal,
@@ -339,7 +344,7 @@ export default async function Page({
         jadwalSesi2,
         toleransiMenit,
         liburKhususSet,
-        tanggalMulai,
+        tanggalMulaiEfektif,
       );
       sesiStatuses = combineSesiStatuses(statusesSesi1, statusesSesi2);
       status = sesiStatuses[0]?.status ?? "normal";
@@ -350,7 +355,7 @@ export default async function Page({
         jadwal,
         toleransiMenit,
         liburKhususSet,
-        tanggalMulai,
+        tanggalMulaiEfektif,
       );
     }
 
@@ -388,6 +393,10 @@ export default async function Page({
           ? (jadwalHarianMap.get(p.id) ?? null)
           : null,
       };
+      const tanggalMulaiEfektif = effectiveTanggalMulai(
+        tanggalMulai,
+        p.tanggal_mulai_absensi,
+      );
       // Pegawai shift-ganda dicek 2x per tanggal (Sesi 1 & Sesi 2, jadwal
       // masing-masing independen) — baris keterlambatan/curang bisa muncul
       // 2x pada tanggal yang sama kalau dua-duanya bermasalah.
@@ -407,7 +416,7 @@ export default async function Page({
         : [{ sesi: 1, jadwal }];
 
       for (const tgl of rangeDates) {
-        if (tanggalMulai && tgl < tanggalMulai) continue;
+        if (tanggalMulaiEfektif && tgl < tanggalMulaiEfektif) continue;
         if (isHariLiburPegawai(tgl, jadwal, liburKhususSet)) continue;
         const rawRecord = absensiMap.get(`${p.id}_${tgl}`) ?? null;
 
