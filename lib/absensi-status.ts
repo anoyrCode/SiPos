@@ -46,6 +46,23 @@ export function todayJakarta(): string {
   }).format(new Date());
 }
 
+/**
+ * Gabungkan tanggal mulai absensi GLOBAL (`absensi_pengaturan.tanggal_mulai`)
+ * dengan tanggal mulai KHUSUS 1 pegawai (`pegawai.tanggal_mulai_absensi`,
+ * opsional) — hasilnya tanggal yang LEBIH TELAT dari keduanya, supaya
+ * kesalahan input admin (tanggal pegawai lebih awal dari tanggal global)
+ * tidak membuat pegawai dianggap mulai sebelum sistem absensi sendiri
+ * diluncurkan. `null` di kedua argumen berarti "tidak ada batas".
+ */
+export function effectiveTanggalMulai(
+  global: string | null,
+  perPegawai: string | null,
+): string | null {
+  if (!perPegawai) return global;
+  if (!global) return perPegawai;
+  return perPegawai > global ? perPegawai : global;
+}
+
 /** Hari dalam seminggu (0=Minggu..6=Sabtu) dari string tanggal YYYY-MM-DD. */
 function dayOfWeek(tanggal: string): number {
   const [y, m, d] = tanggal.split("-").map(Number);
