@@ -5,8 +5,10 @@ import { requirePerm } from "@/lib/auth/dal";
 import { PageHeader } from "@/components/shared/page-header";
 import {
   computeDayStatusList,
+  combineSesiStatuses,
   resolveJadwalHari,
   type JadwalPegawai,
+  type SesiStatus,
 } from "@/lib/absensi-status";
 import { AbsensiClient, type AbsensiHistoryRow } from "./absensi-client";
 import { getOpenSession } from "./actions";
@@ -49,7 +51,7 @@ export default async function Page() {
     supabase
       .from("pegawai")
       .select(
-        "jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_fleksibel, jadwal_harian_berbeda",
+        "jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_fleksibel, jadwal_harian_berbeda, shift_ganda, jam_masuk_jadwal_2, jam_pulang_jadwal_2",
       )
       .eq("id", pegawaiId)
       .maybeSingle(),
@@ -73,6 +75,13 @@ export default async function Page() {
     hari_libur: pegawai?.hari_libur ?? null,
     jadwal_harian: pegawai?.jadwal_harian_berbeda ? jadwalHarian : null,
   };
+  const shiftGanda = !!pegawai?.shift_ganda;
+  const jadwalSesi2: JadwalPegawai = {
+    jam_masuk_jadwal: pegawai?.jam_masuk_jadwal_2 ?? null,
+    jam_pulang_jadwal: pegawai?.jam_pulang_jadwal_2 ?? null,
+    hari_libur: pegawai?.hari_libur ?? null,
+    jadwal_harian: null,
+  };
 
   const { data: setting } = await supabase
     .from("absensi_pengaturan")
@@ -89,7 +98,9 @@ export default async function Page() {
     await Promise.all([
       supabase
         .from("absensi")
-        .select("tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen")
+        .select(
+          "tanggal, jam_masuk_aktual, jam_pulang_aktual, jam_masuk_aktual_2, jam_pulang_aktual_2, kategori_absen",
+        )
         .eq("pegawai_id", pegawaiId)
         .gte("tanggal", from)
         .lte("tanggal", to),
@@ -107,30 +118,65 @@ export default async function Page() {
 
   const history: AbsensiHistoryRow[] = dates.map((tanggal) => {
     const record = rowMap.get(tanggal) ?? null;
+    const statuses = computeDayStatusList(
+      tanggal,
+      record,
+      jadwal,
+      toleransiMenit,
+      liburKhususSet,
+      tanggalMulai,
+    );
+    let sesiStatuses: SesiStatus[];
+    if (shiftGanda) {
+      const record2 = record
+        ? {
+            jam_masuk_aktual: record.jam_masuk_aktual_2,
+            jam_pulang_aktual: record.jam_pulang_aktual_2,
+            kategori_absen: record.kategori_absen,
+          }
+        : null;
+      const statusesSesi2 = computeDayStatusList(
+        tanggal,
+        record2,
+        jadwalSesi2,
+        toleransiMenit,
+        liburKhususSet,
+        tanggalMulai,
+      );
+      sesiStatuses = combineSesiStatuses(statuses, statusesSesi2);
+    } else {
+      sesiStatuses = statuses.map((s) => ({ sesi: 1 as const, status: s }));
+    }
     return {
       tanggal,
       jamMasukAktual: record?.jam_masuk_aktual ?? null,
       jamPulangAktual: record?.jam_pulang_aktual ?? null,
-      statuses: computeDayStatusList(
-        tanggal,
-        record,
-        jadwal,
-        toleransiMenit,
-        liburKhususSet,
-        tanggalMulai,
-      ),
+      jamMasukAktual2: record?.jam_masuk_aktual_2 ?? null,
+      jamPulangAktual2: record?.jam_pulang_aktual_2 ?? null,
+      statuses,
+      sesiStatuses,
     };
   });
 
   // Sesi terbuka (belum clock out) menang atas baris tanggal-hari-ini biasa —
   // shift yang melewati tengah malam (mis. masuk 21:00, pulang 05:00 besok)
   // tersimpan di bawah tanggal MULAI-nya, bukan tanggal hari ini.
-  const openSession = await getOpenSession(pegawaiId);
+  const openSession = await getOpenSession(pegawaiId, 1);
   const rowHariIni = rowMap.get(to) ?? null;
   const jamMasukHariIni =
     openSession?.jam_masuk_aktual ?? rowHariIni?.jam_masuk_aktual ?? null;
   const jamPulangHariIni =
     openSession?.jam_pulang_aktual ?? rowHariIni?.jam_pulang_aktual ?? null;
+
+  let jamMasukHariIni2: string | null = null;
+  let jamPulangHariIni2: string | null = null;
+  if (shiftGanda) {
+    const openSession2 = await getOpenSession(pegawaiId, 2);
+    jamMasukHariIni2 =
+      openSession2?.jam_masuk_aktual ?? rowHariIni?.jam_masuk_aktual_2 ?? null;
+    jamPulangHariIni2 =
+      openSession2?.jam_pulang_aktual ?? rowHariIni?.jam_pulang_aktual_2 ?? null;
+  }
 
   const pengajuanList: PengajuanRow[] = (pengajuanRows ?? []).map((r) => ({
     id: r.id,
@@ -152,14 +198,21 @@ export default async function Page() {
         hasJadwal={
           (!!jadwal.jam_masuk_jadwal && !!jadwal.jam_pulang_jadwal) ||
           !!pegawai?.jadwal_fleksibel ||
-          !!pegawai?.jadwal_harian_berbeda
+          !!pegawai?.jadwal_harian_berbeda ||
+          shiftGanda
         }
         jadwalFleksibel={!!pegawai?.jadwal_fleksibel}
+        shiftGanda={shiftGanda}
         jamMasukJadwal={formatJamJadwal(resolveJadwalHari(to, jadwal).jam_masuk_jadwal)}
         jamPulangJadwal={formatJamJadwal(resolveJadwalHari(to, jadwal).jam_pulang_jadwal)}
+        jamMasukJadwal2={formatJamJadwal(jadwalSesi2.jam_masuk_jadwal)}
+        jamPulangJadwal2={formatJamJadwal(jadwalSesi2.jam_pulang_jadwal)}
         jamMasukAktual={jamMasukHariIni}
         jamPulangAktual={jamPulangHariIni}
+        jamMasukAktual2={jamMasukHariIni2}
+        jamPulangAktual2={jamPulangHariIni2}
         todayStatuses={history[0].statuses}
+        todaySesiStatuses={history[0].sesiStatuses}
         history={history}
         lokasiLat={setting?.lokasi_lat ?? null}
         lokasiLong={setting?.lokasi_long ?? null}
