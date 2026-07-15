@@ -9,6 +9,7 @@ import {
   type JadwalPegawai,
 } from "@/lib/absensi-status";
 import { AbsensiClient, type AbsensiHistoryRow } from "./absensi-client";
+import { getOpenSession } from "./actions";
 import { PengajuanList, type PengajuanRow } from "./pengajuan-list";
 
 /**
@@ -121,7 +122,15 @@ export default async function Page() {
     };
   });
 
-  const todayRow = rowMap.get(to) ?? null;
+  // Sesi terbuka (belum clock out) menang atas baris tanggal-hari-ini biasa —
+  // shift yang melewati tengah malam (mis. masuk 21:00, pulang 05:00 besok)
+  // tersimpan di bawah tanggal MULAI-nya, bukan tanggal hari ini.
+  const openSession = await getOpenSession(pegawaiId);
+  const rowHariIni = rowMap.get(to) ?? null;
+  const jamMasukHariIni =
+    openSession?.jam_masuk_aktual ?? rowHariIni?.jam_masuk_aktual ?? null;
+  const jamPulangHariIni =
+    openSession?.jam_pulang_aktual ?? rowHariIni?.jam_pulang_aktual ?? null;
 
   const pengajuanList: PengajuanRow[] = (pengajuanRows ?? []).map((r) => ({
     id: r.id,
@@ -148,8 +157,8 @@ export default async function Page() {
         jadwalFleksibel={!!pegawai?.jadwal_fleksibel}
         jamMasukJadwal={formatJamJadwal(resolveJadwalHari(to, jadwal).jam_masuk_jadwal)}
         jamPulangJadwal={formatJamJadwal(resolveJadwalHari(to, jadwal).jam_pulang_jadwal)}
-        jamMasukAktual={todayRow?.jam_masuk_aktual ?? null}
-        jamPulangAktual={todayRow?.jam_pulang_aktual ?? null}
+        jamMasukAktual={jamMasukHariIni}
+        jamPulangAktual={jamPulangHariIni}
         todayStatuses={history[0].statuses}
         history={history}
         lokasiLat={setting?.lokasi_lat ?? null}

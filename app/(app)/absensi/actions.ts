@@ -6,7 +6,13 @@ import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { canAbsensi, getProfile } from "@/lib/auth/dal";
 import { haversineDistanceMeters } from "@/lib/geo";
-import { todayJakarta, type KategoriAbsen } from "@/lib/absensi-status";
+import {
+  jadwalPulangInstant,
+  resolveJadwalHari,
+  todayJakarta,
+  type JadwalPegawai,
+  type KategoriAbsen,
+} from "@/lib/absensi-status";
 import { dbErrorMessage, type FormResult } from "@/lib/forms";
 
 /** Hasil clock in/out — beda dari FormResult krn perlu tandai kegagalan geofence secara khusus (utk munculkan modal override di client). */
@@ -15,6 +21,88 @@ export type ClockResult =
   | { ok: false; error: string; geofenceFailed?: boolean };
 
 const PATH = "/absensi";
+
+export type OpenSession = {
+  id: string;
+  tanggal: string;
+  jam_masuk_aktual: string | null;
+  jam_pulang_aktual: string | null;
+  override_alasan: string | null;
+};
+
+const SESI_TERBUKA_BUFFER_JAM = 8;
+const SESI_TERBUKA_FALLBACK_JAM = 16;
+
+/**
+ * Sesi absensi yang masih terbuka (sudah clock in, belum clock out) utk 1
+ * pegawai — dicari TANPA filter tanggal, supaya shift yang melewati tengah
+ * malam (mis. masuk 21:00, pulang 05:00 besok) tetap terdeteksi setelah
+ * lewat pergantian hari, bukan cuma dicocokkan ke "tanggal = hari ini".
+ *
+ * Sesi yang sudah lewat (jadwal pulang + 8 jam) dianggap EXPIRED — pegawai
+ * kemungkinan lupa clock out — dan dikembalikan null supaya tidak
+ * memblokir clock-in baru selamanya. Baris lama dibiarkan apa adanya
+ * (tetap kelihatan "Belum Clock Out" di Rekap Absensi admin). Utk pegawai
+ * tanpa patokan jadwal pulang di hari itu (Jadwal Fleksibel / hari kosong
+ * di jadwal beda-per-hari), fallback pakai flat 16 jam dari jam clock-in.
+ */
+export async function getOpenSession(
+  pegawaiId: string,
+): Promise<OpenSession | null> {
+  const supabase = await createClient();
+  const { data: row } = await supabase
+    .from("absensi")
+    .select("id, tanggal, jam_masuk_aktual, jam_pulang_aktual, override_alasan")
+    .eq("pegawai_id", pegawaiId)
+    .not("jam_masuk_aktual", "is", null)
+    .is("jam_pulang_aktual", null)
+    .order("tanggal", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!row?.jam_masuk_aktual) return null;
+
+  const [{ data: pegawai }, { data: jadwalHarianRows }] = await Promise.all([
+    supabase
+      .from("pegawai")
+      .select("jam_masuk_jadwal, jam_pulang_jadwal, jadwal_harian_berbeda")
+      .eq("id", pegawaiId)
+      .maybeSingle(),
+    supabase
+      .from("pegawai_jadwal_harian")
+      .select("hari, jam_masuk, jam_pulang")
+      .eq("pegawai_id", pegawaiId),
+  ]);
+  const jadwalHarian: Record<
+    number,
+    { jam_masuk: string | null; jam_pulang: string | null }
+  > = {};
+  for (const r of jadwalHarianRows ?? []) {
+    jadwalHarian[r.hari] = { jam_masuk: r.jam_masuk, jam_pulang: r.jam_pulang };
+  }
+  const jadwal: JadwalPegawai = {
+    jam_masuk_jadwal: pegawai?.jam_masuk_jadwal ?? null,
+    jam_pulang_jadwal: pegawai?.jam_pulang_jadwal ?? null,
+    hari_libur: null,
+    jadwal_harian: pegawai?.jadwal_harian_berbeda ? jadwalHarian : null,
+  };
+  const { jam_masuk_jadwal, jam_pulang_jadwal } = resolveJadwalHari(
+    row.tanggal,
+    jadwal,
+  );
+
+  const cutoff = jam_pulang_jadwal
+    ? new Date(
+        jadwalPulangInstant(row.tanggal, jam_masuk_jadwal, jam_pulang_jadwal).getTime() +
+          SESI_TERBUKA_BUFFER_JAM * 60 * 60 * 1000,
+      )
+    : new Date(
+        new Date(row.jam_masuk_aktual).getTime() +
+          SESI_TERBUKA_FALLBACK_JAM * 60 * 60 * 1000,
+      );
+
+  if (new Date() > cutoff) return null;
+  return row;
+}
 const KATEGORI_VALID: KategoriAbsen[] = ["izin", "sakit"];
 
 /** Semua tanggal "YYYY-MM-DD" dari start s.d. end (inklusif), maks 31 hari. */
@@ -88,6 +176,14 @@ export async function clockIn(
     !pegawai?.jadwal_harian_berbeda
   ) {
     return { ok: false, error: "Jadwal absensi belum diatur, hubungi admin." };
+  }
+
+  const openSession = await getOpenSession(profile.pegawai_id);
+  if (openSession) {
+    return {
+      ok: false,
+      error: `Anda masih dalam sesi kerja sejak ${openSession.tanggal} (belum clock out).`,
+    };
   }
 
   const tanggal = todayJakarta();
@@ -246,18 +342,9 @@ export async function clockOut(
   }
 
   const supabase = await createClient();
-  const tanggal = todayJakarta();
-  const { data: existing } = await supabase
-    .from("absensi")
-    .select("id, jam_masuk_aktual, jam_pulang_aktual, override_alasan")
-    .eq("pegawai_id", profile.pegawai_id)
-    .eq("tanggal", tanggal)
-    .maybeSingle();
-  if (!existing?.jam_masuk_aktual) {
-    return { ok: false, error: "Belum clock in hari ini." };
-  }
-  if (existing.jam_pulang_aktual) {
-    return { ok: false, error: "Sudah clock out hari ini." };
+  const existing = await getOpenSession(profile.pegawai_id);
+  if (!existing) {
+    return { ok: false, error: "Belum clock in." };
   }
 
   const { error } = await supabase

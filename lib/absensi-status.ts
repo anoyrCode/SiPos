@@ -57,6 +57,35 @@ function jakartaInstant(tanggal: string, time: string): Date {
   return new Date(`${tanggal}T${time}+07:00`);
 }
 
+/** Tambah/kurang N hari dari tanggal "YYYY-MM-DD", hasil "YYYY-MM-DD". */
+function addDaysToTanggal(tanggal: string, days: number): string {
+  const [y, m, d] = tanggal.split("-").map(Number);
+  const date = new Date(y, m - 1, d + days);
+  const yy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
+/**
+ * Instant absolut jadwal pulang utk 1 tanggal masuk. Kalau jam pulang <=
+ * jam masuk (shift lintas tengah malam, mis. masuk 21:00 pulang 05:00),
+ * jadwal pulang jatuh di TANGGAL+1, bukan tanggal yang sama dgn jam masuk
+ * — sebelumnya ini salah dihitung sbg tanggal yang sama, bikin pegawai
+ * shift malam yg clock out tepat waktu malah ke-anggap "Telat Clock Out".
+ */
+export function jadwalPulangInstant(
+  tanggal: string,
+  jamMasukJadwal: string | null,
+  jamPulangJadwal: string,
+): Date {
+  const lintasTengahMalam = !!jamMasukJadwal && jamPulangJadwal <= jamMasukJadwal;
+  const tanggalPulang = lintasTengahMalam
+    ? addDaysToTanggal(tanggal, 1)
+    : tanggal;
+  return jakartaInstant(tanggalPulang, jamPulangJadwal);
+}
+
 /**
  * Jam masuk/pulang efektif utk 1 tanggal tertentu — pakai override
  * `jadwal.jadwal_harian` (kalau pegawai pakai jadwal beda per hari & ada
@@ -123,9 +152,9 @@ export function computeStatusPulang(
   jadwal: JadwalPegawai,
 ): "normal" | "curang" | "telat_clock_out" | "belum_absen" {
   if (!record?.jam_pulang_aktual) return "belum_absen";
-  const { jam_pulang_jadwal } = resolveJadwalHari(tanggal, jadwal);
+  const { jam_masuk_jadwal, jam_pulang_jadwal } = resolveJadwalHari(tanggal, jadwal);
   if (!jam_pulang_jadwal) return "normal";
-  const jadwalPulang = jakartaInstant(tanggal, jam_pulang_jadwal);
+  const jadwalPulang = jadwalPulangInstant(tanggal, jam_masuk_jadwal, jam_pulang_jadwal);
   const aktual = new Date(record.jam_pulang_aktual);
   if (aktual < jadwalPulang) return "curang";
   const batasTelat = new Date(jadwalPulang.getTime() + 8 * 60 * 60 * 1000);
@@ -142,9 +171,9 @@ export function computeMenitLebihAwalPulang(
   record: AbsensiRecord | null,
   jadwal: JadwalPegawai,
 ): number {
-  const { jam_pulang_jadwal } = resolveJadwalHari(tanggal, jadwal);
+  const { jam_masuk_jadwal, jam_pulang_jadwal } = resolveJadwalHari(tanggal, jadwal);
   if (!record?.jam_pulang_aktual || !jam_pulang_jadwal) return 0;
-  const jadwalPulang = jakartaInstant(tanggal, jam_pulang_jadwal);
+  const jadwalPulang = jadwalPulangInstant(tanggal, jam_masuk_jadwal, jam_pulang_jadwal);
   const aktual = new Date(record.jam_pulang_aktual);
   const diffMs = jadwalPulang.getTime() - aktual.getTime();
   if (diffMs <= 0) return 0;
