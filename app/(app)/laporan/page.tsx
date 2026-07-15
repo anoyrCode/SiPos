@@ -42,6 +42,20 @@ export default async function Page({
   }
 
   const supabase = await createClient();
+
+  // Peran ter-scope (mis. musyrif/musyrifah): batasi rekap ke santri di
+  // kelas yang ditugaskan ke pegawai ini (lintas tahun ajaran — kelas_id
+  // sudah unik per tahun ajaran, jadi otomatis cuma cocok di tahun yang
+  // relevan tanpa perlu filter TA terpisah di sini).
+  let scopedKelasIds: string[] | null = null;
+  if (profile.perms.scope_kelas && !profile.perms.super && profile.pegawai_id) {
+    const { data: gk } = await supabase
+      .from("guru_kelas")
+      .select("kelas_id")
+      .eq("pegawai_id", profile.pegawai_id);
+    scopedKelasIds = [...new Set((gk ?? []).map((r) => r.kelas_id))];
+  }
+
   const { data: taData } = await supabase
     .from("tahun_ajaran")
     .select("id, tahun, is_aktif")
@@ -60,22 +74,42 @@ export default async function Page({
   let santriRekap: RekapSantriRow[] = [];
 
   if (taId) {
-    const [placeRes, txRes] = await Promise.all([
-      supabase
-        .from("santri_kelas")
-        .select("santri_id, kelas:kelas!inner(id, nama_kelas, tahun_ajaran_id)")
-        .eq("kelas.tahun_ajaran_id", taId),
-      supabase
-        .from("transaksi_poin")
-        .select("santri_id, tipe, nilai_poin")
-        .eq("tahun_ajaran_id", taId),
-    ]);
-
-    const placements = (placeRes.data ?? []) as unknown as {
+    let placeQuery = supabase
+      .from("santri_kelas")
+      .select("santri_id, kelas:kelas!inner(id, nama_kelas, tahun_ajaran_id)")
+      .eq("kelas.tahun_ajaran_id", taId);
+    if (scopedKelasIds) {
+      placeQuery = placeQuery.in(
+        "kelas_id",
+        scopedKelasIds.length > 0
+          ? scopedKelasIds
+          : ["00000000-0000-0000-0000-000000000000"],
+      );
+    }
+    const { data: placeData } = await placeQuery;
+    const placements = (placeData ?? []) as unknown as {
       santri_id: string;
       kelas: { id: string; nama_kelas: string } | null;
     }[];
-    const tx = (txRes.data ?? []) as {
+
+    // Kalau ter-scope, transaksi juga dibatasi ke santri hasil placeQuery di
+    // atas — supaya santri di luar kelas yang ditugaskan tidak "bocor" lewat
+    // bucket "Tanpa Kelas" (yang aslinya utk santri tanpa kelas sama sekali).
+    let txQuery = supabase
+      .from("transaksi_poin")
+      .select("santri_id, tipe, nilai_poin")
+      .eq("tahun_ajaran_id", taId);
+    if (scopedKelasIds) {
+      const scopedSantriIds = [...new Set(placements.map((p) => p.santri_id))];
+      txQuery = txQuery.in(
+        "santri_id",
+        scopedSantriIds.length > 0
+          ? scopedSantriIds
+          : ["00000000-0000-0000-0000-000000000000"],
+      );
+    }
+    const { data: txData } = await txQuery;
+    const tx = (txData ?? []) as {
       santri_id: string;
       tipe: "POSITIF" | "NEGATIF";
       nilai_poin: number;

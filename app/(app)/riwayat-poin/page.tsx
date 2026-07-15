@@ -77,6 +77,28 @@ export default async function Page({
     .order("tahun", { ascending: false });
   const taOptions = (taData ?? []).map((t) => ({ value: t.id, label: t.tahun }));
 
+  // Peran ter-scope (mis. musyrif/musyrifah): batasi riwayat ke santri di
+  // kelas yang ditugaskan ke pegawai ini (lintas tahun ajaran — kelas_id
+  // sudah unik per tahun ajaran, jadi otomatis cuma cocok di tahun yang
+  // relevan tanpa perlu filter TA terpisah di sini).
+  let scopedSantriIds: string[] | null = null;
+  if (profile.perms.scope_kelas && !profile.perms.super && profile.pegawai_id) {
+    const { data: gk } = await supabase
+      .from("guru_kelas")
+      .select("kelas_id")
+      .eq("pegawai_id", profile.pegawai_id);
+    const kelasIds = [...new Set((gk ?? []).map((r) => r.kelas_id))];
+    if (kelasIds.length === 0) {
+      scopedSantriIds = [];
+    } else {
+      const { data: sk } = await supabase
+        .from("santri_kelas")
+        .select("santri_id")
+        .in("kelas_id", kelasIds);
+      scopedSantriIds = [...new Set((sk ?? []).map((r) => r.santri_id))];
+    }
+  }
+
   // Pencarian santri → daftar id (filter transaksi)
   let santriIds: string[] | null = null;
   if (q) {
@@ -92,6 +114,17 @@ export default async function Page({
     }
   }
 
+  // Gabungkan filter pencarian & scope kelas (irisan kalau dua-duanya aktif).
+  let effectiveSantriIds: string[] | null = santriIds;
+  if (scopedSantriIds) {
+    effectiveSantriIds = santriIds
+      ? santriIds.filter((id) => scopedSantriIds!.includes(id))
+      : scopedSantriIds;
+    if (effectiveSantriIds.length === 0) {
+      effectiveSantriIds = ["00000000-0000-0000-0000-000000000000"];
+    }
+  }
+
   let query = supabase
     .from("transaksi_poin")
     .select(
@@ -104,7 +137,7 @@ export default async function Page({
   if (taId) query = query.eq("tahun_ajaran_id", taId);
   if (dateFrom) query = query.gte("tanggal_kejadian", dateFrom);
   if (dateTo) query = query.lte("tanggal_kejadian", dateTo);
-  if (santriIds) query = query.in("santri_id", santriIds);
+  if (effectiveSantriIds) query = query.in("santri_id", effectiveSantriIds);
 
   const { data, count } = await query.range(from, to);
   const rows = (data ?? []) as unknown as Row[];

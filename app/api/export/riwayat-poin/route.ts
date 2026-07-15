@@ -32,6 +32,27 @@ export async function GET(req: NextRequest) {
 
   const supabase = await createClient();
 
+  // Peran ter-scope (mis. musyrif/musyrifah): batasi export ke santri di
+  // kelas yang ditugaskan ke pegawai ini — sama seperti halaman Riwayat
+  // Poin, supaya tidak bocor lewat unduh Excel.
+  let scopedSantriIds: string[] | null = null;
+  if (profile.perms.scope_kelas && !profile.perms.super && profile.pegawai_id) {
+    const { data: gk } = await supabase
+      .from("guru_kelas")
+      .select("kelas_id")
+      .eq("pegawai_id", profile.pegawai_id);
+    const kelasIds = [...new Set((gk ?? []).map((r) => r.kelas_id))];
+    if (kelasIds.length === 0) {
+      scopedSantriIds = [];
+    } else {
+      const { data: sk } = await supabase
+        .from("santri_kelas")
+        .select("santri_id")
+        .in("kelas_id", kelasIds);
+      scopedSantriIds = [...new Set((sk ?? []).map((r) => r.santri_id))];
+    }
+  }
+
   let santriIds: string[] | null = null;
   if (q) {
     const t = q.replace(/[,()*]/g, " ").trim();
@@ -44,6 +65,16 @@ export async function GET(req: NextRequest) {
       santriIds = (s ?? []).map((x: { id: string }) => x.id);
       if (santriIds.length === 0)
         santriIds = ["00000000-0000-0000-0000-000000000000"];
+    }
+  }
+
+  let effectiveSantriIds: string[] | null = santriIds;
+  if (scopedSantriIds) {
+    effectiveSantriIds = santriIds
+      ? santriIds.filter((id) => scopedSantriIds!.includes(id))
+      : scopedSantriIds;
+    if (effectiveSantriIds.length === 0) {
+      effectiveSantriIds = ["00000000-0000-0000-0000-000000000000"];
     }
   }
 
@@ -60,7 +91,7 @@ export async function GET(req: NextRequest) {
   if (taId) query = query.eq("tahun_ajaran_id", taId);
   if (dateFrom) query = query.gte("tanggal_kejadian", dateFrom);
   if (dateTo) query = query.lte("tanggal_kejadian", dateTo);
-  if (santriIds) query = query.in("santri_id", santriIds);
+  if (effectiveSantriIds) query = query.in("santri_id", effectiveSantriIds);
 
   const { data } = await query;
   const rows = (data ?? []) as unknown as Row[];
