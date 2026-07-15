@@ -1,5 +1,32 @@
 import { z } from "zod";
 
+/** 1 slot jadwal hari (dipakai array 7-elemen, index = hari 0=Minggu..6=Sabtu). */
+export type JadwalHarianSlot = {
+  jam_masuk: string | null;
+  jam_pulang: string | null;
+};
+
+/** Susun baris `pegawai_jadwal_harian` (sparse, cuma hari yg keisi) jadi array 7 elemen. */
+export function buildJadwalHarianSlots(
+  rows: { hari: number; jam_masuk: string | null; jam_pulang: string | null }[],
+): JadwalHarianSlot[] {
+  const slots: JadwalHarianSlot[] = Array.from({ length: 7 }, () => ({
+    jam_masuk: null,
+    jam_pulang: null,
+  }));
+  for (const r of rows) {
+    if (r.hari >= 0 && r.hari <= 6) {
+      slots[r.hari] = { jam_masuk: r.jam_masuk, jam_pulang: r.jam_pulang };
+    }
+  }
+  return slots;
+}
+
+const jadwalHarianSlotSchema = z.object({
+  jam_masuk: z.string().trim().optional(),
+  jam_pulang: z.string().trim().optional(),
+});
+
 export const pegawaiSchema = z.object({
   nip: z.string().trim().optional(),
   nama: z.string().trim().min(1, "Nama wajib diisi.").max(150),
@@ -20,6 +47,8 @@ export const pegawaiSchema = z.object({
   jam_pulang_jadwal: z.string().trim().optional(),
   hari_libur: z.string().optional(),
   jadwal_fleksibel: z.boolean(),
+  jadwal_harian_berbeda: z.boolean(),
+  jadwal_harian: z.array(jadwalHarianSlotSchema).length(7),
 });
 
 export type PegawaiInput = z.infer<typeof pegawaiSchema>;
@@ -40,4 +69,6 @@ export type PegawaiRow = {
   jam_pulang_jadwal: string | null;
   hari_libur: number | null;
   jadwal_fleksibel: boolean;
+  jadwal_harian_berbeda: boolean;
+  jadwal_harian: JadwalHarianSlot[];
 };

@@ -20,7 +20,7 @@ import { PegawaiForm } from "./pegawai-form";
 import { deletePegawai } from "./actions";
 import { JenisKelaminFilter } from "./jenis-kelamin-filter";
 import { JabatanFilter } from "./jabatan-filter";
-import type { PegawaiRow } from "./schema";
+import { buildJadwalHarianSlots, type PegawaiRow } from "./schema";
 
 export default async function Page({
   searchParams,
@@ -37,7 +37,7 @@ export default async function Page({
   let query = supabase
     .from("pegawai")
     .select(
-      "id, nip, nama, email, jabatan, jabatan_tambahan, jenis_kelamin, telp, tempat_lahir, tanggal_lahir, alamat, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur",
+      "id, nip, nama, email, jabatan, jabatan_tambahan, jenis_kelamin, telp, tempat_lahir, tanggal_lahir, alamat, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_fleksibel, jadwal_harian_berbeda",
       { count: "exact" },
     )
     .order("nama", { ascending: true });
@@ -52,11 +52,32 @@ export default async function Page({
     const term = jabatanFilter.replace(/[,()*{}]/g, " ").trim();
     if (term) query = query.or(`jabatan.eq.${term},jabatan_tambahan.cs.{${term}}`);
   }
-  const [{ data, count }, { data: jabatanRows }] = await Promise.all([
-    query.range(from, to),
-    supabase.from("pegawai").select("jabatan, jabatan_tambahan"),
-  ]);
-  const rows = (data ?? []) as PegawaiRow[];
+  const [{ data, count }, { data: jabatanRows }, { data: jadwalHarianRows }] =
+    await Promise.all([
+      query.range(from, to),
+      supabase.from("pegawai").select("jabatan, jabatan_tambahan"),
+      supabase
+        .from("pegawai_jadwal_harian")
+        .select("pegawai_id, hari, jam_masuk, jam_pulang"),
+    ]);
+  type JadwalHarianRow = {
+    pegawai_id: string;
+    hari: number;
+    jam_masuk: string | null;
+    jam_pulang: string | null;
+  };
+  const jadwalHarianByPegawai = new Map<string, JadwalHarianRow[]>();
+  for (const r of jadwalHarianRows ?? []) {
+    const list = jadwalHarianByPegawai.get(r.pegawai_id) ?? [];
+    list.push(r);
+    jadwalHarianByPegawai.set(r.pegawai_id, list);
+  }
+  const rows = (data ?? []).map((p) => ({
+    ...p,
+    jadwal_harian: buildJadwalHarianSlots(
+      jadwalHarianByPegawai.get(p.id) ?? [],
+    ),
+  })) as PegawaiRow[];
 
   const jabatanOptions = Array.from(
     new Set(
