@@ -25,6 +25,7 @@ const PATH = "/absensi";
 export type OpenSession = {
   id: string;
   tanggal: string;
+  sesi: 1 | 2;
   jam_masuk_aktual: string | null;
   jam_pulang_aktual: string | null;
   override_alasan: string | null;
@@ -35,21 +36,69 @@ const SESI_TERBUKA_FALLBACK_JAM = 16;
 
 /**
  * Sesi absensi yang masih terbuka (sudah clock in, belum clock out) utk 1
- * pegawai — dicari TANPA filter tanggal, supaya shift yang melewati tengah
- * malam (mis. masuk 21:00, pulang 05:00 besok) tetap terdeteksi setelah
- * lewat pergantian hari, bukan cuma dicocokkan ke "tanggal = hari ini".
+ * pegawai & 1 sesi (1 = sesi tunggal/Sesi 1, 2 = Sesi 2 utk pegawai
+ * shift-ganda) — dicari TANPA filter tanggal, supaya shift yang melewati
+ * tengah malam (mis. masuk 21:00, pulang 05:00 besok) tetap terdeteksi
+ * setelah lewat pergantian hari, bukan cuma dicocokkan ke "tanggal = hari
+ * ini".
  *
  * Sesi yang sudah lewat (jadwal pulang + 8 jam) dianggap EXPIRED — pegawai
  * kemungkinan lupa clock out — dan dikembalikan null supaya tidak
  * memblokir clock-in baru selamanya. Baris lama dibiarkan apa adanya
  * (tetap kelihatan "Belum Clock Out" di Rekap Absensi admin). Utk pegawai
  * tanpa patokan jadwal pulang di hari itu (Jadwal Fleksibel / hari kosong
- * di jadwal beda-per-hari), fallback pakai flat 16 jam dari jam clock-in.
+ * di jadwal beda-per-hari / Sesi 2 tanpa jadwal diisi), fallback pakai
+ * flat 16 jam dari jam clock-in.
  */
 export async function getOpenSession(
   pegawaiId: string,
+  sesi: 1 | 2 = 1,
 ): Promise<OpenSession | null> {
   const supabase = await createClient();
+
+  if (sesi === 2) {
+    const { data: row } = await supabase
+      .from("absensi")
+      .select("id, tanggal, jam_masuk_aktual_2, jam_pulang_aktual_2, override_alasan_2")
+      .eq("pegawai_id", pegawaiId)
+      .not("jam_masuk_aktual_2", "is", null)
+      .is("jam_pulang_aktual_2", null)
+      .order("tanggal", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!row?.jam_masuk_aktual_2) return null;
+
+    const { data: pegawai } = await supabase
+      .from("pegawai")
+      .select("jam_masuk_jadwal_2, jam_pulang_jadwal_2")
+      .eq("id", pegawaiId)
+      .maybeSingle();
+
+    const cutoff = pegawai?.jam_pulang_jadwal_2
+      ? new Date(
+          jadwalPulangInstant(
+            row.tanggal,
+            pegawai.jam_masuk_jadwal_2,
+            pegawai.jam_pulang_jadwal_2,
+          ).getTime() +
+            SESI_TERBUKA_BUFFER_JAM * 60 * 60 * 1000,
+        )
+      : new Date(
+          new Date(row.jam_masuk_aktual_2).getTime() +
+            SESI_TERBUKA_FALLBACK_JAM * 60 * 60 * 1000,
+        );
+
+    if (new Date() > cutoff) return null;
+    return {
+      id: row.id,
+      tanggal: row.tanggal,
+      sesi: 2,
+      jam_masuk_aktual: row.jam_masuk_aktual_2,
+      jam_pulang_aktual: row.jam_pulang_aktual_2,
+      override_alasan: row.override_alasan_2,
+    };
+  }
+
   const { data: row } = await supabase
     .from("absensi")
     .select("id, tanggal, jam_masuk_aktual, jam_pulang_aktual, override_alasan")
@@ -101,7 +150,14 @@ export async function getOpenSession(
       );
 
   if (new Date() > cutoff) return null;
-  return row;
+  return {
+    id: row.id,
+    tanggal: row.tanggal,
+    sesi: 1,
+    jam_masuk_aktual: row.jam_masuk_aktual,
+    jam_pulang_aktual: row.jam_pulang_aktual,
+    override_alasan: row.override_alasan,
+  };
 }
 const KATEGORI_VALID: KategoriAbsen[] = ["izin", "sakit"];
 
@@ -149,6 +205,7 @@ export async function clockIn(
   long: number,
   override = false,
   alasan = "",
+  sesi: 1 | 2 = 1,
 ): Promise<ClockResult> {
   if (!(await canAbsensi())) return { ok: false, error: "Tidak diizinkan." };
   const profile = await getProfile();
@@ -167,46 +224,67 @@ export async function clockIn(
   const supabase = await createClient();
   const { data: pegawai } = await supabase
     .from("pegawai")
-    .select("jam_masuk_jadwal, jadwal_fleksibel, jadwal_harian_berbeda")
+    .select("jam_masuk_jadwal, jadwal_fleksibel, jadwal_harian_berbeda, shift_ganda")
     .eq("id", profile.pegawai_id)
     .maybeSingle();
+  const sesiEfektif: 1 | 2 = pegawai?.shift_ganda ? sesi : 1;
+
   if (
     !pegawai?.jam_masuk_jadwal &&
     !pegawai?.jadwal_fleksibel &&
-    !pegawai?.jadwal_harian_berbeda
+    !pegawai?.jadwal_harian_berbeda &&
+    !pegawai?.shift_ganda
   ) {
     return { ok: false, error: "Jadwal absensi belum diatur, hubungi admin." };
   }
 
-  const openSession = await getOpenSession(profile.pegawai_id);
+  const openSession = await getOpenSession(profile.pegawai_id, sesiEfektif);
   if (openSession) {
     return {
       ok: false,
-      error: `Anda masih dalam sesi kerja sejak ${openSession.tanggal} (belum clock out).`,
+      error: `Anda masih dalam sesi kerja (Sesi ${sesiEfektif}) sejak ${openSession.tanggal} (belum clock out).`,
     };
   }
 
   const tanggal = todayJakarta();
   const { data: existing } = await supabase
     .from("absensi")
-    .select("id, jam_masuk_aktual")
+    .select("id, jam_masuk_aktual, jam_masuk_aktual_2")
     .eq("pegawai_id", profile.pegawai_id)
     .eq("tanggal", tanggal)
     .maybeSingle();
-  if (existing?.jam_masuk_aktual) {
-    return { ok: false, error: "Sudah clock in hari ini." };
+  const sudahClockIn =
+    sesiEfektif === 1 ? existing?.jam_masuk_aktual : existing?.jam_masuk_aktual_2;
+  if (sudahClockIn) {
+    return { ok: false, error: `Sudah clock in Sesi ${sesiEfektif} hari ini.` };
   }
 
-  const { error } = await supabase.from("absensi").insert({
-    pegawai_id: profile.pegawai_id,
-    tanggal,
-    jam_masuk_aktual: new Date().toISOString(),
-    lokasi_masuk_lat: lat,
-    lokasi_masuk_long: long,
-    override_lokasi: !!geofenceError,
-    override_alasan: geofenceError ? alasan.trim() : null,
-  });
-  if (error) return { ok: false, error: dbErrorMessage(error) };
+  const payload =
+    sesiEfektif === 1
+      ? {
+          jam_masuk_aktual: new Date().toISOString(),
+          lokasi_masuk_lat: lat,
+          lokasi_masuk_long: long,
+          override_lokasi: !!geofenceError,
+          override_alasan: geofenceError ? alasan.trim() : null,
+        }
+      : {
+          jam_masuk_aktual_2: new Date().toISOString(),
+          lokasi_masuk_2_lat: lat,
+          lokasi_masuk_2_long: long,
+          override_lokasi_2: !!geofenceError,
+          override_alasan_2: geofenceError ? alasan.trim() : null,
+        };
+
+  if (existing) {
+    const { error } = await supabase.from("absensi").update(payload).eq("id", existing.id);
+    if (error) return { ok: false, error: dbErrorMessage(error) };
+  } else {
+    const { error } = await supabase
+      .from("absensi")
+      .insert({ pegawai_id: profile.pegawai_id, tanggal, ...payload });
+    if (error) return { ok: false, error: dbErrorMessage(error) };
+  }
 
   revalidatePath(PATH);
   return { ok: true };
@@ -326,6 +404,7 @@ export async function clockOut(
   long: number,
   override = false,
   alasan = "",
+  sesi: 1 | 2 = 1,
 ): Promise<ClockResult> {
   if (!(await canAbsensi())) return { ok: false, error: "Tidak diizinkan." };
   const profile = await getProfile();
@@ -342,27 +421,48 @@ export async function clockOut(
   }
 
   const supabase = await createClient();
-  const existing = await getOpenSession(profile.pegawai_id);
+  const { data: pegawai } = await supabase
+    .from("pegawai")
+    .select("shift_ganda")
+    .eq("id", profile.pegawai_id)
+    .maybeSingle();
+  const sesiEfektif: 1 | 2 = pegawai?.shift_ganda ? sesi : 1;
+
+  const existing = await getOpenSession(profile.pegawai_id, sesiEfektif);
   if (!existing) {
-    return { ok: false, error: "Belum clock in." };
+    return { ok: false, error: `Belum clock in Sesi ${sesiEfektif}.` };
   }
 
-  const { error } = await supabase
-    .from("absensi")
-    .update({
-      jam_pulang_aktual: new Date().toISOString(),
-      lokasi_pulang_lat: lat,
-      lokasi_pulang_long: long,
-      ...(geofenceError
-        ? {
-            override_lokasi: true,
-            override_alasan: existing.override_alasan
-              ? `${existing.override_alasan} | Clock out: ${alasan.trim()}`
-              : alasan.trim(),
-          }
-        : {}),
-    })
-    .eq("id", existing.id);
+  const payload =
+    sesiEfektif === 1
+      ? {
+          jam_pulang_aktual: new Date().toISOString(),
+          lokasi_pulang_lat: lat,
+          lokasi_pulang_long: long,
+          ...(geofenceError
+            ? {
+                override_lokasi: true,
+                override_alasan: existing.override_alasan
+                  ? `${existing.override_alasan} | Clock out: ${alasan.trim()}`
+                  : alasan.trim(),
+              }
+            : {}),
+        }
+      : {
+          jam_pulang_aktual_2: new Date().toISOString(),
+          lokasi_pulang_2_lat: lat,
+          lokasi_pulang_2_long: long,
+          ...(geofenceError
+            ? {
+                override_lokasi_2: true,
+                override_alasan_2: existing.override_alasan
+                  ? `${existing.override_alasan} | Clock out: ${alasan.trim()}`
+                  : alasan.trim(),
+              }
+            : {}),
+        };
+
+  const { error } = await supabase.from("absensi").update(payload).eq("id", existing.id);
   if (error) return { ok: false, error: dbErrorMessage(error) };
 
   revalidatePath(PATH);
