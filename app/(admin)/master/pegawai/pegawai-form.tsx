@@ -90,6 +90,9 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
         : "",
     jadwal_fleksibel: initial?.jadwal_fleksibel ?? false,
     jadwal_harian_berbeda: initial?.jadwal_harian_berbeda ?? false,
+    shift_ganda: initial?.shift_ganda ?? false,
+    jam_masuk_jadwal_2: initial?.jam_masuk_jadwal_2 ?? "",
+    jam_pulang_jadwal_2: initial?.jam_pulang_jadwal_2 ?? "",
     jadwal_harian: (
       initial?.jadwal_harian ??
       Array.from({ length: 7 }, () => ({ jam_masuk: null, jam_pulang: null }))
@@ -110,6 +113,10 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
   const jadwalHarianBerbeda = useWatch({
     control: form.control,
     name: "jadwal_harian_berbeda",
+  });
+  const shiftGanda = useWatch({
+    control: form.control,
+    name: "shift_ganda",
   });
 
   const onSubmit = form.handleSubmit(async (values) => {
@@ -375,6 +382,7 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                             form.setValue("jam_masuk_jadwal", "");
                             form.setValue("jam_pulang_jadwal", "");
                             form.setValue("jadwal_harian_berbeda", false);
+                            form.setValue("shift_ganda", false);
                           }
                         }}
                       />
@@ -401,6 +409,35 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                             form.setValue("jam_masuk_jadwal", "");
                             form.setValue("jam_pulang_jadwal", "");
                             form.setValue("jadwal_fleksibel", false);
+                            form.setValue("shift_ganda", false);
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                />
+                <Controller
+                  control={form.control}
+                  name="shift_ganda"
+                  render={({ field }) => (
+                    <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 sm:col-span-2">
+                      <span className="text-sm font-medium">
+                        Shift Ganda
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          2 sesi kerja terpisah dalam 1 hari (mis. pagi
+                          06:00–12:00, malam 19:00–21:00).
+                        </span>
+                      </span>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          if (checked) {
+                            form.setValue("jadwal_fleksibel", false);
+                            form.setValue("jadwal_harian_berbeda", false);
+                          } else {
+                            form.setValue("jam_masuk_jadwal_2", "");
+                            form.setValue("jam_pulang_jadwal_2", "");
                           }
                         }}
                       />
@@ -410,7 +447,7 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                 {!jadwalHarianBerbeda && (
                   <>
                     <Field
-                      label="Jam Masuk"
+                      label={shiftGanda ? "Jam Masuk (Sesi 1)" : "Jam Masuk"}
                       htmlFor="jam_masuk_jadwal"
                       error={form.formState.errors.jam_masuk_jadwal?.message}
                     >
@@ -422,7 +459,7 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                       />
                     </Field>
                     <Field
-                      label="Jam Pulang"
+                      label={shiftGanda ? "Jam Pulang (Sesi 1)" : "Jam Pulang"}
                       htmlFor="jam_pulang_jadwal"
                       error={form.formState.errors.jam_pulang_jadwal?.message}
                     >
@@ -431,6 +468,32 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                         type="time"
                         disabled={jadwalFleksibel}
                         {...form.register("jam_pulang_jadwal")}
+                      />
+                    </Field>
+                  </>
+                )}
+                {shiftGanda && (
+                  <>
+                    <Field
+                      label="Jam Masuk (Sesi 2)"
+                      htmlFor="jam_masuk_jadwal_2"
+                      error={form.formState.errors.jam_masuk_jadwal_2?.message}
+                    >
+                      <Input
+                        id="jam_masuk_jadwal_2"
+                        type="time"
+                        {...form.register("jam_masuk_jadwal_2")}
+                      />
+                    </Field>
+                    <Field
+                      label="Jam Pulang (Sesi 2)"
+                      htmlFor="jam_pulang_jadwal_2"
+                      error={form.formState.errors.jam_pulang_jadwal_2?.message}
+                    >
+                      <Input
+                        id="jam_pulang_jadwal_2"
+                        type="time"
+                        {...form.register("jam_pulang_jadwal_2")}
                       />
                     </Field>
                   </>
