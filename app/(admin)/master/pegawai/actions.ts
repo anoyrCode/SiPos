@@ -33,6 +33,7 @@ function payload(input: PegawaiInput) {
     shift_ganda: input.shift_ganda,
     jam_masuk_jadwal_2: input.shift_ganda ? input.jam_masuk_jadwal_2 || null : null,
     jam_pulang_jadwal_2: input.shift_ganda ? input.jam_pulang_jadwal_2 || null : null,
+    tanggal_mulai_absensi: input.tanggal_mulai_absensi || null,
   };
 }
 
