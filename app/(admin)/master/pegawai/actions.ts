@@ -30,7 +30,23 @@ function payload(input: PegawaiInput) {
         : null,
     jadwal_fleksibel: input.jadwal_fleksibel,
     jadwal_harian_berbeda: input.jadwal_harian_berbeda,
+    shift_ganda: input.shift_ganda,
+    jam_masuk_jadwal_2: input.shift_ganda ? input.jam_masuk_jadwal_2 || null : null,
+    jam_pulang_jadwal_2: input.shift_ganda ? input.jam_pulang_jadwal_2 || null : null,
   };
+}
+
+/** Maksimal 1 dari 3 mode jadwal (fleksibel/harian-berbeda/shift-ganda) boleh aktif. */
+function validasiModeJadwal(input: PegawaiInput): string | null {
+  const aktif = [
+    input.jadwal_fleksibel,
+    input.jadwal_harian_berbeda,
+    input.shift_ganda,
+  ].filter(Boolean).length;
+  if (aktif > 1) {
+    return "Jadwal Fleksibel, Jadwal Beda per Hari, dan Shift Ganda tidak boleh aktif bersamaan.";
+  }
+  return null;
 }
 
 /** Hapus semua baris jadwal harian pegawai lalu insert ulang (replace-all, tabel kecil maks 7 baris). */
@@ -68,12 +84,8 @@ export async function createPegawai(input: PegawaiInput): Promise<FormResult> {
   if (!(await canPegawai())) return { ok: false, error: "Tidak diizinkan." };
   const parsed = pegawaiSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Data tidak valid." };
-  if (parsed.data.jadwal_fleksibel && parsed.data.jadwal_harian_berbeda) {
-    return {
-      ok: false,
-      error: "Jadwal Fleksibel dan Jadwal Beda per Hari tidak boleh aktif bersamaan.",
-    };
-  }
+  const errModeJadwal = validasiModeJadwal(parsed.data);
+  if (errModeJadwal) return { ok: false, error: errModeJadwal };
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -97,12 +109,8 @@ export async function updatePegawai(
   if (!(await canPegawai())) return { ok: false, error: "Tidak diizinkan." };
   const parsed = pegawaiSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Data tidak valid." };
-  if (parsed.data.jadwal_fleksibel && parsed.data.jadwal_harian_berbeda) {
-    return {
-      ok: false,
-      error: "Jadwal Fleksibel dan Jadwal Beda per Hari tidak boleh aktif bersamaan.",
-    };
-  }
+  const errModeJadwal = validasiModeJadwal(parsed.data);
+  if (errModeJadwal) return { ok: false, error: errModeJadwal };
 
   const supabase = await createClient();
   const { error } = await supabase

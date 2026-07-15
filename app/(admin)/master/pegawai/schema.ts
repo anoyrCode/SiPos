@@ -49,6 +49,9 @@ export const pegawaiSchema = z.object({
   jadwal_fleksibel: z.boolean(),
   jadwal_harian_berbeda: z.boolean(),
   jadwal_harian: z.array(jadwalHarianSlotSchema).length(7),
+  shift_ganda: z.boolean(),
+  jam_masuk_jadwal_2: z.string().trim().optional(),
+  jam_pulang_jadwal_2: z.string().trim().optional(),
 });
 
 export type PegawaiInput = z.infer<typeof pegawaiSchema>;
@@ -71,4 +74,7 @@ export type PegawaiRow = {
   jadwal_fleksibel: boolean;
   jadwal_harian_berbeda: boolean;
   jadwal_harian: JadwalHarianSlot[];
+  shift_ganda: boolean;
+  jam_masuk_jadwal_2: string | null;
+  jam_pulang_jadwal_2: string | null;
 };
