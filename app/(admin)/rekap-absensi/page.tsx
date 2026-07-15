@@ -18,6 +18,7 @@ import {
   computeMenitTelatMasuk,
   computeMenitLebihAwalPulang,
   isHariLiburPegawai,
+  resolveJadwalHari,
   todayJakarta,
   STATUS_LABEL,
   formatJamWIB,
@@ -183,7 +184,9 @@ export default async function Page({
 
   let pegawaiQuery = supabase
     .from("pegawai")
-    .select("id, nama, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur")
+    .select(
+      "id, nama, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_harian_berbeda",
+    )
     .order("nama");
   if (q) {
     const term = q.replace(/[,()*%_]/g, " ").trim();
@@ -211,6 +214,7 @@ export default async function Page({
     { data: absensiRows },
     { data: setting },
     { data: liburKhususRows },
+    { data: jadwalHarianRows },
   ] = await Promise.all([
     pegawaiQuery,
     absensiQuery,
@@ -220,7 +224,20 @@ export default async function Page({
       .limit(1)
       .maybeSingle(),
     supabase.from("libur_khusus").select("tanggal, keterangan").order("tanggal"),
+    supabase
+      .from("pegawai_jadwal_harian")
+      .select("pegawai_id, hari, jam_masuk, jam_pulang"),
   ]);
+
+  const jadwalHarianMap = new Map<
+    string,
+    Record<number, { jam_masuk: string | null; jam_pulang: string | null }>
+  >();
+  for (const r of jadwalHarianRows ?? []) {
+    const entry = jadwalHarianMap.get(r.pegawai_id) ?? {};
+    entry[r.hari] = { jam_masuk: r.jam_masuk, jam_pulang: r.jam_pulang };
+    jadwalHarianMap.set(r.pegawai_id, entry);
+  }
 
   const toleransiMenit = setting?.toleransi_menit ?? 0;
   const tanggalMulai = setting?.tanggal_mulai ?? null;
@@ -237,6 +254,9 @@ export default async function Page({
       jam_masuk_jadwal: p.jam_masuk_jadwal,
       jam_pulang_jadwal: p.jam_pulang_jadwal,
       hari_libur: p.hari_libur,
+      jadwal_harian: p.jadwal_harian_berbeda
+        ? (jadwalHarianMap.get(p.id) ?? null)
+        : null,
     };
     return {
       pegawaiId: p.id,
@@ -274,6 +294,9 @@ export default async function Page({
         jam_masuk_jadwal: p.jam_masuk_jadwal,
         jam_pulang_jadwal: p.jam_pulang_jadwal,
         hari_libur: p.hari_libur,
+        jadwal_harian: p.jadwal_harian_berbeda
+          ? (jadwalHarianMap.get(p.id) ?? null)
+          : null,
       };
       for (const tgl of rangeDates) {
         if (tanggalMulai && tgl < tanggalMulai) continue;
@@ -301,7 +324,9 @@ export default async function Page({
             pegawaiId: p.id,
             nama: p.nama,
             tanggal: tgl,
-            jamPulangJadwal: formatJamJadwal(jadwal.jam_pulang_jadwal),
+            jamPulangJadwal: formatJamJadwal(
+              resolveJadwalHari(tgl, jadwal).jam_pulang_jadwal,
+            ),
             jamPulangAktual: record?.jam_pulang_aktual ?? null,
             menitLebihAwal: computeMenitLebihAwalPulang(tgl, record, jadwal),
           });

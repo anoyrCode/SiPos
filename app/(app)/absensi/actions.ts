@@ -79,10 +79,14 @@ export async function clockIn(
   const supabase = await createClient();
   const { data: pegawai } = await supabase
     .from("pegawai")
-    .select("jam_masuk_jadwal, jadwal_fleksibel")
+    .select("jam_masuk_jadwal, jadwal_fleksibel, jadwal_harian_berbeda")
     .eq("id", profile.pegawai_id)
     .maybeSingle();
-  if (!pegawai?.jam_masuk_jadwal && !pegawai?.jadwal_fleksibel) {
+  if (
+    !pegawai?.jam_masuk_jadwal &&
+    !pegawai?.jadwal_fleksibel &&
+    !pegawai?.jadwal_harian_berbeda
+  ) {
     return { ok: false, error: "Jadwal absensi belum diatur, hubungi admin." };
   }
 

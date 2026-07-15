@@ -3,7 +3,11 @@ import { Fingerprint } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requirePerm } from "@/lib/auth/dal";
 import { PageHeader } from "@/components/shared/page-header";
-import { computeDayStatusList, type JadwalPegawai } from "@/lib/absensi-status";
+import {
+  computeDayStatusList,
+  resolveJadwalHari,
+  type JadwalPegawai,
+} from "@/lib/absensi-status";
 import { AbsensiClient, type AbsensiHistoryRow } from "./absensi-client";
 import { PengajuanList, type PengajuanRow } from "./pengajuan-list";
 
@@ -40,16 +44,33 @@ export default async function Page() {
   const supabase = await createClient();
   const pegawaiId = profile.pegawai_id ?? "";
 
-  const { data: pegawai } = await supabase
-    .from("pegawai")
-    .select("jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_fleksibel")
-    .eq("id", pegawaiId)
-    .maybeSingle();
+  const [{ data: pegawai }, { data: jadwalHarianRows }] = await Promise.all([
+    supabase
+      .from("pegawai")
+      .select(
+        "jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_fleksibel, jadwal_harian_berbeda",
+      )
+      .eq("id", pegawaiId)
+      .maybeSingle(),
+    supabase
+      .from("pegawai_jadwal_harian")
+      .select("hari, jam_masuk, jam_pulang")
+      .eq("pegawai_id", pegawaiId),
+  ]);
+
+  const jadwalHarian: Record<
+    number,
+    { jam_masuk: string | null; jam_pulang: string | null }
+  > = {};
+  for (const r of jadwalHarianRows ?? []) {
+    jadwalHarian[r.hari] = { jam_masuk: r.jam_masuk, jam_pulang: r.jam_pulang };
+  }
 
   const jadwal: JadwalPegawai = {
     jam_masuk_jadwal: pegawai?.jam_masuk_jadwal ?? null,
     jam_pulang_jadwal: pegawai?.jam_pulang_jadwal ?? null,
     hari_libur: pegawai?.hari_libur ?? null,
+    jadwal_harian: pegawai?.jadwal_harian_berbeda ? jadwalHarian : null,
   };
 
   const { data: setting } = await supabase
@@ -121,11 +142,12 @@ export default async function Page() {
       <AbsensiClient
         hasJadwal={
           (!!jadwal.jam_masuk_jadwal && !!jadwal.jam_pulang_jadwal) ||
-          !!pegawai?.jadwal_fleksibel
+          !!pegawai?.jadwal_fleksibel ||
+          !!pegawai?.jadwal_harian_berbeda
         }
         jadwalFleksibel={!!pegawai?.jadwal_fleksibel}
-        jamMasukJadwal={formatJamJadwal(jadwal.jam_masuk_jadwal)}
-        jamPulangJadwal={formatJamJadwal(jadwal.jam_pulang_jadwal)}
+        jamMasukJadwal={formatJamJadwal(resolveJadwalHari(to, jadwal).jam_masuk_jadwal)}
+        jamPulangJadwal={formatJamJadwal(resolveJadwalHari(to, jadwal).jam_pulang_jadwal)}
         jamMasukAktual={todayRow?.jam_masuk_aktual ?? null}
         jamPulangAktual={todayRow?.jam_pulang_aktual ?? null}
         todayStatuses={history[0].statuses}
