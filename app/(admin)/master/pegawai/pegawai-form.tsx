@@ -56,7 +56,7 @@ export const JABATAN_OPTIONS = [
   "Tim Percetakan",
 ];
 
-const HARI_LIBUR_OPTIONS = [
+const HARI_OPTIONS = [
   { value: "0", label: "Minggu" },
   { value: "1", label: "Senin" },
   { value: "2", label: "Selasa" },
@@ -89,6 +89,14 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
         ? String(initial.hari_libur)
         : "",
     jadwal_fleksibel: initial?.jadwal_fleksibel ?? false,
+    jadwal_harian_berbeda: initial?.jadwal_harian_berbeda ?? false,
+    jadwal_harian: (
+      initial?.jadwal_harian ??
+      Array.from({ length: 7 }, () => ({ jam_masuk: null, jam_pulang: null }))
+    ).map((slot) => ({
+      jam_masuk: slot.jam_masuk ?? "",
+      jam_pulang: slot.jam_pulang ?? "",
+    })),
   };
 
   const form = useForm<PegawaiInput>({
@@ -98,6 +106,10 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
   const jadwalFleksibel = useWatch({
     control: form.control,
     name: "jadwal_fleksibel",
+  });
+  const jadwalHarianBerbeda = useWatch({
+    control: form.control,
+    name: "jadwal_harian_berbeda",
   });
 
   const onSubmit = form.handleSubmit(async (values) => {
@@ -362,36 +374,67 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                           if (checked) {
                             form.setValue("jam_masuk_jadwal", "");
                             form.setValue("jam_pulang_jadwal", "");
+                            form.setValue("jadwal_harian_berbeda", false);
                           }
                         }}
                       />
                     </label>
                   )}
                 />
-                <Field
-                  label="Jam Masuk"
-                  htmlFor="jam_masuk_jadwal"
-                  error={form.formState.errors.jam_masuk_jadwal?.message}
-                >
-                  <Input
-                    id="jam_masuk_jadwal"
-                    type="time"
-                    disabled={jadwalFleksibel}
-                    {...form.register("jam_masuk_jadwal")}
-                  />
-                </Field>
-                <Field
-                  label="Jam Pulang"
-                  htmlFor="jam_pulang_jadwal"
-                  error={form.formState.errors.jam_pulang_jadwal?.message}
-                >
-                  <Input
-                    id="jam_pulang_jadwal"
-                    type="time"
-                    disabled={jadwalFleksibel}
-                    {...form.register("jam_pulang_jadwal")}
-                  />
-                </Field>
+                <Controller
+                  control={form.control}
+                  name="jadwal_harian_berbeda"
+                  render={({ field }) => (
+                    <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 sm:col-span-2">
+                      <span className="text-sm font-medium">
+                        Jadwal Beda per Hari
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          Jam masuk/pulang berbeda tiap hari (mis. Selasa
+                          siang-malam, hari lain pagi-siang).
+                        </span>
+                      </span>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          if (checked) {
+                            form.setValue("jam_masuk_jadwal", "");
+                            form.setValue("jam_pulang_jadwal", "");
+                            form.setValue("jadwal_fleksibel", false);
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                />
+                {!jadwalHarianBerbeda && (
+                  <>
+                    <Field
+                      label="Jam Masuk"
+                      htmlFor="jam_masuk_jadwal"
+                      error={form.formState.errors.jam_masuk_jadwal?.message}
+                    >
+                      <Input
+                        id="jam_masuk_jadwal"
+                        type="time"
+                        disabled={jadwalFleksibel}
+                        {...form.register("jam_masuk_jadwal")}
+                      />
+                    </Field>
+                    <Field
+                      label="Jam Pulang"
+                      htmlFor="jam_pulang_jadwal"
+                      error={form.formState.errors.jam_pulang_jadwal?.message}
+                    >
+                      <Input
+                        id="jam_pulang_jadwal"
+                        type="time"
+                        disabled={jadwalFleksibel}
+                        {...form.register("jam_pulang_jadwal")}
+                      />
+                    </Field>
+                  </>
+                )}
                 <Field
                   label="Hari Libur"
                   error={form.formState.errors.hari_libur?.message}
@@ -408,7 +451,7 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                           <SelectValue placeholder="Pilih hari libur" />
                         </SelectTrigger>
                         <SelectContent>
-                          {HARI_LIBUR_OPTIONS.map((h) => (
+                          {HARI_OPTIONS.map((h) => (
                             <SelectItem key={h.value} value={h.value}>
                               {h.label}
                             </SelectItem>
@@ -419,6 +462,36 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                   />
                 </Field>
               </div>
+              {jadwalHarianBerbeda && (
+                <div className="space-y-2 rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">
+                    Isi jam masuk/pulang per hari. Kosongkan hari yang tidak
+                    perlu dicek (mis. hari libur pegawai ini).
+                  </p>
+                  {HARI_OPTIONS.map((h, i) => (
+                    <div
+                      key={h.value}
+                      className="grid grid-cols-[5rem_1fr_1fr] items-center gap-2"
+                    >
+                      <span className="text-sm font-medium">{h.label}</span>
+                      <Input
+                        type="time"
+                        aria-label={`Jam masuk ${h.label}`}
+                        {...form.register(
+                          `jadwal_harian.${i}.jam_masuk` as `jadwal_harian.${number}.jam_masuk`,
+                        )}
+                      />
+                      <Input
+                        type="time"
+                        aria-label={`Jam pulang ${h.label}`}
+                        {...form.register(
+                          `jadwal_harian.${i}.jam_pulang` as `jadwal_harian.${number}.jam_pulang`,
+                        )}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
           {serverError && (
