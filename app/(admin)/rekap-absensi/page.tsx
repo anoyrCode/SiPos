@@ -12,17 +12,30 @@ import { Pagination } from "@/components/shared/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
   computeDayStatus,
+  computeDayStatusList,
   computeStatusMasuk,
   computeStatusPulang,
   computeMenitTelatMasuk,
   computeMenitLebihAwalPulang,
+  combineSesiStatuses,
+  formatSesiStatusLabel,
   isHariLiburPegawai,
   resolveJadwalHari,
   todayJakarta,
   STATUS_LABEL,
   formatJamWIB,
   type AbsensiStatus,
+  type SesiStatus,
   type PengajuanStatus,
   PENGAJUAN_STATUS_LABEL,
 } from "@/lib/absensi-status";
@@ -45,6 +58,7 @@ type Row = {
   jamMasukAktual: string | null;
   jamPulangAktual: string | null;
   status: AbsensiStatus;
+  sesiStatuses: SesiStatus[] | null;
   overrideLokasi: boolean;
   overrideAlasan: string | null;
 };
@@ -53,6 +67,7 @@ export type TelatMasukRow = {
   pegawaiId: string;
   nama: string;
   tanggal: string;
+  sesi: 1 | 2;
   menitTelat: number;
 };
 
@@ -60,12 +75,14 @@ export type TelatKeluarRow = {
   pegawaiId: string;
   nama: string;
   tanggal: string;
+  sesi: 1 | 2;
 };
 
 export type CurangRow = {
   pegawaiId: string;
   nama: string;
   tanggal: string;
+  sesi: 1 | 2;
   jamPulangJadwal: string | null;
   jamPulangAktual: string | null;
   menitLebihAwal: number;
@@ -93,6 +110,39 @@ const STATUS_VARIANT: Record<
 function formatJamJadwal(value: string | null): string | null {
   if (!value) return null;
   return value.slice(0, 5);
+}
+
+/** Badge status utk 1 pegawai shift-ganda — sama pola StatusBadges di halaman Absensi self-service. */
+function SesiStatusCell({ statuses }: { statuses: SesiStatus[] }) {
+  if (statuses.length <= 1) {
+    const s = statuses[0] ?? { sesi: 1 as const, status: "normal" as const };
+    return <Badge variant={STATUS_VARIANT[s.status]}>{formatSesiStatusLabel(s)}</Badge>;
+  }
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-auto gap-1 rounded-full px-2 py-0.5 text-xs"
+        >
+          {statuses.length} Status
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto space-y-1.5 p-2">
+        {statuses.map((s, i) => (
+          <Badge
+            key={`${s.sesi}-${s.status}-${i}`}
+            variant={STATUS_VARIANT[s.status]}
+            className="block w-fit"
+          >
+            {formatSesiStatusLabel(s)}
+          </Badge>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 const MAX_RENTANG_HARI = 62;
@@ -185,7 +235,7 @@ export default async function Page({
   let pegawaiQuery = supabase
     .from("pegawai")
     .select(
-      "id, nama, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_harian_berbeda",
+      "id, nama, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_harian_berbeda, shift_ganda, jam_masuk_jadwal_2, jam_pulang_jadwal_2",
     )
     .order("nama");
   if (q) {
@@ -198,14 +248,14 @@ export default async function Page({
       ? supabase
           .from("absensi")
           .select(
-            "pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen, override_lokasi, override_alasan",
+            "pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual, jam_masuk_aktual_2, jam_pulang_aktual_2, kategori_absen, override_lokasi, override_alasan",
           )
           .gte("tanggal", rangeDates[0])
           .lte("tanggal", rangeDates[rangeDates.length - 1])
       : supabase
           .from("absensi")
           .select(
-            "pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual, kategori_absen, override_lokasi, override_alasan",
+            "pegawai_id, tanggal, jam_masuk_aktual, jam_pulang_aktual, jam_masuk_aktual_2, jam_pulang_aktual_2, kategori_absen, override_lokasi, override_alasan",
           )
           .eq("tanggal", tanggal);
 
@@ -258,19 +308,59 @@ export default async function Page({
         ? (jadwalHarianMap.get(p.id) ?? null)
         : null,
     };
-    return {
-      pegawaiId: p.id,
-      nama: p.nama,
-      jamMasukAktual: record?.jam_masuk_aktual ?? null,
-      jamPulangAktual: record?.jam_pulang_aktual ?? null,
-      status: computeDayStatus(
+
+    let status: AbsensiStatus;
+    let sesiStatuses: SesiStatus[] | null = null;
+    if (p.shift_ganda) {
+      const jadwalSesi2 = {
+        jam_masuk_jadwal: p.jam_masuk_jadwal_2,
+        jam_pulang_jadwal: p.jam_pulang_jadwal_2,
+        hari_libur: p.hari_libur,
+        jadwal_harian: null,
+      };
+      const record2 = record
+        ? {
+            jam_masuk_aktual: record.jam_masuk_aktual_2,
+            jam_pulang_aktual: record.jam_pulang_aktual_2,
+            kategori_absen: record.kategori_absen,
+          }
+        : null;
+      const statusesSesi1 = computeDayStatusList(
         tanggal,
         record,
         jadwal,
         toleransiMenit,
         liburKhususSet,
         tanggalMulai,
-      ),
+      );
+      const statusesSesi2 = computeDayStatusList(
+        tanggal,
+        record2,
+        jadwalSesi2,
+        toleransiMenit,
+        liburKhususSet,
+        tanggalMulai,
+      );
+      sesiStatuses = combineSesiStatuses(statusesSesi1, statusesSesi2);
+      status = sesiStatuses[0]?.status ?? "normal";
+    } else {
+      status = computeDayStatus(
+        tanggal,
+        record,
+        jadwal,
+        toleransiMenit,
+        liburKhususSet,
+        tanggalMulai,
+      );
+    }
+
+    return {
+      pegawaiId: p.id,
+      nama: p.nama,
+      jamMasukAktual: record?.jam_masuk_aktual ?? null,
+      jamPulangAktual: record?.jam_pulang_aktual ?? null,
+      status,
+      sesiStatuses,
       overrideLokasi: record?.override_lokasi ?? false,
       overrideAlasan: record?.override_alasan ?? null,
     };
@@ -298,38 +388,71 @@ export default async function Page({
           ? (jadwalHarianMap.get(p.id) ?? null)
           : null,
       };
+      // Pegawai shift-ganda dicek 2x per tanggal (Sesi 1 & Sesi 2, jadwal
+      // masing-masing independen) — baris keterlambatan/curang bisa muncul
+      // 2x pada tanggal yang sama kalau dua-duanya bermasalah.
+      const sesiList: { sesi: 1 | 2; jadwal: typeof jadwal }[] = p.shift_ganda
+        ? [
+            { sesi: 1, jadwal },
+            {
+              sesi: 2,
+              jadwal: {
+                jam_masuk_jadwal: p.jam_masuk_jadwal_2,
+                jam_pulang_jadwal: p.jam_pulang_jadwal_2,
+                hari_libur: p.hari_libur,
+                jadwal_harian: null,
+              },
+            },
+          ]
+        : [{ sesi: 1, jadwal }];
+
       for (const tgl of rangeDates) {
         if (tanggalMulai && tgl < tanggalMulai) continue;
         if (isHariLiburPegawai(tgl, jadwal, liburKhususSet)) continue;
-        const record = absensiMap.get(`${p.id}_${tgl}`) ?? null;
+        const rawRecord = absensiMap.get(`${p.id}_${tgl}`) ?? null;
+
         // Dicek independen (bukan computeDayStatus) — 1 hari bisa masuk ke
         // kedua tabel sekaligus, mis. telat clock-in DAN curang/telat clock-out
         // di hari yang sama. computeDayStatus cuma cocok utk 1 badge ringkasan
         // (dipakai tabel "Per Tanggal"), bukan utk daftar independen begini.
         // Hari libur pegawai dikecualikan total dari laporan bulanan (di atas).
-        if (computeStatusMasuk(tgl, record, jadwal, toleransiMenit) === "telat") {
-          telatMasukRows.push({
-            pegawaiId: p.id,
-            nama: p.nama,
-            tanggal: tgl,
-            menitTelat: computeMenitTelatMasuk(tgl, record, jadwal, toleransiMenit),
-          });
-        }
-        const statusPulang = computeStatusPulang(tgl, record, jadwal);
-        if (statusPulang === "telat_clock_out") {
-          telatKeluarRows.push({ pegawaiId: p.id, nama: p.nama, tanggal: tgl });
-        }
-        if (statusPulang === "curang") {
-          curangRows.push({
-            pegawaiId: p.id,
-            nama: p.nama,
-            tanggal: tgl,
-            jamPulangJadwal: formatJamJadwal(
-              resolveJadwalHari(tgl, jadwal).jam_pulang_jadwal,
-            ),
-            jamPulangAktual: record?.jam_pulang_aktual ?? null,
-            menitLebihAwal: computeMenitLebihAwalPulang(tgl, record, jadwal),
-          });
+        for (const { sesi, jadwal: jadwalSesi } of sesiList) {
+          const record = {
+            jam_masuk_aktual:
+              sesi === 1
+                ? (rawRecord?.jam_masuk_aktual ?? null)
+                : (rawRecord?.jam_masuk_aktual_2 ?? null),
+            jam_pulang_aktual:
+              sesi === 1
+                ? (rawRecord?.jam_pulang_aktual ?? null)
+                : (rawRecord?.jam_pulang_aktual_2 ?? null),
+          };
+          if (computeStatusMasuk(tgl, record, jadwalSesi, toleransiMenit) === "telat") {
+            telatMasukRows.push({
+              pegawaiId: p.id,
+              nama: p.nama,
+              tanggal: tgl,
+              sesi,
+              menitTelat: computeMenitTelatMasuk(tgl, record, jadwalSesi, toleransiMenit),
+            });
+          }
+          const statusPulang = computeStatusPulang(tgl, record, jadwalSesi);
+          if (statusPulang === "telat_clock_out") {
+            telatKeluarRows.push({ pegawaiId: p.id, nama: p.nama, tanggal: tgl, sesi });
+          }
+          if (statusPulang === "curang") {
+            curangRows.push({
+              pegawaiId: p.id,
+              nama: p.nama,
+              tanggal: tgl,
+              sesi,
+              jamPulangJadwal: formatJamJadwal(
+                resolveJadwalHari(tgl, jadwalSesi).jam_pulang_jadwal,
+              ),
+              jamPulangAktual: record.jam_pulang_aktual,
+              menitLebihAwal: computeMenitLebihAwalPulang(tgl, record, jadwalSesi),
+            });
+          }
         }
       }
     }
@@ -461,18 +584,38 @@ export default async function Page({
     {
       key: "status",
       header: "Status",
-      cell: (r) => (
-        <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
-      ),
+      cell: (r) =>
+        r.sesiStatuses ? (
+          <SesiStatusCell statuses={r.sesiStatuses} />
+        ) : (
+          <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+        ),
     },
     {
       key: "lokasi",
       header: "Lokasi",
       cell: (r) =>
         r.overrideLokasi ? (
-          <Badge variant="warning" title={r.overrideAlasan ?? undefined}>
-            Manual — di luar radius
-          </Badge>
+          r.overrideAlasan ? (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Badge variant="warning" className="cursor-pointer">
+                  Manual — di luar radius
+                </Badge>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Alasan Lokasi Manual</DialogTitle>
+                  <DialogDescription>
+                    {r.nama} — {formatDateID(tanggal)}
+                  </DialogDescription>
+                </DialogHeader>
+                <p className="text-sm">{r.overrideAlasan}</p>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <Badge variant="warning">Manual — di luar radius</Badge>
+          )
         ) : null,
     },
   ];
@@ -482,6 +625,11 @@ export default async function Page({
       key: "nama",
       header: "Pegawai",
       cell: (r) => <span className="font-medium">{r.nama}</span>,
+    },
+    {
+      key: "sesi",
+      header: "Sesi",
+      cell: (r) => <span className="font-mono text-xs">{r.sesi}</span>,
     },
     {
       key: "tanggal",
@@ -504,6 +652,11 @@ export default async function Page({
       cell: (r) => <span className="font-medium">{r.nama}</span>,
     },
     {
+      key: "sesi",
+      header: "Sesi",
+      cell: (r) => <span className="font-mono text-xs">{r.sesi}</span>,
+    },
+    {
       key: "tanggal",
       header: "Tanggal",
       cell: (r) => formatDateID(r.tanggal),
@@ -515,6 +668,11 @@ export default async function Page({
       key: "nama",
       header: "Pegawai",
       cell: (r) => <span className="font-medium">{r.nama}</span>,
+    },
+    {
+      key: "sesi",
+      header: "Sesi",
+      cell: (r) => <span className="font-mono text-xs">{r.sesi}</span>,
     },
     {
       key: "tanggal",
