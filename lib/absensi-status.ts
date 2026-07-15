@@ -24,6 +24,16 @@ export type JadwalPegawai = {
   jam_masuk_jadwal: string | null;
   jam_pulang_jadwal: string | null;
   hari_libur: number | null;
+  /**
+   * Override jadwal per hari (0=Minggu..6=Sabtu) — dipakai kalau pegawai
+   * pakai jadwal beda per hari (bukan jadwal tetap tunggal). Hari yang
+   * tidak ada entrynya (atau entry dgn jam_masuk & jam_pulang null)
+   * fallback ke jam_masuk_jadwal/jam_pulang_jadwal biasa.
+   */
+  jadwal_harian?: Record<
+    number,
+    { jam_masuk: string | null; jam_pulang: string | null }
+  > | null;
 };
 
 /** Tanggal hari ini di zona waktu Jakarta (WIB), format YYYY-MM-DD. */
@@ -47,6 +57,32 @@ function jakartaInstant(tanggal: string, time: string): Date {
   return new Date(`${tanggal}T${time}+07:00`);
 }
 
+/**
+ * Jam masuk/pulang efektif utk 1 tanggal tertentu — pakai override
+ * `jadwal.jadwal_harian` (kalau pegawai pakai jadwal beda per hari & ada
+ * entry utk hari itu), kalau tidak fallback ke jam_masuk_jadwal/
+ * jam_pulang_jadwal biasa. Dipanggil internal oleh computeStatusMasuk/
+ * Pulang/computeMenitTelatMasuk/computeMenitLebihAwalPulang di bawah —
+ * juga aman dipanggil langsung oleh caller (mis. utk tampilan
+ * "Jadwal: HH:mm–HH:mm" yg harus reflect jadwal hari itu spesifik).
+ */
+export function resolveJadwalHari(
+  tanggal: string,
+  jadwal: JadwalPegawai,
+): { jam_masuk_jadwal: string | null; jam_pulang_jadwal: string | null } {
+  const entry = jadwal.jadwal_harian?.[dayOfWeek(tanggal)];
+  if (entry) {
+    return {
+      jam_masuk_jadwal: entry.jam_masuk,
+      jam_pulang_jadwal: entry.jam_pulang,
+    };
+  }
+  return {
+    jam_masuk_jadwal: jadwal.jam_masuk_jadwal,
+    jam_pulang_jadwal: jadwal.jam_pulang_jadwal,
+  };
+}
+
 export function computeStatusMasuk(
   tanggal: string,
   record: AbsensiRecord | null,
@@ -54,8 +90,9 @@ export function computeStatusMasuk(
   toleransiMenit = 0,
 ): "normal" | "telat" | "belum_absen" {
   if (!record?.jam_masuk_aktual) return "belum_absen";
-  if (!jadwal.jam_masuk_jadwal) return "normal";
-  const jadwalMasuk = jakartaInstant(tanggal, jadwal.jam_masuk_jadwal);
+  const { jam_masuk_jadwal } = resolveJadwalHari(tanggal, jadwal);
+  if (!jam_masuk_jadwal) return "normal";
+  const jadwalMasuk = jakartaInstant(tanggal, jam_masuk_jadwal);
   const batasToleransi = new Date(jadwalMasuk.getTime() + toleransiMenit * 60000);
   return new Date(record.jam_masuk_aktual) > batasToleransi ? "telat" : "normal";
 }
@@ -71,8 +108,9 @@ export function computeMenitTelatMasuk(
   jadwal: JadwalPegawai,
   toleransiMenit = 0,
 ): number {
-  if (!record?.jam_masuk_aktual || !jadwal.jam_masuk_jadwal) return 0;
-  const jadwalMasuk = jakartaInstant(tanggal, jadwal.jam_masuk_jadwal);
+  const { jam_masuk_jadwal } = resolveJadwalHari(tanggal, jadwal);
+  if (!record?.jam_masuk_aktual || !jam_masuk_jadwal) return 0;
+  const jadwalMasuk = jakartaInstant(tanggal, jam_masuk_jadwal);
   const aktual = new Date(record.jam_masuk_aktual);
   const diffMs = aktual.getTime() - jadwalMasuk.getTime() - toleransiMenit * 60000;
   if (diffMs <= 0) return 0;
@@ -85,8 +123,9 @@ export function computeStatusPulang(
   jadwal: JadwalPegawai,
 ): "normal" | "curang" | "telat_clock_out" | "belum_absen" {
   if (!record?.jam_pulang_aktual) return "belum_absen";
-  if (!jadwal.jam_pulang_jadwal) return "normal";
-  const jadwalPulang = jakartaInstant(tanggal, jadwal.jam_pulang_jadwal);
+  const { jam_pulang_jadwal } = resolveJadwalHari(tanggal, jadwal);
+  if (!jam_pulang_jadwal) return "normal";
+  const jadwalPulang = jakartaInstant(tanggal, jam_pulang_jadwal);
   const aktual = new Date(record.jam_pulang_aktual);
   if (aktual < jadwalPulang) return "curang";
   const batasTelat = new Date(jadwalPulang.getTime() + 8 * 60 * 60 * 1000);
@@ -103,8 +142,9 @@ export function computeMenitLebihAwalPulang(
   record: AbsensiRecord | null,
   jadwal: JadwalPegawai,
 ): number {
-  if (!record?.jam_pulang_aktual || !jadwal.jam_pulang_jadwal) return 0;
-  const jadwalPulang = jakartaInstant(tanggal, jadwal.jam_pulang_jadwal);
+  const { jam_pulang_jadwal } = resolveJadwalHari(tanggal, jadwal);
+  if (!record?.jam_pulang_aktual || !jam_pulang_jadwal) return 0;
+  const jadwalPulang = jakartaInstant(tanggal, jam_pulang_jadwal);
   const aktual = new Date(record.jam_pulang_aktual);
   const diffMs = jadwalPulang.getTime() - aktual.getTime();
   if (diffMs <= 0) return 0;
