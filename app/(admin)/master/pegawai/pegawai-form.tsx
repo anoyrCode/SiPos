@@ -93,6 +93,7 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
     shift_ganda: initial?.shift_ganda ?? false,
     jam_masuk_jadwal_2: initial?.jam_masuk_jadwal_2 ?? "",
     jam_pulang_jadwal_2: initial?.jam_pulang_jadwal_2 ?? "",
+    tanggal_mulai_absensi: initial?.tanggal_mulai_absensi ?? "",
     jadwal_harian: (
       initial?.jadwal_harian ??
       Array.from({ length: 7 }, () => ({ jam_masuk: null, jam_pulang: null }))
@@ -522,6 +523,18 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                         </SelectContent>
                       </Select>
                     )}
+                  />
+                </Field>
+                <Field
+                  label="Tanggal Mulai Absensi"
+                  htmlFor="tanggal_mulai_absensi"
+                  hint="Kosongkan untuk ikut tanggal mulai sistem (Rekap Absensi → Atur Lokasi & Radius). Isi kalau pegawai ini mulai pakai absensi belakangan."
+                  error={form.formState.errors.tanggal_mulai_absensi?.message}
+                >
+                  <Input
+                    id="tanggal_mulai_absensi"
+                    type="date"
+                    {...form.register("tanggal_mulai_absensi")}
                   />
                 </Field>
               </div>
