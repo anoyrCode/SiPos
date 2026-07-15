@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import {
   computeDayStatusList,
   combineSesiStatuses,
+  effectiveTanggalMulai,
   resolveJadwalHari,
   type JadwalPegawai,
   type SesiStatus,
@@ -51,7 +52,7 @@ export default async function Page() {
     supabase
       .from("pegawai")
       .select(
-        "jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_fleksibel, jadwal_harian_berbeda, shift_ganda, jam_masuk_jadwal_2, jam_pulang_jadwal_2",
+        "jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_fleksibel, jadwal_harian_berbeda, shift_ganda, jam_masuk_jadwal_2, jam_pulang_jadwal_2, tanggal_mulai_absensi",
       )
       .eq("id", pegawaiId)
       .maybeSingle(),
@@ -88,7 +89,10 @@ export default async function Page() {
     .select("lokasi_lat, lokasi_long, radius_meter, toleransi_menit, tanggal_mulai")
     .limit(1)
     .maybeSingle();
-  const tanggalMulai = setting?.tanggal_mulai ?? null;
+  const tanggalMulai = effectiveTanggalMulai(
+    setting?.tanggal_mulai ?? null,
+    pegawai?.tanggal_mulai_absensi ?? null,
+  );
 
   const dates = datesThisMonthJakarta(tanggalMulai);
   const from = dates[dates.length - 1];
