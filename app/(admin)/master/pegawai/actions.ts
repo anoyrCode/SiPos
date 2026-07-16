@@ -135,3 +135,80 @@ export async function deletePegawai(id: string): Promise<FormResult> {
   revalidatePath(PATH);
   return { ok: true };
 }
+
+const MAX_RENTANG_JADWAL_SEMENTARA_HARI = 180;
+
+/** Tambah 1 entri jadwal sementara — tumpang tindih dgn entri lain milik pegawai yang sama ditolak. */
+export async function tambahJadwalSementara(
+  pegawaiId: string,
+  tanggalMulai: string,
+  tanggalSelesai: string,
+  jamMasuk: string,
+  jamPulang: string,
+  keterangan: string,
+): Promise<FormResult> {
+  if (!(await canPegawai())) return { ok: false, error: "Tidak diizinkan." };
+  if (!tanggalMulai || !tanggalSelesai || !jamMasuk || !jamPulang) {
+    return { ok: false, error: "Tanggal mulai, tanggal selesai, jam masuk, dan jam pulang wajib diisi." };
+  }
+  if (tanggalSelesai < tanggalMulai) {
+    return { ok: false, error: "Tanggal selesai tidak boleh sebelum tanggal mulai." };
+  }
+  const jumlahHari =
+    Math.round(
+      (new Date(`${tanggalSelesai}T00:00:00Z`).getTime() -
+        new Date(`${tanggalMulai}T00:00:00Z`).getTime()) /
+        86400000,
+    ) + 1;
+  if (jumlahHari > MAX_RENTANG_JADWAL_SEMENTARA_HARI) {
+    return {
+      ok: false,
+      error: `Rentang tanggal maksimal ${MAX_RENTANG_JADWAL_SEMENTARA_HARI} hari.`,
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from("pegawai_jadwal_sementara")
+    .select("tanggal_mulai, tanggal_selesai")
+    .eq("pegawai_id", pegawaiId);
+  const tumpangTindih = (existing ?? []).some(
+    (e) => tanggalMulai <= e.tanggal_selesai && tanggalSelesai >= e.tanggal_mulai,
+  );
+  if (tumpangTindih) {
+    return {
+      ok: false,
+      error: "Rentang tanggal ini tumpang tindih dengan jadwal sementara lain milik pegawai ini.",
+    };
+  }
+
+  const { error } = await supabase.from("pegawai_jadwal_sementara").insert({
+    pegawai_id: pegawaiId,
+    tanggal_mulai: tanggalMulai,
+    tanggal_selesai: tanggalSelesai,
+    jam_masuk: jamMasuk,
+    jam_pulang: jamPulang,
+    keterangan: keterangan.trim() || null,
+  });
+  if (error) return { ok: false, error: dbErrorMessage(error) };
+
+  revalidatePath(PATH);
+  revalidatePath("/absensi");
+  revalidatePath("/rekap-absensi");
+  return { ok: true };
+}
+
+export async function hapusJadwalSementara(id: string): Promise<FormResult> {
+  if (!(await canPegawai())) return { ok: false, error: "Tidak diizinkan." };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("pegawai_jadwal_sementara")
+    .delete()
+    .eq("id", id);
+  if (error) return { ok: false, error: dbErrorMessage(error) };
+
+  revalidatePath(PATH);
+  revalidatePath("/absensi");
+  revalidatePath("/rekap-absensi");
+  return { ok: true };
+}
