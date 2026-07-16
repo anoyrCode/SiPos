@@ -16,6 +16,14 @@ export type JadwalSementaraRow = {
   keterangan: string | null;
 };
 
+/** 1 baris master jabatan — dikelola inline dari halaman Pegawai (dialog "Kelola Jabatan"), bukan preset hardcoded. */
+export type JabatanRow = {
+  id: string;
+  nama: string;
+  is_aktif: boolean;
+  is_guru: boolean;
+};
+
 /** Susun baris `pegawai_jadwal_harian` (sparse, cuma hari yg keisi) jadi array 7 elemen. */
 export function buildJadwalHarianSlots(
   rows: { hari: number; jam_masuk: string | null; jam_pulang: string | null }[],
