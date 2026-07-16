@@ -446,6 +446,7 @@ export default async function Page({
         if (tanggalMulaiEfektif && tgl < tanggalMulaiEfektif) continue;
         if (isHariLiburPegawai(tgl, jadwal, liburKhususSet)) continue;
         const rawRecord = absensiMap.get(`${p.id}_${tgl}`) ?? null;
+        const isPast = tgl < todayJakarta();
 
         // Dicek independen (bukan computeDayStatus) — 1 hari bisa masuk ke
         // kedua tabel sekaligus, mis. telat clock-in DAN curang/telat clock-out
@@ -473,7 +474,13 @@ export default async function Page({
             });
           }
           const statusPulang = computeStatusPulang(tgl, record, jadwalSesi);
-          if (statusPulang === "telat_clock_out") {
+          // "Belum Clock Out" (clock-in ada, clock-out kosong di hari yg
+          // sudah lewat) dihitung sama seperti Terlambat Clock Out di
+          // laporan ini, supaya tetap ikut kena hitungan HRD alih-alih
+          // luput karena computeStatusPulang balikin "belum_absen".
+          const belumClockOut =
+            isPast && !!record.jam_masuk_aktual && !record.jam_pulang_aktual;
+          if (statusPulang === "telat_clock_out" || belumClockOut) {
             telatKeluarRows.push({ pegawaiId: p.id, nama: p.nama, tanggal: tgl, sesi });
           }
           if (statusPulang === "curang") {
