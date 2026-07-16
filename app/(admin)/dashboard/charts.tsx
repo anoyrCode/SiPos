@@ -63,6 +63,11 @@ export function CountUp({
 
 type Item = { label: string; count: number };
 
+/** Potong label panjang di sumbu Y biar gak wrap jadi banyak baris — teks penuh tetap muncul di tooltip saat hover. */
+function truncateLabel(label: string, max = 28): string {
+  return label.length > max ? `${label.slice(0, max - 1).trimEnd()}…` : label;
+}
+
 export function StatistikPoinChart({
   positif,
   negatif,
@@ -71,7 +76,16 @@ export function StatistikPoinChart({
   negatif: Item[];
 }) {
   const [tipe, setTipe] = useState<"POSITIF" | "NEGATIF">("NEGATIF");
-  const data = tipe === "POSITIF" ? positif : negatif;
+  const raw = tipe === "POSITIF" ? positif : negatif;
+  // Label dipotong di DATA-nya sendiri (bukan cuma tickFormatter) — Recharts
+  // memutuskan wrap sumbu kategori dari nilai mentahnya, jadi tickFormatter
+  // gak cukup buat mencegah label panjang wrap jadi banyak baris. Teks
+  // lengkap tetap disimpan di fullLabel utk ditampilkan di tooltip.
+  const data = raw.map((d) => ({
+    ...d,
+    label: truncateLabel(d.label),
+    fullLabel: d.label,
+  }));
   const color = tipe === "POSITIF" ? "var(--chart-pos)" : "var(--chart-neg)";
 
   return (
@@ -119,6 +133,7 @@ export function StatistikPoinChart({
                 <Tooltip
                   cursor={{ fill: "var(--muted)" }}
                   contentStyle={tooltipStyle}
+                  labelFormatter={(_, payload) => payload?.[0]?.payload?.fullLabel ?? ""}
                 />
                 <Bar
                   dataKey="count"
