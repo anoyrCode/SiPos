@@ -274,6 +274,7 @@ export function AbsensiClient({
   const [overrideChecked, setOverrideChecked] = useState(false);
   const [overrideAlasan, setOverrideAlasan] = useState("");
   const [overrideError, setOverrideError] = useState<string | null>(null);
+  const [showDalilStep, setShowDalilStep] = useState(false);
 
   const lokasiTersedia = lokasiLat !== null && lokasiLong !== null;
 
@@ -366,6 +367,7 @@ export function AbsensiClient({
       setOverrideChecked(false);
       setOverrideAlasan("");
       setOverrideError(null);
+      setShowDalilStep(false);
       router.refresh();
     } catch {
       toast.error("Gagal mengambil lokasi. Pastikan izin lokasi diaktifkan.");
@@ -650,13 +652,14 @@ export function AbsensiClient({
       </Dialog>
 
       <Dialog
-        open={overridePrompt !== null}
+        open={overridePrompt !== null && !showDalilStep}
         onOpenChange={(o) => {
           if (!o) {
             setOverridePrompt(null);
             setOverrideChecked(false);
             setOverrideAlasan("");
             setOverrideError(null);
+            setShowDalilStep(false);
           }
         }}
       >
@@ -712,9 +715,7 @@ export function AbsensiClient({
                   return;
                 }
                 setOverrideError(null);
-                if (overridePrompt) {
-                  handleClock(overridePrompt.sesi, overridePrompt.action, true, overrideAlasan);
-                }
+                setShowDalilStep(true);
               }}
               disabled={loading}
             >
@@ -723,6 +724,50 @@ export function AbsensiClient({
                 : overridePrompt?.action === "in"
                   ? "Tetap Clock In"
                   : "Tetap Clock Out"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={overridePrompt !== null && showDalilStep}
+        onOpenChange={(o) => !o && setShowDalilStep(false)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sebelum Melanjutkan</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-center">
+            <p dir="rtl" lang="ar" className="text-2xl leading-relaxed">
+              مَنْ غَشَّنَا فَلَيْسَ مِنَّا
+            </p>
+            <p className="text-sm text-muted-foreground">
+              &ldquo;Barang siapa menipu kami, maka ia bukan golongan kami.&rdquo;
+            </p>
+            <p className="text-xs text-muted-foreground">(HR. Muslim)</p>
+            <p className="text-sm">
+              Pastikan alasan yang Anda tulis benar dan sesuai kenyataan.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowDalilStep(false)}
+              disabled={loading}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (overridePrompt) {
+                  handleClock(overridePrompt.sesi, overridePrompt.action, true, overrideAlasan);
+                }
+              }}
+              disabled={loading}
+            >
+              {loading ? "Memproses…" : "Ya, Saya Yakin & Tidak Berbohong"}
             </Button>
           </DialogFooter>
         </DialogContent>
