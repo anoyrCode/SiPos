@@ -266,6 +266,7 @@ export default async function Page({
     { data: setting },
     { data: liburKhususRows },
     { data: jadwalHarianRows },
+    { data: jadwalSementaraRows },
   ] = await Promise.all([
     pegawaiQuery,
     absensiQuery,
@@ -278,6 +279,9 @@ export default async function Page({
     supabase
       .from("pegawai_jadwal_harian")
       .select("pegawai_id, hari, jam_masuk, jam_pulang"),
+    supabase
+      .from("pegawai_jadwal_sementara")
+      .select("pegawai_id, tanggal_mulai, tanggal_selesai, jam_masuk, jam_pulang"),
   ]);
 
   const jadwalHarianMap = new Map<
@@ -288,6 +292,21 @@ export default async function Page({
     const entry = jadwalHarianMap.get(r.pegawai_id) ?? {};
     entry[r.hari] = { jam_masuk: r.jam_masuk, jam_pulang: r.jam_pulang };
     jadwalHarianMap.set(r.pegawai_id, entry);
+  }
+
+  const jadwalSementaraMap = new Map<
+    string,
+    { tanggal_mulai: string; tanggal_selesai: string; jam_masuk: string; jam_pulang: string }[]
+  >();
+  for (const r of jadwalSementaraRows ?? []) {
+    const list = jadwalSementaraMap.get(r.pegawai_id) ?? [];
+    list.push({
+      tanggal_mulai: r.tanggal_mulai,
+      tanggal_selesai: r.tanggal_selesai,
+      jam_masuk: r.jam_masuk,
+      jam_pulang: r.jam_pulang,
+    });
+    jadwalSementaraMap.set(r.pegawai_id, list);
   }
 
   const toleransiMenit = setting?.toleransi_menit ?? 0;
@@ -308,6 +327,7 @@ export default async function Page({
       jadwal_harian: p.jadwal_harian_berbeda
         ? (jadwalHarianMap.get(p.id) ?? null)
         : null,
+      jadwal_sementara: jadwalSementaraMap.get(p.id) ?? [],
     };
     const tanggalMulaiEfektif = effectiveTanggalMulai(
       tanggalMulai,
@@ -322,6 +342,7 @@ export default async function Page({
         jam_pulang_jadwal: p.jam_pulang_jadwal_2,
         hari_libur: p.hari_libur,
         jadwal_harian: null,
+        jadwal_sementara: jadwalSementaraMap.get(p.id) ?? [],
       };
       const record2 = record
         ? {
@@ -392,6 +413,7 @@ export default async function Page({
         jadwal_harian: p.jadwal_harian_berbeda
           ? (jadwalHarianMap.get(p.id) ?? null)
           : null,
+        jadwal_sementara: jadwalSementaraMap.get(p.id) ?? [],
       };
       const tanggalMulaiEfektif = effectiveTanggalMulai(
         tanggalMulai,
@@ -410,6 +432,7 @@ export default async function Page({
                 jam_pulang_jadwal: p.jam_pulang_jadwal_2,
                 hari_libur: p.hari_libur,
                 jadwal_harian: null,
+                jadwal_sementara: jadwalSementaraMap.get(p.id) ?? [],
               },
             },
           ]
