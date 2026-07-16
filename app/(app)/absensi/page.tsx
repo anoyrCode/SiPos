@@ -48,19 +48,24 @@ export default async function Page() {
   const supabase = await createClient();
   const pegawaiId = profile.pegawai_id ?? "";
 
-  const [{ data: pegawai }, { data: jadwalHarianRows }] = await Promise.all([
-    supabase
-      .from("pegawai")
-      .select(
-        "jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_fleksibel, jadwal_harian_berbeda, shift_ganda, jam_masuk_jadwal_2, jam_pulang_jadwal_2, tanggal_mulai_absensi",
-      )
-      .eq("id", pegawaiId)
-      .maybeSingle(),
-    supabase
-      .from("pegawai_jadwal_harian")
-      .select("hari, jam_masuk, jam_pulang")
-      .eq("pegawai_id", pegawaiId),
-  ]);
+  const [{ data: pegawai }, { data: jadwalHarianRows }, { data: jadwalSementaraRows }] =
+    await Promise.all([
+      supabase
+        .from("pegawai")
+        .select(
+          "jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_fleksibel, jadwal_harian_berbeda, shift_ganda, jam_masuk_jadwal_2, jam_pulang_jadwal_2, tanggal_mulai_absensi",
+        )
+        .eq("id", pegawaiId)
+        .maybeSingle(),
+      supabase
+        .from("pegawai_jadwal_harian")
+        .select("hari, jam_masuk, jam_pulang")
+        .eq("pegawai_id", pegawaiId),
+      supabase
+        .from("pegawai_jadwal_sementara")
+        .select("tanggal_mulai, tanggal_selesai, jam_masuk, jam_pulang")
+        .eq("pegawai_id", pegawaiId),
+    ]);
 
   const jadwalHarian: Record<
     number,
@@ -70,11 +75,13 @@ export default async function Page() {
     jadwalHarian[r.hari] = { jam_masuk: r.jam_masuk, jam_pulang: r.jam_pulang };
   }
 
+  const jadwalSementara = jadwalSementaraRows ?? [];
   const jadwal: JadwalPegawai = {
     jam_masuk_jadwal: pegawai?.jam_masuk_jadwal ?? null,
     jam_pulang_jadwal: pegawai?.jam_pulang_jadwal ?? null,
     hari_libur: pegawai?.hari_libur ?? null,
     jadwal_harian: pegawai?.jadwal_harian_berbeda ? jadwalHarian : null,
+    jadwal_sementara: jadwalSementara,
   };
   const shiftGanda = !!pegawai?.shift_ganda;
   const jadwalSesi2: JadwalPegawai = {
@@ -82,6 +89,7 @@ export default async function Page() {
     jam_pulang_jadwal: pegawai?.jam_pulang_jadwal_2 ?? null,
     hari_libur: pegawai?.hari_libur ?? null,
     jadwal_harian: null,
+    jadwal_sementara: jadwalSementara,
   };
 
   const { data: setting } = await supabase
