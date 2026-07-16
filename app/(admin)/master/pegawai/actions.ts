@@ -81,6 +81,33 @@ async function saveJadwalHarian(
   return { ok: true };
 }
 
+/** Simpan 1 nama jabatan baru ke tabel master kalau belum ada (case-insensitive). Best-effort — kegagalan tidak membatalkan simpan data pegawai. */
+async function upsertJabatanBaru(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  nama: string,
+): Promise<void> {
+  const trimmed = nama.trim();
+  if (!trimmed) return;
+  const { data: existing } = await supabase
+    .from("jabatan")
+    .select("id")
+    .ilike("nama", trimmed)
+    .maybeSingle();
+  if (existing) return;
+  await supabase.from("jabatan").insert({ nama: trimmed });
+}
+
+/** Upsert jabatan utama + semua jabatan tambahan dari 1 input form Pegawai. */
+async function upsertJabatanDariInput(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: PegawaiInput,
+): Promise<void> {
+  const nama = [input.jabatan, ...(input.jabatan_tambahan ?? [])].filter(
+    (j): j is string => !!j && j.trim().length > 0,
+  );
+  await Promise.all(nama.map((n) => upsertJabatanBaru(supabase, n)));
+}
+
 export async function createPegawai(input: PegawaiInput): Promise<FormResult> {
   if (!(await canPegawai())) return { ok: false, error: "Tidak diizinkan." };
   const parsed = pegawaiSchema.safeParse(input);
@@ -95,6 +122,8 @@ export async function createPegawai(input: PegawaiInput): Promise<FormResult> {
     .select("id")
     .single();
   if (error) return { ok: false, error: dbErrorMessage(error) };
+
+  await upsertJabatanDariInput(supabase, parsed.data);
 
   const jadwalResult = await saveJadwalHarian(supabase, data.id, parsed.data);
   if (!jadwalResult.ok) return jadwalResult;
@@ -119,6 +148,8 @@ export async function updatePegawai(
     .update(payload(parsed.data))
     .eq("id", id);
   if (error) return { ok: false, error: dbErrorMessage(error) };
+
+  await upsertJabatanDariInput(supabase, parsed.data);
 
   const jadwalResult = await saveJadwalHarian(supabase, id, parsed.data);
   if (!jadwalResult.ok) return jadwalResult;
@@ -210,5 +241,38 @@ export async function hapusJadwalSementara(id: string): Promise<FormResult> {
   revalidatePath(PATH);
   revalidatePath("/absensi");
   revalidatePath("/rekap-absensi");
+  return { ok: true };
+}
+
+export async function toggleJabatanAktif(
+  id: string,
+  isAktif: boolean,
+): Promise<FormResult> {
+  if (!(await canPegawai())) return { ok: false, error: "Tidak diizinkan." };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("jabatan")
+    .update({ is_aktif: isAktif })
+    .eq("id", id);
+  if (error) return { ok: false, error: dbErrorMessage(error) };
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+export async function toggleJabatanGuru(
+  id: string,
+  isGuru: boolean,
+): Promise<FormResult> {
+  if (!(await canPegawai())) return { ok: false, error: "Tidak diizinkan." };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("jabatan")
+    .update({ is_guru: isGuru })
+    .eq("id", id);
+  if (error) return { ok: false, error: dbErrorMessage(error) };
+
+  revalidatePath(PATH);
+  revalidatePath("/dashboard");
   return { ok: true };
 }
