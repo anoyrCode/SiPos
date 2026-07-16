@@ -20,7 +20,7 @@ import { PegawaiForm } from "./pegawai-form";
 import { deletePegawai } from "./actions";
 import { JenisKelaminFilter } from "./jenis-kelamin-filter";
 import { JabatanFilter } from "./jabatan-filter";
-import { buildJadwalHarianSlots, type PegawaiRow } from "./schema";
+import { buildJadwalHarianSlots, type JadwalSementaraRow, type PegawaiRow } from "./schema";
 
 export default async function Page({
   searchParams,
@@ -52,14 +52,21 @@ export default async function Page({
     const term = jabatanFilter.replace(/[,()*{}]/g, " ").trim();
     if (term) query = query.or(`jabatan.eq.${term},jabatan_tambahan.cs.{${term}}`);
   }
-  const [{ data, count }, { data: jabatanRows }, { data: jadwalHarianRows }] =
-    await Promise.all([
-      query.range(from, to),
-      supabase.from("pegawai").select("jabatan, jabatan_tambahan"),
-      supabase
-        .from("pegawai_jadwal_harian")
-        .select("pegawai_id, hari, jam_masuk, jam_pulang"),
-    ]);
+  const [
+    { data, count },
+    { data: jabatanRows },
+    { data: jadwalHarianRows },
+    { data: jadwalSementaraRows },
+  ] = await Promise.all([
+    query.range(from, to),
+    supabase.from("pegawai").select("jabatan, jabatan_tambahan"),
+    supabase
+      .from("pegawai_jadwal_harian")
+      .select("pegawai_id, hari, jam_masuk, jam_pulang"),
+    supabase
+      .from("pegawai_jadwal_sementara")
+      .select("id, pegawai_id, tanggal_mulai, tanggal_selesai, jam_masuk, jam_pulang, keterangan"),
+  ]);
   type JadwalHarianRow = {
     pegawai_id: string;
     hari: number;
@@ -72,11 +79,25 @@ export default async function Page({
     list.push(r);
     jadwalHarianByPegawai.set(r.pegawai_id, list);
   }
+  const jadwalSementaraByPegawai = new Map<string, JadwalSementaraRow[]>();
+  for (const r of jadwalSementaraRows ?? []) {
+    const list = jadwalSementaraByPegawai.get(r.pegawai_id) ?? [];
+    list.push({
+      id: r.id,
+      tanggal_mulai: r.tanggal_mulai,
+      tanggal_selesai: r.tanggal_selesai,
+      jam_masuk: r.jam_masuk,
+      jam_pulang: r.jam_pulang,
+      keterangan: r.keterangan,
+    });
+    jadwalSementaraByPegawai.set(r.pegawai_id, list);
+  }
   const rows = (data ?? []).map((p) => ({
     ...p,
     jadwal_harian: buildJadwalHarianSlots(
       jadwalHarianByPegawai.get(p.id) ?? [],
     ),
+    jadwal_sementara: jadwalSementaraByPegawai.get(p.id) ?? [],
   })) as PegawaiRow[];
 
   const jabatanOptions = Array.from(

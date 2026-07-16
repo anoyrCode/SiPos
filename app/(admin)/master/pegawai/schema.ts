@@ -6,6 +6,16 @@ export type JadwalHarianSlot = {
   jam_pulang: string | null;
 };
 
+/** 1 entri jadwal sementara (rentang tanggal) — daftar/riwayat, tambah/hapus saja. */
+export type JadwalSementaraRow = {
+  id: string;
+  tanggal_mulai: string;
+  tanggal_selesai: string;
+  jam_masuk: string;
+  jam_pulang: string;
+  keterangan: string | null;
+};
+
 /** Susun baris `pegawai_jadwal_harian` (sparse, cuma hari yg keisi) jadi array 7 elemen. */
 export function buildJadwalHarianSlots(
   rows: { hari: number; jam_masuk: string | null; jam_pulang: string | null }[],
@@ -79,4 +89,5 @@ export type PegawaiRow = {
   jam_masuk_jadwal_2: string | null;
   jam_pulang_jadwal_2: string | null;
   tanggal_mulai_absensi: string | null;
+  jadwal_sementara: JadwalSementaraRow[];
 };
