@@ -31,6 +31,7 @@ import { Field } from "@/components/shared/field";
 import { cn } from "@/lib/utils";
 import { pegawaiSchema, type PegawaiInput, type PegawaiRow } from "./schema";
 import { createPegawai, updatePegawai } from "./actions";
+import { JadwalSementaraSection } from "./jadwal-sementara-section";
 
 export const JABATAN_OPTIONS = [
   "Musyrif",
@@ -567,6 +568,12 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                     </div>
                   ))}
                 </div>
+              )}
+              {initial && (
+                <JadwalSementaraSection
+                  pegawaiId={initial.id}
+                  initial={initial.jadwal_sementara}
+                />
               )}
             </section>
           </div>
