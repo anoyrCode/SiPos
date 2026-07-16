@@ -33,30 +33,6 @@ import { pegawaiSchema, type PegawaiInput, type PegawaiRow } from "./schema";
 import { createPegawai, updatePegawai } from "./actions";
 import { JadwalSementaraSection } from "./jadwal-sementara-section";
 
-export const JABATAN_OPTIONS = [
-  "Musyrif",
-  "Musyrifah",
-  "Kesantrian Akhwat",
-  "Kesantrian Ikhwan",
-  "Humas",
-  "Tim Media",
-  "IT Support (TU)",
-  "IT Development",
-  "Tim Keamanan",
-  "Guru Profesional",
-  "Tim Kurikulum",
-  "Administrasi",
-  "SDM",
-  "Tim Kesehatan",
-  "Tim Kepala Sekolah",
-  "Tim Maintenance Umum",
-  "Tim Maintenance AC",
-  "Tim Maintenance Kelistrikan",
-  "Bagian Dapur/Konsumsi",
-  "Bagian Kantin",
-  "Tim Percetakan",
-];
-
 const HARI_OPTIONS = [
   { value: "0", label: "Minggu" },
   { value: "1", label: "Senin" },
@@ -67,7 +43,13 @@ const HARI_OPTIONS = [
   { value: "6", label: "Sabtu" },
 ];
 
-export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
+export function PegawaiForm({
+  initial,
+  jabatanPreset,
+}: {
+  initial?: PegawaiRow;
+  jabatanPreset: string[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -199,7 +181,7 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                     control={form.control}
                     name="jabatan"
                     render={({ field }) => {
-                      const isPreset = JABATAN_OPTIONS.includes(field.value ?? "");
+                      const isPreset = jabatanPreset.includes(field.value ?? "");
                       const selectValue = field.value
                         ? isPreset
                           ? field.value
@@ -217,7 +199,7 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                               <SelectValue placeholder="Pilih jabatan" />
                             </SelectTrigger>
                             <SelectContent>
-                              {JABATAN_OPTIONS.map((opt) => (
+                              {jabatanPreset.map((opt) => (
                                 <SelectItem key={opt} value={opt}>
                                   {opt}
                                 </SelectItem>
@@ -257,7 +239,7 @@ export function PegawaiForm({ initial }: { initial?: PegawaiRow }) {
                       }
                       return (
                         <div className="flex flex-wrap gap-2">
-                          {JABATAN_OPTIONS.map((opt) => {
+                          {jabatanPreset.map((opt) => {
                             const on = selected.includes(opt);
                             return (
                               <button
