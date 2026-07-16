@@ -58,6 +58,8 @@ type Row = {
   nama: string;
   jamMasukAktual: string | null;
   jamPulangAktual: string | null;
+  jamMasukAktual2: string | null;
+  jamPulangAktual2: string | null;
   status: AbsensiStatus;
   sesiStatuses: SesiStatus[] | null;
   overrideLokasi: boolean;
@@ -385,6 +387,8 @@ export default async function Page({
       nama: p.nama,
       jamMasukAktual: record?.jam_masuk_aktual ?? null,
       jamPulangAktual: record?.jam_pulang_aktual ?? null,
+      jamMasukAktual2: record?.jam_masuk_aktual_2 ?? null,
+      jamPulangAktual2: record?.jam_pulang_aktual_2 ?? null,
       status,
       sesiStatuses,
       overrideLokasi: record?.override_lokasi ?? false,
@@ -606,12 +610,28 @@ export default async function Page({
     {
       key: "masuk",
       header: "Clock In",
-      cell: (r) => <span className="font-mono">{formatJamWIB(r.jamMasukAktual)}</span>,
+      cell: (r) =>
+        r.sesiStatuses ? (
+          <div className="font-mono text-xs leading-tight">
+            <p>S1: {formatJamWIB(r.jamMasukAktual)}</p>
+            <p>S2: {formatJamWIB(r.jamMasukAktual2)}</p>
+          </div>
+        ) : (
+          <span className="font-mono">{formatJamWIB(r.jamMasukAktual)}</span>
+        ),
     },
     {
       key: "pulang",
       header: "Clock Out",
-      cell: (r) => <span className="font-mono">{formatJamWIB(r.jamPulangAktual)}</span>,
+      cell: (r) =>
+        r.sesiStatuses ? (
+          <div className="font-mono text-xs leading-tight">
+            <p>S1: {formatJamWIB(r.jamPulangAktual)}</p>
+            <p>S2: {formatJamWIB(r.jamPulangAktual2)}</p>
+          </div>
+        ) : (
+          <span className="font-mono">{formatJamWIB(r.jamPulangAktual)}</span>
+        ),
     },
     {
       key: "status",
