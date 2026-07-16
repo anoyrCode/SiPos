@@ -112,7 +112,7 @@ export default async function Page() {
   // eslint-disable-next-line react-hooks/purity -- server component, dievaluasi per request
   const sinceISO = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  const [totalSantriRes, pegawaiRes, mpRes, recentRes] = await Promise.all([
+  const [totalSantriRes, pegawaiRes, mpRes, recentRes, jabatanGuruRes] = await Promise.all([
     supabase
       .from("santri")
       .select("id", { count: "exact", head: true })
@@ -129,14 +129,17 @@ export default async function Page() {
       .gte("created_at", sinceISO)
       .order("created_at", { ascending: false })
       .limit(50),
+    supabase.from("jabatan").select("nama").eq("is_guru", true),
   ]);
 
-  // Guru/musyrif: cek jabatan utama ATAU jabatan tambahan.
-  const GURU_PATTERN = /guru|musyrif/i;
+  // Guru/musyrif: jabatan (utama ATAU tambahan) cocok daftar is_guru=true dari master jabatan.
+  const guruNamaSet = new Set(
+    (jabatanGuruRes.data ?? []).map((j) => j.nama.toLowerCase()),
+  );
   function isGuruLike(p: { jabatan: string | null; jabatan_tambahan: string[] | null }) {
     return [p.jabatan, ...(p.jabatan_tambahan ?? [])]
       .filter((j): j is string => !!j)
-      .some((j) => GURU_PATTERN.test(j));
+      .some((j) => guruNamaSet.has(j.toLowerCase()));
   }
   const pegawaiAll = pegawaiRes.data ?? [];
   const guruLCount = pegawaiAll.filter(
