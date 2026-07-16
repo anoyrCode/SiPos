@@ -34,6 +34,19 @@ export type JadwalPegawai = {
     number,
     { jam_masuk: string | null; jam_pulang: string | null }
   > | null;
+  /**
+   * Jadwal pengganti sementara (rentang tanggal) — utk pegawai yang
+   * gantiin rekan lain yang berhalangan. Kalau tanggal yang dievaluasi
+   * masuk ke salah satu entry (tanggal_mulai <= tanggal <= tanggal_selesai),
+   * jam entry itu MENANG atas jadwal_harian maupun jam_masuk_jadwal/
+   * jam_pulang_jadwal biasa. Daftar bisa berisi banyak entri (riwayat).
+   */
+  jadwal_sementara?: {
+    tanggal_mulai: string;
+    tanggal_selesai: string;
+    jam_masuk: string;
+    jam_pulang: string;
+  }[] | null;
 };
 
 /** Tanggal hari ini di zona waktu Jakarta (WIB), format YYYY-MM-DD. */
@@ -116,6 +129,15 @@ export function resolveJadwalHari(
   tanggal: string,
   jadwal: JadwalPegawai,
 ): { jam_masuk_jadwal: string | null; jam_pulang_jadwal: string | null } {
+  const sementara = jadwal.jadwal_sementara?.find(
+    (s) => s.tanggal_mulai <= tanggal && tanggal <= s.tanggal_selesai,
+  );
+  if (sementara) {
+    return {
+      jam_masuk_jadwal: sementara.jam_masuk,
+      jam_pulang_jadwal: sementara.jam_pulang,
+    };
+  }
   const entry = jadwal.jadwal_harian?.[dayOfWeek(tanggal)];
   if (entry) {
     return {
