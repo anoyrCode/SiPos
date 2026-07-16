@@ -371,12 +371,17 @@ export function combineSesiStatuses(
     return [{ sesi: 1, status: s1 }];
   }
 
+  // "belum_absen" utk 1 sesi yang jamnya belum lewat hari ini (mis. Sesi 2
+  // sore/malam yang belum waktunya) BUKAN masalah, jangan disurfacekan —
+  // beda dari "alpa" (hari sudah lewat, sungguhan bolong) yang tetap harus
+  // tampil. Tanpa ini, Sesi 1 yang sudah Normal bisa "ketutup" status
+  // "Belum Absen" dari Sesi 2 yang cuma belum waktunya.
   const results: SesiStatus[] = [];
   for (const s of statusesSesi1) {
-    if (s !== "normal") results.push({ sesi: 1, status: s });
+    if (s !== "normal" && s !== "belum_absen") results.push({ sesi: 1, status: s });
   }
   for (const s of statusesSesi2) {
-    if (s !== "normal") results.push({ sesi: 2, status: s });
+    if (s !== "normal" && s !== "belum_absen") results.push({ sesi: 2, status: s });
   }
   return results.length > 0 ? results : [{ sesi: 1, status: "normal" }];
 }
