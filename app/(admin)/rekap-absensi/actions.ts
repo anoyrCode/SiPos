@@ -101,7 +101,32 @@ export async function tolakPengajuan(
     .eq("id", id);
   if (updateErr) return { ok: false, error: dbErrorMessage(updateErr) };
 
-  await supabase.from("absensi").delete().eq("pengajuan_id", id);
+  const { data: affectedRows } = await supabase
+    .from("absensi")
+    .select("id, jam_masuk_aktual, jam_pulang_aktual, jam_masuk_aktual_2, jam_pulang_aktual_2")
+    .eq("pengajuan_id", id);
+
+  const idsTanpaData: string[] = [];
+  const idsDenganData: string[] = [];
+  for (const r of affectedRows ?? []) {
+    const punyaData =
+      r.jam_masuk_aktual || r.jam_pulang_aktual || r.jam_masuk_aktual_2 || r.jam_pulang_aktual_2;
+    (punyaData ? idsDenganData : idsTanpaData).push(r.id);
+  }
+
+  if (idsTanpaData.length > 0) {
+    await supabase.from("absensi").delete().in("id", idsTanpaData);
+  }
+  if (idsDenganData.length > 0) {
+    // Baris yang ternyata sudah punya clock in/out asli (mis. pegawai sempat
+    // clock in sebelum pengajuannya ditolak) TIDAK dihapus - cukup lepas
+    // kategori_absen-nya supaya hari itu balik dievaluasi normal dari data
+    // clock in/out yg ada, bukan ikut kehilangan data.
+    await supabase
+      .from("absensi")
+      .update({ kategori_absen: null, keterangan: null, pengajuan_id: null })
+      .in("id", idsDenganData);
+  }
 
   revalidatePath(PATH);
   revalidatePath("/absensi");

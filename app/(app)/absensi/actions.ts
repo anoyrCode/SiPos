@@ -249,10 +249,16 @@ export async function clockIn(
   const tanggal = todayJakarta();
   const { data: existing } = await supabase
     .from("absensi")
-    .select("id, jam_masuk_aktual, jam_masuk_aktual_2")
+    .select("id, jam_masuk_aktual, jam_masuk_aktual_2, kategori_absen")
     .eq("pegawai_id", profile.pegawai_id)
     .eq("tanggal", tanggal)
     .maybeSingle();
+  if (existing?.kategori_absen) {
+    return {
+      ok: false,
+      error: "Anda sudah mengajukan izin/sakit hari ini. Hubungi admin bila ingin membatalkan pengajuan.",
+    };
+  }
   const sudahClockIn =
     sesiEfektif === 1 ? existing?.jam_masuk_aktual : existing?.jam_masuk_aktual_2;
   if (sudahClockIn) {
