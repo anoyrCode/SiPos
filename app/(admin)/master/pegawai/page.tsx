@@ -17,10 +17,16 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PegawaiForm } from "./pegawai-form";
+import { JabatanDialog } from "./jabatan-dialog";
 import { deletePegawai } from "./actions";
 import { JenisKelaminFilter } from "./jenis-kelamin-filter";
 import { JabatanFilter } from "./jabatan-filter";
-import { buildJadwalHarianSlots, type JadwalSementaraRow, type PegawaiRow } from "./schema";
+import {
+  buildJadwalHarianSlots,
+  type JabatanRow,
+  type JadwalSementaraRow,
+  type PegawaiRow,
+} from "./schema";
 
 export default async function Page({
   searchParams,
@@ -54,9 +60,10 @@ export default async function Page({
   }
   const [
     { data, count },
-    { data: jabatanRows },
+    { data: pegawaiJabatanRows },
     { data: jadwalHarianRows },
     { data: jadwalSementaraRows },
+    { data: jabatanMasterRows },
   ] = await Promise.all([
     query.range(from, to),
     supabase.from("pegawai").select("jabatan, jabatan_tambahan"),
@@ -66,6 +73,7 @@ export default async function Page({
     supabase
       .from("pegawai_jadwal_sementara")
       .select("id, pegawai_id, tanggal_mulai, tanggal_selesai, jam_masuk, jam_pulang, keterangan"),
+    supabase.from("jabatan").select("id, nama, is_aktif, is_guru").order("nama"),
   ]);
   type JadwalHarianRow = {
     pegawai_id: string;
@@ -102,13 +110,19 @@ export default async function Page({
 
   const jabatanOptions = Array.from(
     new Set(
-      (jabatanRows ?? []).flatMap((r) =>
+      (pegawaiJabatanRows ?? []).flatMap((r) =>
         [r.jabatan, ...(r.jabatan_tambahan ?? [])].filter(
           (j): j is string => !!j,
         ),
       ),
     ),
   ).sort((a, b) => a.localeCompare(b));
+
+  const jabatanRows: JabatanRow[] = jabatanMasterRows ?? [];
+  const jabatanPresetAktif = jabatanRows
+    .filter((j) => j.is_aktif)
+    .map((j) => j.nama)
+    .sort((a, b) => a.localeCompare(b));
 
   const columns: Column<PegawaiRow>[] = [
     {
@@ -172,7 +186,7 @@ export default async function Page({
       className: "text-right",
       cell: (r) => (
         <div className="flex justify-end gap-1">
-          <PegawaiForm initial={r} />
+          <PegawaiForm initial={r} jabatanPreset={jabatanPresetAktif} />
           <ConfirmDialog
             action={deletePegawai}
             id={r.id}
@@ -201,7 +215,8 @@ export default async function Page({
         <JenisKelaminFilter value={jkFilter} />
         <JabatanFilter value={jabatanFilter} options={jabatanOptions} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <PegawaiForm />
+          <JabatanDialog rows={jabatanRows} />
+          <PegawaiForm jabatanPreset={jabatanPresetAktif} />
         </div>
       </div>
       <DataTable
