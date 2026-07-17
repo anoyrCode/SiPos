@@ -179,7 +179,7 @@ function ClockCard({
   const sudahClockIn = !!jamAktualMasuk;
   const sudahClockOut = !!jamAktualPulang;
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex w-full flex-col items-center gap-3">
       {label && <p className="text-sm font-semibold">{label}</p>}
       {(jamJadwalMasuk || jamJadwalPulang) && (
         <p className="text-xs text-muted-foreground">
@@ -191,13 +191,13 @@ function ClockCard({
           onClick={onClockIn}
           disabled={loading}
           size="lg"
-          className="h-14 w-full max-w-xs text-base"
+          className="h-14 w-full text-base"
         >
           <LogIn data-icon="inline-start" />
           {loading ? "Memproses…" : "Clock In"}
         </Button>
       ) : !sudahClockOut ? (
-        <div className="flex w-full max-w-xs flex-col items-center gap-3">
+        <div className="flex w-full flex-col items-center gap-3">
           <Badge variant="positive">Clock in {formatJamWIB(jamAktualMasuk)}</Badge>
           <Button
             onClick={onClockOut}
