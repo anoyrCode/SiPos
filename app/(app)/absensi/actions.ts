@@ -213,21 +213,23 @@ export async function clockIn(
     return { ok: false, error: "Akun ini tidak tertaut ke data pegawai." };
   }
 
-  const geofenceError = await checkGeofence(lat, long);
+  const supabase = await createClient();
+  const { data: pegawai } = await supabase
+    .from("pegawai")
+    .select(
+      "jam_masuk_jadwal, jadwal_fleksibel, jadwal_harian_berbeda, shift_ganda, bebas_lokasi",
+    )
+    .eq("id", profile.pegawai_id)
+    .maybeSingle();
+  const sesiEfektif: 1 | 2 = pegawai?.shift_ganda ? sesi : 1;
+
+  const geofenceError = pegawai?.bebas_lokasi ? null : await checkGeofence(lat, long);
   if (geofenceError && !override) {
     return { ok: false, error: geofenceError, geofenceFailed: true };
   }
   if (geofenceError && !alasan.trim()) {
     return { ok: false, error: "Alasan wajib diisi untuk clock in di luar radius." };
   }
-
-  const supabase = await createClient();
-  const { data: pegawai } = await supabase
-    .from("pegawai")
-    .select("jam_masuk_jadwal, jadwal_fleksibel, jadwal_harian_berbeda, shift_ganda")
-    .eq("id", profile.pegawai_id)
-    .maybeSingle();
-  const sesiEfektif: 1 | 2 = pegawai?.shift_ganda ? sesi : 1;
 
   if (
     !pegawai?.jam_masuk_jadwal &&
@@ -418,21 +420,21 @@ export async function clockOut(
     return { ok: false, error: "Akun ini tidak tertaut ke data pegawai." };
   }
 
-  const geofenceError = await checkGeofence(lat, long);
+  const supabase = await createClient();
+  const { data: pegawai } = await supabase
+    .from("pegawai")
+    .select("shift_ganda, bebas_lokasi")
+    .eq("id", profile.pegawai_id)
+    .maybeSingle();
+  const sesiEfektif: 1 | 2 = pegawai?.shift_ganda ? sesi : 1;
+
+  const geofenceError = pegawai?.bebas_lokasi ? null : await checkGeofence(lat, long);
   if (geofenceError && !override) {
     return { ok: false, error: geofenceError, geofenceFailed: true };
   }
   if (geofenceError && !alasan.trim()) {
     return { ok: false, error: "Alasan wajib diisi untuk clock out di luar radius." };
   }
-
-  const supabase = await createClient();
-  const { data: pegawai } = await supabase
-    .from("pegawai")
-    .select("shift_ganda")
-    .eq("id", profile.pegawai_id)
-    .maybeSingle();
-  const sesiEfektif: 1 | 2 = pegawai?.shift_ganda ? sesi : 1;
 
   const existing = await getOpenSession(profile.pegawai_id, sesiEfektif);
   if (!existing) {
