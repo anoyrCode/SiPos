@@ -77,6 +77,7 @@ export function PegawaiForm({
     jam_masuk_jadwal_2: initial?.jam_masuk_jadwal_2 ?? "",
     jam_pulang_jadwal_2: initial?.jam_pulang_jadwal_2 ?? "",
     tanggal_mulai_absensi: initial?.tanggal_mulai_absensi ?? "",
+    bebas_lokasi: initial?.bebas_lokasi ?? false,
     jadwal_harian: (
       initial?.jadwal_harian ??
       Array.from({ length: 7 }, () => ({ jam_masuk: null, jam_pulang: null }))
@@ -425,6 +426,22 @@ export function PegawaiForm({
                           }
                         }}
                       />
+                    </label>
+                  )}
+                />
+                <Controller
+                  control={form.control}
+                  name="bebas_lokasi"
+                  render={({ field }) => (
+                    <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 sm:col-span-2">
+                      <span className="text-sm font-medium">
+                        Dikecualikan dari Cek Lokasi
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          Clock in/out gak dicek jarak ke pondok — untuk
+                          pegawai yang memang kerja di luar lokasi.
+                        </span>
+                      </span>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
                     </label>
                   )}
                 />

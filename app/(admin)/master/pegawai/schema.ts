@@ -71,6 +71,7 @@ export const pegawaiSchema = z.object({
   jam_masuk_jadwal_2: z.string().trim().optional(),
   jam_pulang_jadwal_2: z.string().trim().optional(),
   tanggal_mulai_absensi: z.string().trim().optional(),
+  bebas_lokasi: z.boolean(),
 });
 
 export type PegawaiInput = z.infer<typeof pegawaiSchema>;
@@ -98,4 +99,5 @@ export type PegawaiRow = {
   jam_pulang_jadwal_2: string | null;
   tanggal_mulai_absensi: string | null;
   jadwal_sementara: JadwalSementaraRow[];
+  bebas_lokasi: boolean;
 };

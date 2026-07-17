@@ -43,7 +43,7 @@ export default async function Page({
   let query = supabase
     .from("pegawai")
     .select(
-      "id, nip, nama, email, jabatan, jabatan_tambahan, jenis_kelamin, telp, tempat_lahir, tanggal_lahir, alamat, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_fleksibel, jadwal_harian_berbeda, shift_ganda, jam_masuk_jadwal_2, jam_pulang_jadwal_2, tanggal_mulai_absensi",
+      "id, nip, nama, email, jabatan, jabatan_tambahan, jenis_kelamin, telp, tempat_lahir, tanggal_lahir, alamat, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_fleksibel, jadwal_harian_berbeda, shift_ganda, jam_masuk_jadwal_2, jam_pulang_jadwal_2, tanggal_mulai_absensi, bebas_lokasi",
       { count: "exact" },
     )
     .order("nama", { ascending: true });
