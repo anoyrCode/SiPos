@@ -210,11 +210,13 @@ export default async function Page({
         title="Data Pegawai"
         description="Kelola data guru & pegawai."
       />
-      <div className="flex flex-wrap items-center gap-2.5 rounded-card border border-border/70 bg-card p-3 shadow-sm">
-        <SearchInput placeholder="Cari nama atau NIP…" />
-        <JenisKelaminFilter value={jkFilter} />
-        <JabatanFilter value={jabatanFilter} options={jabatanOptions} />
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-card border border-border/70 bg-card p-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <SearchInput placeholder="Cari nama atau NIP…" />
+          <JenisKelaminFilter value={jkFilter} />
+          <JabatanFilter value={jabatanFilter} options={jabatanOptions} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <JabatanDialog rows={jabatanRows} />
           <PegawaiForm jabatanPreset={jabatanPresetAktif} />
         </div>
