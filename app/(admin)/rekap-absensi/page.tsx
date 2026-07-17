@@ -64,6 +64,7 @@ type Row = {
   sesiStatuses: SesiStatus[] | null;
   overrideLokasi: boolean;
   overrideAlasan: string | null;
+  bebasLokasi: boolean;
 };
 
 export type TelatMasukRow = {
@@ -238,7 +239,7 @@ export default async function Page({
   let pegawaiQuery = supabase
     .from("pegawai")
     .select(
-      "id, nama, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_harian_berbeda, shift_ganda, jam_masuk_jadwal_2, jam_pulang_jadwal_2, tanggal_mulai_absensi",
+      "id, nama, jam_masuk_jadwal, jam_pulang_jadwal, hari_libur, jadwal_harian_berbeda, shift_ganda, jam_masuk_jadwal_2, jam_pulang_jadwal_2, tanggal_mulai_absensi, bebas_lokasi",
     )
     .order("nama");
   if (q) {
@@ -393,6 +394,7 @@ export default async function Page({
       sesiStatuses,
       overrideLokasi: record?.override_lokasi ?? false,
       overrideAlasan: record?.override_alasan ?? null,
+      bebasLokasi: p.bebas_lokasi,
     };
   });
 
@@ -675,6 +677,8 @@ export default async function Page({
           ) : (
             <Badge variant="warning">Manual — di luar radius</Badge>
           )
+        ) : r.bebasLokasi ? (
+          <Badge variant="outline">Dikecualikan</Badge>
         ) : null,
     },
   ];
