@@ -240,6 +240,7 @@ export function AbsensiClient({
   lokasiLat,
   lokasiLong,
   radiusMeter,
+  bebasLokasi,
 }: {
   hasJadwal: boolean;
   jadwalFleksibel: boolean;
@@ -258,6 +259,7 @@ export function AbsensiClient({
   lokasiLat: number | null;
   lokasiLong: number | null;
   radiusMeter: number | null;
+  bebasLokasi: boolean;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -306,10 +308,10 @@ export function AbsensiClient({
   }, [lokasiLat, lokasiLong, radiusMeter]);
 
   useEffect(() => {
-    if (!hasJadwal || !lokasiTersedia) return;
+    if (!hasJadwal || !lokasiTersedia || bebasLokasi) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     checkLokasi();
-  }, [hasJadwal, lokasiTersedia, checkLokasi]);
+  }, [hasJadwal, lokasiTersedia, bebasLokasi, checkLokasi]);
 
   useEffect(() => {
     if (!hasJadwal) return;
@@ -461,36 +463,42 @@ export function AbsensiClient({
                 )
               )}
 
-              {lokasiTersedia && (
-                <div className="flex flex-col items-center gap-1">
-                  {lokasiStatus.kind === "checking" && (
-                    <p className="text-xs text-muted-foreground">Memeriksa lokasi…</p>
-                  )}
-                  {lokasiStatus.kind === "dalam" && (
-                    <Badge variant="positive">
-                      Dalam radius pondok ({lokasiStatus.jarakMeter}m dari titik pusat)
-                    </Badge>
-                  )}
-                  {lokasiStatus.kind === "luar" && (
-                    <Badge variant="warning">
-                      Di luar radius — masih ~{lokasiStatus.kurangMeter}m lagi
-                    </Badge>
-                  )}
-                  {lokasiStatus.kind === "error" && (
-                    <p className="text-xs text-muted-foreground">
-                      Tidak bisa deteksi lokasi. Aktifkan izin lokasi di browser.
-                    </p>
-                  )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={checkLokasi}
-                    className="h-auto px-2 py-1 text-xs"
-                  >
-                    {lokasiStatus.kind === "error" ? "Coba Lagi" : "Cek Ulang"}
-                  </Button>
-                </div>
+              {bebasLokasi ? (
+                <p className="text-xs text-muted-foreground">
+                  Lokasi tidak dicek untuk akun ini.
+                </p>
+              ) : (
+                lokasiTersedia && (
+                  <div className="flex flex-col items-center gap-1">
+                    {lokasiStatus.kind === "checking" && (
+                      <p className="text-xs text-muted-foreground">Memeriksa lokasi…</p>
+                    )}
+                    {lokasiStatus.kind === "dalam" && (
+                      <Badge variant="positive">
+                        Dalam radius pondok ({lokasiStatus.jarakMeter}m dari titik pusat)
+                      </Badge>
+                    )}
+                    {lokasiStatus.kind === "luar" && (
+                      <Badge variant="warning">
+                        Di luar radius — masih ~{lokasiStatus.kurangMeter}m lagi
+                      </Badge>
+                    )}
+                    {lokasiStatus.kind === "error" && (
+                      <p className="text-xs text-muted-foreground">
+                        Tidak bisa deteksi lokasi. Aktifkan izin lokasi di browser.
+                      </p>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={checkLokasi}
+                      className="h-auto px-2 py-1 text-xs"
+                    >
+                      {lokasiStatus.kind === "error" ? "Coba Lagi" : "Cek Ulang"}
+                    </Button>
+                  </div>
+                )
               )}
 
               {shiftGanda ? (
