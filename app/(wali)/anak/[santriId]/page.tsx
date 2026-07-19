@@ -382,14 +382,12 @@ export default async function Page({
 
       {/* Riwayat */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-2">
-              <Activity className="size-4 text-primary" />
-              Riwayat Poin
-            </span>
-            <BulanFilter value={bulanFilter} />
+        <CardHeader className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="size-4 text-primary" />
+            Riwayat Poin
           </CardTitle>
+          <BulanFilter value={bulanFilter} />
         </CardHeader>
         <CardContent>
           <RiwayatList

@@ -18,16 +18,22 @@ export function BulanFilter({ value }: { value: string }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full items-center gap-2 sm:w-auto">
       <Input
         type="month"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-8 w-40 text-xs"
+        className="h-8 flex-1 text-xs sm:w-40 sm:flex-none"
         aria-label="Filter bulan riwayat poin"
       />
       {value && (
-        <Button type="button" variant="ghost" size="sm" onClick={() => onChange("")}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="shrink-0"
+          onClick={() => onChange("")}
+        >
           Semua Bulan
         </Button>
       )}
