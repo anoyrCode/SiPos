@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -89,6 +89,15 @@ export function Pagination({
         >
           Berikutnya
           <ChevronRight data-icon="inline-end" />
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => goTo(totalPages)}
+          disabled={page >= totalPages}
+          aria-label="Ke halaman terakhir"
+        >
+          <ChevronsRight />
         </Button>
       </div>
     </div>
