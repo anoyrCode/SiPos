@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireAuth } from "@/lib/auth/dal";
 import { homePathForProfile } from "@/lib/auth/roles";
-import { formatDateID, orDash } from "@/lib/format";
+import { orDash } from "@/lib/format";
 import {
   Card,
   CardContent,
@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PerkembanganChart } from "@/app/(admin)/dashboard/charts";
+import { RiwayatPoinList } from "./riwayat-poin-list";
 
 type Tx = {
   id: string;
@@ -234,38 +235,16 @@ export default async function Page({
 
       <div className="space-y-3">
         <h2 className="font-heading text-lg font-semibold">Riwayat Poin</h2>
-        {tx.length === 0 ? (
-          <Card>
-            <CardContent className="py-10 text-center text-muted-foreground">
-              Belum ada catatan poin.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {tx.map((t) => (
-              <Card key={t.id}>
-                <CardContent className="flex items-center justify-between gap-4 py-3.5">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">
-                      {t.master_poin?.nama_poin ?? "—"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDateID(t.tanggal_kejadian)}
-                      {t.catatan ? ` · ${t.catatan}` : ""}
-                    </p>
-                  </div>
-                  <Badge
-                    variant={t.tipe === "POSITIF" ? "positive" : "negative"}
-                    className="shrink-0 font-mono"
-                  >
-                    {t.tipe === "POSITIF" ? "+" : "−"}
-                    {t.nilai_poin}
-                  </Badge>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        <RiwayatPoinList
+          items={tx.map((t) => ({
+            id: t.id,
+            tipe: t.tipe,
+            nilai_poin: t.nilai_poin,
+            tanggal_kejadian: t.tanggal_kejadian,
+            catatan: t.catatan,
+            nama_poin: t.master_poin?.nama_poin ?? null,
+          }))}
+        />
       </div>
     </div>
   );
