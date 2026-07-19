@@ -4,22 +4,27 @@ import {
   Activity,
   ArrowLeft,
   HeartPulse,
+  Minus,
   PieChart,
   ThumbsDown,
   ThumbsUp,
+  TrendingDown,
   TrendingUp,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { orDash } from "@/lib/format";
+import { getStr, type SearchParams } from "@/lib/list-params";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { computeSantriStatusLevel, santriStatusTone } from "@/lib/santri-status";
+import { computeSantriProgress, computeSantriStatusLevel, santriStatusTone } from "@/lib/santri-status";
 import { SantriStatusBadge } from "@/components/shared/santri-status-badge";
+import { SantriProgressBar } from "@/components/shared/santri-progress-bar";
 import { KomposisiPoin, PerkembanganSkor } from "./charts";
 import { RiwayatList } from "./riwayat-list";
 import { RekamMedisList } from "./rekam-medis-list";
+import { BulanFilter } from "./bulan-filter";
 
 type Tx = {
   id: string;
@@ -44,12 +49,31 @@ function tanggalLabel(iso: string): string {
   });
 }
 
+/** Persentase perubahan dibanding bulan lalu + arah (naik/turun/tetap). */
+function formatDelta(
+  current: number,
+  previous: number,
+): { text: string; direction: "up" | "down" | "flat" } {
+  if (previous === 0) {
+    return current === 0
+      ? { text: "0%", direction: "flat" }
+      : { text: "Baru", direction: "up" };
+  }
+  const pct = Math.round(((current - previous) / previous) * 100);
+  if (pct === 0) return { text: "0%", direction: "flat" };
+  return { text: `${pct > 0 ? "+" : ""}${pct}%`, direction: pct > 0 ? "up" : "down" };
+}
+
 export default async function Page({
   params,
+  searchParams,
 }: {
   params: Promise<{ santriId: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
   const { santriId } = await params;
+  const sp = await searchParams;
+  const bulanFilter = getStr(sp.bulan);
   const supabase = await createClient();
 
   const { data: ta } = await supabase
@@ -116,6 +140,31 @@ export default async function Page({
   const net = pos - neg;
   const statusLevel = computeSantriStatusLevel(net, neg);
   const tone = santriStatusTone(statusLevel);
+  const progress = computeSantriProgress(net, neg, statusLevel);
+
+  // Riwayat Poin: difilter per bulan kalau ?bulan= diisi. KPI/chart/status
+  // di atas TETAP dari `tx` penuh 1 tahun ajaran, tidak ikut filter ini.
+  const txRiwayat = bulanFilter
+    ? tx.filter((t) => t.tanggal_kejadian.startsWith(bulanFilter))
+    : tx;
+
+  // Perbandingan bulan ini vs bulan lalu — dihitung dari `tx` penuh
+  // (bukan txRiwayat), supaya tidak ikut kefilter oleh BulanFilter.
+  const monthlyBuckets = new Map<string, { pos: number; neg: number }>();
+  for (const t of tx) {
+    const key = t.tanggal_kejadian.slice(0, 7);
+    const e = monthlyBuckets.get(key) ?? { pos: 0, neg: 0 };
+    if (t.tipe === "POSITIF") e.pos += t.nilai_poin;
+    else e.neg += t.nilai_poin;
+    monthlyBuckets.set(key, e);
+  }
+  const fmtBulan = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });
+  const bulanIniKey = fmtBulan.format(new Date()).slice(0, 7);
+  const [thnIni, blnIni] = bulanIniKey.split("-").map(Number);
+  const bulanLaluDate = new Date(thnIni, blnIni - 2, 1);
+  const bulanLaluKey = `${bulanLaluDate.getFullYear()}-${String(bulanLaluDate.getMonth() + 1).padStart(2, "0")}`;
+  const bulanIni = monthlyBuckets.get(bulanIniKey) ?? { pos: 0, neg: 0 };
+  const bulanLalu = monthlyBuckets.get(bulanLaluKey);
 
   // Perkembangan skor kumulatif per transaksi (urut lama → baru) — tiap
   // transaksi jadi 1 titik, jadi tidak perlu menunggu berganti minggu
@@ -165,6 +214,7 @@ export default async function Page({
                 {ta?.tahun ? ` · ${ta.tahun}` : ""}
               </p>
               <SantriStatusBadge level={statusLevel} onHero className="mt-1" />
+              <SantriProgressBar progress={progress} onHero className="mt-2 max-w-xs" />
             </div>
           </div>
           <div className="text-right">
@@ -235,6 +285,75 @@ export default async function Page({
         </Card>
       </div>
 
+      {/* Perbandingan bulan */}
+      {bulanLalu && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="size-4 text-primary" />
+              Bulan Ini vs Bulan Lalu
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {(
+                [
+                  {
+                    label: "Poin Positif",
+                    current: bulanIni.pos,
+                    previous: bulanLalu.pos,
+                    goodDirection: "up" as const,
+                  },
+                  {
+                    label: "Poin Negatif",
+                    current: bulanIni.neg,
+                    previous: bulanLalu.neg,
+                    goodDirection: "down" as const,
+                  },
+                ] as const
+              ).map((m) => {
+                const delta = formatDelta(m.current, m.previous);
+                const isGood = delta.direction === m.goodDirection;
+                const isBad = delta.direction !== "flat" && delta.direction !== m.goodDirection;
+                const Icon =
+                  delta.direction === "up"
+                    ? TrendingUp
+                    : delta.direction === "down"
+                      ? TrendingDown
+                      : Minus;
+                return (
+                  <div
+                    key={m.label}
+                    className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2.5"
+                  >
+                    <p className="text-xs text-muted-foreground">{m.label}</p>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <span className="font-mono text-lg font-semibold tabular-nums">
+                        {m.current}
+                      </span>
+                      <span
+                        className={cn(
+                          "flex items-center gap-0.5 text-xs font-medium",
+                          isGood && "text-positive",
+                          isBad && "text-negative",
+                          !isGood && !isBad && "text-muted-foreground",
+                        )}
+                      >
+                        <Icon className="size-3" />
+                        {delta.text}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Bulan lalu: {m.previous}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Charts */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -264,14 +383,17 @@ export default async function Page({
       {/* Riwayat */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="size-4 text-primary" />
-            Riwayat Poin
+          <CardTitle className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2">
+              <Activity className="size-4 text-primary" />
+              Riwayat Poin
+            </span>
+            <BulanFilter value={bulanFilter} />
           </CardTitle>
         </CardHeader>
         <CardContent>
           <RiwayatList
-            items={tx.map((t) => ({
+            items={txRiwayat.map((t) => ({
               id: t.id,
               tipe: t.tipe,
               nilai_poin: t.nilai_poin,
