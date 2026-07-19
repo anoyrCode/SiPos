@@ -35,6 +35,37 @@ type Tx = {
   tanggal_kejadian: string;
 };
 
+const TX_PAGE_SIZE = 1000;
+
+/**
+ * Ambil SEMUA baris transaksi_poin (opsional difilter 1 tahun ajaran),
+ * dipaginasi penuh — Supabase/PostgREST membatasi 1000 baris per request
+ * secara default, jadi tahun ajaran dgn >1000 transaksi bakal diam-diam
+ * terpotong tanpa ini (baris mana yg kepotong tidak menentu krn tidak
+ * ada `.order()`, bisa termasuk transaksi terbaru).
+ */
+async function fetchAllTransaksi<T>(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  select: string,
+  taId?: string,
+): Promise<T[]> {
+  const rows: T[] = [];
+  let from = 0;
+  for (;;) {
+    let q = supabase
+      .from("transaksi_poin")
+      .select(select)
+      .range(from, from + TX_PAGE_SIZE - 1);
+    if (taId) q = q.eq("tahun_ajaran_id", taId);
+    const { data } = await q;
+    const page = (data ?? []) as T[];
+    rows.push(...page);
+    if (page.length < TX_PAGE_SIZE) break;
+    from += TX_PAGE_SIZE;
+  }
+  return rows;
+}
+
 function monthLabel(key: string): string {
   const d = new Date(`${key}-01T00:00:00`);
   const month = new Intl.DateTimeFormat("id-ID", { month: "short" }).format(d);
@@ -149,12 +180,11 @@ export default async function Page() {
     (p) => p.jenis_kelamin === "P" && isGuruLike(p),
   ).length;
 
-  let txQuery = supabase
-    .from("transaksi_poin")
-    .select("santri_id, master_poin_id, tipe, nilai_poin, tanggal_kejadian");
-  if (ta?.id) txQuery = txQuery.eq("tahun_ajaran_id", ta.id);
-  const { data: txData } = await txQuery;
-  const tx = (txData ?? []) as Tx[];
+  const tx = await fetchAllTransaksi<Tx>(
+    supabase,
+    "santri_id, master_poin_id, tipe, nilai_poin, tanggal_kejadian",
+    ta?.id,
+  );
 
   // Perbandingan dgn tahun ajaran sebelumnya (kalau ada).
   let perbandinganTa: {
@@ -167,11 +197,11 @@ export default async function Page() {
     jumlahSebelumnya: number;
   } | null = null;
   if (taSebelumnya) {
-    const { data: txSebelumnyaData } = await supabase
-      .from("transaksi_poin")
-      .select("tipe, nilai_poin")
-      .eq("tahun_ajaran_id", taSebelumnya.id);
-    const txSebelumnya = txSebelumnyaData ?? [];
+    const txSebelumnya = await fetchAllTransaksi<{ tipe: string; nilai_poin: number }>(
+      supabase,
+      "tipe, nilai_poin",
+      taSebelumnya.id,
+    );
     const sum = (rows: { tipe: string; nilai_poin: number }[], tipe: string) =>
       rows.filter((r) => r.tipe === tipe).reduce((s, r) => s + r.nilai_poin, 0);
     perbandinganTa = {

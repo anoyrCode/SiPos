@@ -20,6 +20,49 @@ type KelasRekap = {
   net: number;
 };
 
+const TX_PAGE_SIZE = 1000;
+
+/**
+ * Ambil SEMUA baris transaksi_poin utk 1 tahun ajaran, dipaginasi penuh
+ * (bukan 1 query polos) — Supabase/PostgREST membatasi 1000 baris per
+ * request secara default, jadi tahun ajaran dgn >1000 transaksi bakal
+ * diam-diam terpotong tanpa ini (baris mana yg kepotong tidak menentu
+ * krn tidak ada `.order()`, bisa termasuk transaksi terbaru).
+ */
+async function fetchAllTransaksi(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  taId: string,
+  scopedSantriIds: string[] | null,
+): Promise<{ santri_id: string; tipe: "POSITIF" | "NEGATIF"; nilai_poin: number }[]> {
+  const rows: { santri_id: string; tipe: "POSITIF" | "NEGATIF"; nilai_poin: number }[] = [];
+  let from = 0;
+  for (;;) {
+    let q = supabase
+      .from("transaksi_poin")
+      .select("santri_id, tipe, nilai_poin")
+      .eq("tahun_ajaran_id", taId)
+      .range(from, from + TX_PAGE_SIZE - 1);
+    if (scopedSantriIds) {
+      q = q.in(
+        "santri_id",
+        scopedSantriIds.length > 0
+          ? scopedSantriIds
+          : ["00000000-0000-0000-0000-000000000000"],
+      );
+    }
+    const { data } = await q;
+    const page = (data ?? []) as {
+      santri_id: string;
+      tipe: "POSITIF" | "NEGATIF";
+      nilai_poin: number;
+    }[];
+    rows.push(...page);
+    if (page.length < TX_PAGE_SIZE) break;
+    from += TX_PAGE_SIZE;
+  }
+  return rows;
+}
+
 export default async function Page({
   searchParams,
 }: {
@@ -95,25 +138,10 @@ export default async function Page({
     // Kalau ter-scope, transaksi juga dibatasi ke santri hasil placeQuery di
     // atas — supaya santri di luar kelas yang ditugaskan tidak "bocor" lewat
     // bucket "Tanpa Kelas" (yang aslinya utk santri tanpa kelas sama sekali).
-    let txQuery = supabase
-      .from("transaksi_poin")
-      .select("santri_id, tipe, nilai_poin")
-      .eq("tahun_ajaran_id", taId);
-    if (scopedKelasIds) {
-      const scopedSantriIds = [...new Set(placements.map((p) => p.santri_id))];
-      txQuery = txQuery.in(
-        "santri_id",
-        scopedSantriIds.length > 0
-          ? scopedSantriIds
-          : ["00000000-0000-0000-0000-000000000000"],
-      );
-    }
-    const { data: txData } = await txQuery;
-    const tx = (txData ?? []) as {
-      santri_id: string;
-      tipe: "POSITIF" | "NEGATIF";
-      nilai_poin: number;
-    }[];
+    const scopedSantriIds = scopedKelasIds
+      ? [...new Set(placements.map((p) => p.santri_id))]
+      : null;
+    const tx = await fetchAllTransaksi(supabase, taId, scopedSantriIds);
 
     const santriToKelas = new Map<string, { id: string; nama: string }>();
     const kelasAgg = new Map<
