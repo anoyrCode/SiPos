@@ -10,6 +10,13 @@ import { Pagination } from "@/components/shared/pagination";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { downloadExcel } from "@/lib/export";
 import { downloadPdfRekapSantri } from "@/lib/pdf";
 import { parseClientPageParams, paginateArray } from "@/lib/list-params";
@@ -32,12 +39,25 @@ export function RekapSantriTable({
 }) {
   const searchParams = useSearchParams();
   const [q, setQ] = useState("");
+  const [kelasFilter, setKelasFilter] = useState("semua");
   const [loadingPdf, setLoadingPdf] = useState(false);
+
+  const kelasOptions = useMemo(
+    () =>
+      Array.from(new Set(rows.map((r) => r.kelas).filter((k): k is string => !!k))).sort(
+        (a, b) => a.localeCompare(b),
+      ),
+    [rows],
+  );
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return t ? rows.filter((r) => r.nama.toLowerCase().includes(t)) : rows;
-  }, [q, rows]);
+    return rows.filter((r) => {
+      const matchNama = t ? r.nama.toLowerCase().includes(t) : true;
+      const matchKelas = kelasFilter === "semua" ? true : r.kelas === kelasFilter;
+      return matchNama && matchKelas;
+    });
+  }, [q, kelasFilter, rows]);
 
   const { page, perPage } = parseClientPageParams(searchParams);
   const paged = paginateArray(filtered, page, perPage);
@@ -109,12 +129,27 @@ export function RekapSantriTable({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative w-full sm:w-64">
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Cari santri…"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:w-64">
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Cari santri…"
+            />
+          </div>
+          <Select value={kelasFilter} onValueChange={setKelasFilter}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Kelas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua Kelas</SelectItem>
+              {kelasOptions.map((k) => (
+                <SelectItem key={k} value={k}>
+                  {k}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex items-center gap-1.5">
           <Button variant="secondary" size="sm" onClick={handleExcelExport} disabled={filtered.length === 0}>
@@ -131,7 +166,7 @@ export function RekapSantriTable({
         columns={columns}
         rows={paged.rows}
         getRowId={(r) => r.id}
-        isFiltered={q.trim().length > 0}
+        isFiltered={q.trim().length > 0 || kelasFilter !== "semua"}
         empty="Belum ada data poin pada tahun ajaran ini."
       />
       <Pagination
