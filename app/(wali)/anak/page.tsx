@@ -6,8 +6,9 @@ import { getProfile } from "@/lib/auth/dal";
 import { Card, CardContent } from "@/components/ui/card";
 import { orDash } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { computeSantriStatusLevel, santriStatusTone } from "@/lib/santri-status";
+import { computeSantriProgress, computeSantriStatusLevel, santriStatusTone } from "@/lib/santri-status";
 import { SantriStatusBadge } from "@/components/shared/santri-status-badge";
+import { SantriProgressBar } from "@/components/shared/santri-progress-bar";
 
 type SantriAnak = {
   id: string;
@@ -159,6 +160,7 @@ export default async function Page() {
 
                     {/* Status */}
                     <SantriStatusBadge level={level} />
+                    <SantriProgressBar progress={computeSantriProgress(net, e.neg, level)} />
 
                     {/* Skor + rincian */}
                     <div className="flex items-end justify-between gap-2">
@@ -199,8 +201,9 @@ export default async function Page() {
                         ) : null}
                       </div>
                       {total === 0 && (
-                        <p className="text-[0.7rem] text-muted-foreground">
-                          Belum ada poin tahun ini.
+                        <p className="flex items-center gap-1 text-[0.7rem] text-muted-foreground">
+                          <Sparkles className="size-3" />
+                          Alhamdulillah, belum ada catatan poin — pertahankan!
                         </p>
                       )}
                     </div>
