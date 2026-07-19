@@ -68,6 +68,9 @@ function truncateLabel(label: string, max = 20): string {
   return label.length > max ? `${label.slice(0, max - 1).trimEnd()}…` : label;
 }
 
+const STATISTIK_ROW_HEIGHT = 42;
+const STATISTIK_MAX_VISIBLE_ROWS = 5;
+
 export function StatistikPoinChart({
   positif,
   negatif,
@@ -111,8 +114,11 @@ export function StatistikPoinChart({
           Belum ada data.
         </div>
       ) : (
-        <div className="max-h-64 overflow-y-auto pr-1 scrollbar-thin sm:max-h-80">
-          <div style={{ height: Math.max(96, data.length * 42 + 12) }}>
+        <div
+          className="overflow-y-auto pr-1 scrollbar-thin"
+          style={{ maxHeight: STATISTIK_MAX_VISIBLE_ROWS * STATISTIK_ROW_HEIGHT + 12 }}
+        >
+          <div style={{ height: Math.max(96, data.length * STATISTIK_ROW_HEIGHT + 12) }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={data}
