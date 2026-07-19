@@ -228,6 +228,12 @@ export default async function Page() {
   }[]) {
     if (row.kelas?.nama_kelas) santriKelas.set(row.santri_id, row.kelas.nama_kelas);
   }
+  // Jumlah santri per kelas — dipakai buat rata-ratakan Peringkat Kelas,
+  // supaya kelas dgn santri lebih banyak gak otomatis unggul cuma krn totalnya besar.
+  const kelasCount = new Map<string, number>();
+  for (const nama of santriKelas.values()) {
+    kelasCount.set(nama, (kelasCount.get(nama) ?? 0) + 1);
+  }
 
   const poinMeta = new Map(
     (mpRes.data ?? []).map((p) => [
@@ -310,9 +316,18 @@ export default async function Page() {
     })
     .map(([level, value]) => ({ level, value }));
 
-  // Peringkat kelas berdasarkan poin positif terbanyak.
+  // Peringkat kelas berdasarkan rata-rata skor bersih (positif - negatif)
+  // PER SANTRI — bukan total kelas, supaya kelas dgn santri lebih banyak
+  // gak otomatis unggul cuma krn jumlah santrinya, bukan performanya.
   const peringkatKelas = [...kelasSum.entries()]
-    .map(([kelas, v]) => ({ nama: kelas, total: v.pos }))
+    .map(([kelas, v]) => {
+      const jumlahSantri = kelasCount.get(kelas) ?? 0;
+      const net = v.pos - v.neg;
+      return {
+        nama: kelas,
+        total: jumlahSantri > 0 ? Math.round(net / jumlahSantri) : net,
+      };
+    })
     .filter((k) => k.total > 0)
     .sort((a, b) => b.total - a.total)
     .slice(0, 10);
@@ -651,6 +666,9 @@ export default async function Page() {
               <Award className="size-4 text-positive" />
               Peringkat Kelas
             </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Rata-rata skor bersih per santri
+            </p>
           </CardHeader>
           <CardContent>
             {peringkatKelas.length === 0 ? (
