@@ -64,7 +64,7 @@ export function CountUp({
 type Item = { label: string; count: number };
 
 /** Potong label panjang di sumbu Y biar gak wrap jadi banyak baris — teks penuh tetap muncul di tooltip saat hover. */
-function truncateLabel(label: string, max = 28): string {
+function truncateLabel(label: string, max = 20): string {
   return label.length > max ? `${label.slice(0, max - 1).trimEnd()}…` : label;
 }
 
