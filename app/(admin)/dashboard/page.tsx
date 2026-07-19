@@ -338,8 +338,8 @@ export default async function Page() {
     .filter(([, v]) => v.neg > 0)
     .sort((a, b) => b[1].neg - a[1].neg);
   const posSorted = [...santriSum.entries()]
-    .filter(([, v]) => v.pos > 0)
-    .sort((a, b) => b[1].pos - a[1].pos);
+    .filter(([, v]) => v.pos - v.neg > 0)
+    .sort((a, b) => (b[1].pos - b[1].neg) - (a[1].pos - a[1].neg));
   const topNeg = negSorted.slice(0, PERINGKAT_N);
   const topPos = posSorted.slice(0, PERINGKAT_N);
 
@@ -371,7 +371,7 @@ export default async function Page() {
   const peringkatPos = topPos.map(([id, v]) => ({
     id,
     nama: nameMap.get(id) ?? "?",
-    total: v.pos,
+    total: v.pos - v.neg,
   }));
   const perluTindakanSP = spEligible.slice(0, 8).map(([id, v]) => ({
     id,
@@ -619,6 +619,7 @@ export default async function Page() {
               <Award className="size-4 text-positive" />
               Peringkat Poin Positif
             </CardTitle>
+            <p className="text-xs text-muted-foreground">Skor bersih (positif − negatif)</p>
           </CardHeader>
           <CardContent>
             <RankingList items={peringkatPos} variant="positive" />
