@@ -123,18 +123,20 @@ export default async function Page() {
   await requireDashboard();
   const supabase = await createClient();
 
-  const { data: ta } = await supabase
-    .from("tahun_ajaran")
-    .select("id, tahun, tanggal_mulai, tanggal_selesai")
-    .eq("is_aktif", true)
-    .maybeSingle();
-
-  // Tahun ajaran sebelumnya (utk perbandingan) — diurutkan dari teks "tahun"
-  // (format "YYYY/YYYY", urut leksikografis = urut kronologis).
-  const { data: taListAll } = await supabase
-    .from("tahun_ajaran")
-    .select("id, tahun")
-    .order("tahun", { ascending: false });
+  // `ta` dan `taListAll` independen satu sama lain — paralel, bukan berurutan.
+  const [{ data: ta }, { data: taListAll }] = await Promise.all([
+    supabase
+      .from("tahun_ajaran")
+      .select("id, tahun, tanggal_mulai, tanggal_selesai")
+      .eq("is_aktif", true)
+      .maybeSingle(),
+    // Tahun ajaran sebelumnya (utk perbandingan) — diurutkan dari teks "tahun"
+    // (format "YYYY/YYYY", urut leksikografis = urut kronologis).
+    supabase
+      .from("tahun_ajaran")
+      .select("id, tahun")
+      .order("tahun", { ascending: false }),
+  ]);
   const taIdx = (taListAll ?? []).findIndex((t) => t.id === ta?.id);
   const taSebelumnya =
     taIdx >= 0 ? (taListAll ?? [])[taIdx + 1] : undefined;
@@ -143,7 +145,25 @@ export default async function Page() {
   // eslint-disable-next-line react-hooks/purity -- server component, dievaluasi per request
   const sinceISO = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  const [totalSantriRes, pegawaiRes, mpRes, recentRes, jabatanGuruRes] = await Promise.all([
+  // Penempatan santri per kelas (tahun ajaran aktif) — untuk chart poin per kelas
+  const skQuery = supabase
+    .from("santri_kelas")
+    .select("santri_id, kelas:kelas!inner(nama_kelas, tahun_ajaran_id)");
+  if (ta?.id) skQuery.eq("kelas.tahun_ajaran_id", ta.id);
+
+  // Semua query di bawah ini independen satu sama lain (gak ada yg butuh hasil
+  // query lain di grup ini) — jalankan paralel, bukan berurutan, supaya round-trip
+  // ke Supabase jadi 1 gelombang bersamaan alih-alih berantai.
+  const [
+    totalSantriRes,
+    pegawaiRes,
+    mpRes,
+    recentRes,
+    jabatanGuruRes,
+    tx,
+    txSebelumnya,
+    { data: skData },
+  ] = await Promise.all([
     supabase
       .from("santri")
       .select("id", { count: "exact", head: true })
@@ -161,6 +181,19 @@ export default async function Page() {
       .order("created_at", { ascending: false })
       .limit(50),
     supabase.from("jabatan").select("nama").eq("is_guru", true),
+    fetchAllTransaksi<Tx>(
+      supabase,
+      "santri_id, master_poin_id, tipe, nilai_poin, tanggal_kejadian",
+      ta?.id,
+    ),
+    taSebelumnya
+      ? fetchAllTransaksi<{ tipe: string; nilai_poin: number }>(
+          supabase,
+          "tipe, nilai_poin",
+          taSebelumnya.id,
+        )
+      : Promise.resolve([] as { tipe: string; nilai_poin: number }[]),
+    skQuery,
   ]);
 
   // Guru/musyrif: jabatan (utama ATAU tambahan) cocok daftar is_guru=true dari master jabatan.
@@ -180,12 +213,6 @@ export default async function Page() {
     (p) => p.jenis_kelamin === "P" && isGuruLike(p),
   ).length;
 
-  const tx = await fetchAllTransaksi<Tx>(
-    supabase,
-    "santri_id, master_poin_id, tipe, nilai_poin, tanggal_kejadian",
-    ta?.id,
-  );
-
   // Perbandingan dgn tahun ajaran sebelumnya (kalau ada).
   let perbandinganTa: {
     taSebelumnyaLabel: string;
@@ -197,11 +224,6 @@ export default async function Page() {
     jumlahSebelumnya: number;
   } | null = null;
   if (taSebelumnya) {
-    const txSebelumnya = await fetchAllTransaksi<{ tipe: string; nilai_poin: number }>(
-      supabase,
-      "tipe, nilai_poin",
-      taSebelumnya.id,
-    );
     const sum = (rows: { tipe: string; nilai_poin: number }[], tipe: string) =>
       rows.filter((r) => r.tipe === tipe).reduce((s, r) => s + r.nilai_poin, 0);
     perbandinganTa = {
@@ -214,13 +236,6 @@ export default async function Page() {
       jumlahSebelumnya: txSebelumnya.length,
     };
   }
-
-  // Penempatan santri per kelas (tahun ajaran aktif) — untuk chart poin per kelas
-  const skQuery = supabase
-    .from("santri_kelas")
-    .select("santri_id, kelas:kelas!inner(nama_kelas, tahun_ajaran_id)");
-  if (ta?.id) skQuery.eq("kelas.tahun_ajaran_id", ta.id);
-  const { data: skData } = await skQuery;
   const santriKelas = new Map<string, string>();
   for (const row of (skData ?? []) as unknown as {
     santri_id: string;
