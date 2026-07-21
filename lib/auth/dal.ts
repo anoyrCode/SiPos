@@ -1,7 +1,9 @@
 import "server-only";
 import { cache } from "react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { USER_ID_HEADER } from "@/lib/supabase/proxy";
 import {
   EMPTY_PERMS,
   homePathForProfile,
@@ -85,13 +87,28 @@ function resolvePerms(role: Role, r: AppRoleRow): Perms {
   };
 }
 
-/** User Supabase terverifikasi (atau null). Di-memoize per render pass. */
-export const getUser = cache(async () => {
+/**
+ * User Supabase terverifikasi (atau null). Di-memoize per render pass.
+ *
+ * `proxy.ts` sudah memanggil `supabase.auth.getUser()` untuk setiap request
+ * dan meneruskan hasilnya lewat header internal `USER_ID_HEADER` (tidak
+ * pernah sampai ke client, tidak bisa dipalsukan — lihat `lib/supabase/proxy.ts`).
+ * Header itu dipakai di sini agar tidak perlu verifikasi ulang ke Supabase Auth
+ * (hemat 1 round-trip jaringan tiap request/server action). Fallback ke
+ * pemanggilan asli hanya dipakai bila header tidak ada sama sekali (proxy
+ * tidak sempat berjalan utk request ini).
+ */
+export const getUser = cache(async (): Promise<{ id: string } | null> => {
+  const verifiedId = (await headers()).get(USER_ID_HEADER);
+  if (verifiedId !== null) {
+    return verifiedId ? { id: verifiedId } : null;
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  return user;
+  return user ? { id: user.id } : null;
 });
 
 /** Profil + hak akses user saat ini, atau null bila belum login. */
