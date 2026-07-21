@@ -63,12 +63,9 @@ export default async function Page({
     const term = q.replace(/[,()*]/g, " ").trim();
     if (term) query = query.ilike("email", `%${term}%`);
   }
-  const { data, count } = await query.range(from, to);
-  let rows = (data ?? []) as unknown as (AccountRow & {
-    app_role: { nama: string; is_super: boolean; perm_akun: boolean } | null;
-  })[];
-
-  const [{ data: roleData }, { data: pegData }] = await Promise.all([
+  // 3 query di bawah independen satu sama lain — paralel, bukan berurutan.
+  const [{ data, count }, { data: roleData }, { data: pegData }] = await Promise.all([
+    query.range(from, to),
     admin
       .from("app_role")
       .select("id, nama, is_super, perm_akun")
@@ -77,6 +74,9 @@ export default async function Page({
       .order("nama"),
     admin.from("pegawai").select("id, nama, email").order("nama"),
   ]);
+  let rows = (data ?? []) as unknown as (AccountRow & {
+    app_role: { nama: string; is_super: boolean; perm_akun: boolean } | null;
+  })[];
   let roles = roleData ?? [];
   const pegawai = pegData ?? [];
 

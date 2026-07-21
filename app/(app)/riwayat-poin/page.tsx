@@ -71,48 +71,50 @@ export default async function Page({
 
   const supabase = await createClient();
 
-  const { data: taData } = await supabase
-    .from("tahun_ajaran")
-    .select("id, tahun")
-    .order("tahun", { ascending: false });
-  const taOptions = (taData ?? []).map((t) => ({ value: t.id, label: t.tahun }));
+  // Tiga blok di bawah ini independen satu sama lain — hasilnya baru
+  // digabung sesudahnya — dijalankan paralel lewat Promise.all.
+  const [{ data: taData }, scopedSantriIds, santriIds] = await Promise.all([
+    supabase
+      .from("tahun_ajaran")
+      .select("id, tahun")
+      .order("tahun", { ascending: false }),
 
-  // Peran ter-scope (mis. musyrif/musyrifah): batasi riwayat ke santri di
-  // kelas yang ditugaskan ke pegawai ini (lintas tahun ajaran — kelas_id
-  // sudah unik per tahun ajaran, jadi otomatis cuma cocok di tahun yang
-  // relevan tanpa perlu filter TA terpisah di sini).
-  let scopedSantriIds: string[] | null = null;
-  if (profile.perms.scope_kelas && !profile.perms.super && profile.pegawai_id) {
-    const { data: gk } = await supabase
-      .from("guru_kelas")
-      .select("kelas_id")
-      .eq("pegawai_id", profile.pegawai_id);
-    const kelasIds = [...new Set((gk ?? []).map((r) => r.kelas_id))];
-    if (kelasIds.length === 0) {
-      scopedSantriIds = [];
-    } else {
+    // Peran ter-scope (mis. musyrif/musyrifah): batasi riwayat ke santri di
+    // kelas yang ditugaskan ke pegawai ini (lintas tahun ajaran — kelas_id
+    // sudah unik per tahun ajaran, jadi otomatis cuma cocok di tahun yang
+    // relevan tanpa perlu filter TA terpisah di sini).
+    (async (): Promise<string[] | null> => {
+      if (!(profile.perms.scope_kelas && !profile.perms.super && profile.pegawai_id)) {
+        return null;
+      }
+      const { data: gk } = await supabase
+        .from("guru_kelas")
+        .select("kelas_id")
+        .eq("pegawai_id", profile.pegawai_id);
+      const kelasIds = [...new Set((gk ?? []).map((r) => r.kelas_id))];
+      if (kelasIds.length === 0) return [];
       const { data: sk } = await supabase
         .from("santri_kelas")
         .select("santri_id")
         .in("kelas_id", kelasIds);
-      scopedSantriIds = [...new Set((sk ?? []).map((r) => r.santri_id))];
-    }
-  }
+      return [...new Set((sk ?? []).map((r) => r.santri_id))];
+    })(),
 
-  // Pencarian santri → daftar id (filter transaksi)
-  let santriIds: string[] | null = null;
-  if (q) {
-    const t = q.replace(/[,()*]/g, " ").trim();
-    if (t) {
+    // Pencarian santri → daftar id (filter transaksi)
+    (async (): Promise<string[] | null> => {
+      if (!q) return null;
+      const t = q.replace(/[,()*]/g, " ").trim();
+      if (!t) return null;
       const { data: s } = await supabase
         .from("santri")
         .select("id")
         .or(`nama.ilike.*${t}*,nis.ilike.*${t}*`)
         .limit(200);
-      santriIds = (s ?? []).map((x) => x.id);
-      if (santriIds.length === 0) santriIds = ["00000000-0000-0000-0000-000000000000"];
-    }
-  }
+      const ids = (s ?? []).map((x) => x.id);
+      return ids.length === 0 ? ["00000000-0000-0000-0000-000000000000"] : ids;
+    })(),
+  ]);
+  const taOptions = (taData ?? []).map((t) => ({ value: t.id, label: t.tahun }));
 
   // Gabungkan filter pencarian & scope kelas (irisan kalau dua-duanya aktif).
   let effectiveSantriIds: string[] | null = santriIds;

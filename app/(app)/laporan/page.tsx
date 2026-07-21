@@ -90,19 +90,24 @@ export default async function Page({
   // kelas yang ditugaskan ke pegawai ini (lintas tahun ajaran — kelas_id
   // sudah unik per tahun ajaran, jadi otomatis cuma cocok di tahun yang
   // relevan tanpa perlu filter TA terpisah di sini).
-  let scopedKelasIds: string[] | null = null;
-  if (profile.perms.scope_kelas && !profile.perms.super && profile.pegawai_id) {
-    const { data: gk } = await supabase
-      .from("guru_kelas")
-      .select("kelas_id")
-      .eq("pegawai_id", profile.pegawai_id);
-    scopedKelasIds = [...new Set((gk ?? []).map((r) => r.kelas_id))];
-  }
-
-  const { data: taData } = await supabase
-    .from("tahun_ajaran")
-    .select("id, tahun, is_aktif")
-    .order("tahun", { ascending: false });
+  // Query ini independen dari daftar tahun ajaran di bawah — dijalankan paralel.
+  const isScoped =
+    profile.perms.scope_kelas && !profile.perms.super && !!profile.pegawai_id;
+  const [{ data: gk }, { data: taData }] = await Promise.all([
+    isScoped
+      ? supabase
+          .from("guru_kelas")
+          .select("kelas_id")
+          .eq("pegawai_id", profile.pegawai_id!)
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("tahun_ajaran")
+      .select("id, tahun, is_aktif")
+      .order("tahun", { ascending: false }),
+  ]);
+  const scopedKelasIds: string[] | null = isScoped
+    ? [...new Set((gk ?? []).map((r) => r.kelas_id))]
+    : null;
   const taList = taData ?? [];
   const activeTa = taList.find((t) => t.is_aktif);
   const taId = getStr(sp.ta) || activeTa?.id || taList[0]?.id || "";

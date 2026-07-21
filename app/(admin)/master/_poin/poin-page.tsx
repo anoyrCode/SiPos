@@ -44,14 +44,20 @@ export async function PoinPage({
     const term = q.replace(/[,()*]/g, " ").trim();
     if (term) query = query.or(`kode_poin.ilike.*${term}*,nama_poin.ilike.*${term}*`);
   }
-  const { data, count } = await query.range(from, to);
+  // 3 query di bawah independen satu sama lain — paralel, bukan berurutan.
+  const [{ data, count }, { data: allKode }, { data: levelData }] = await Promise.all([
+    query.range(from, to),
+    // Kode poin berikutnya (otomatis): cari nomor terbesar utk tipe ini lalu +1.
+    supabase.from("master_poin").select("kode_poin").eq("tipe", tipe),
+    // Level untuk tipe ini (dikelola di Master → Level Poin).
+    supabase
+      .from("master_level_poin")
+      .select("nama")
+      .eq("tipe", tipe)
+      .order("urutan", { ascending: true }),
+  ]);
   const rows = (data ?? []) as PoinRow[];
 
-  // Kode poin berikutnya (otomatis): cari nomor terbesar utk tipe ini lalu +1.
-  const { data: allKode } = await supabase
-    .from("master_poin")
-    .select("kode_poin")
-    .eq("tipe", tipe);
   const prefix = isPos ? "P" : "N";
   const maxNum = (allKode ?? []).reduce((m, r) => {
     const match = /^[PN]-(\d+)$/i.exec(r.kode_poin ?? "");
@@ -59,12 +65,6 @@ export async function PoinPage({
   }, 0);
   const nextKode = `${prefix}-${String(maxNum + 1).padStart(3, "0")}`;
 
-  // Level untuk tipe ini (dikelola di Master → Level Poin).
-  const { data: levelData } = await supabase
-    .from("master_level_poin")
-    .select("nama")
-    .eq("tipe", tipe)
-    .order("urutan", { ascending: true });
   const levels = (levelData ?? []).map((l) => l.nama as string);
 
   const columns: Column<PoinRow>[] = [

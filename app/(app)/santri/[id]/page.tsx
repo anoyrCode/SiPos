@@ -71,19 +71,21 @@ export default async function Page({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: ta } = await supabase
-    .from("tahun_ajaran")
-    .select("id, tahun, tanggal_mulai, tanggal_selesai")
-    .eq("is_aktif", true)
-    .maybeSingle();
-
-  const { data: santri } = await supabase
-    .from("santri")
-    .select(
-      "id, nis, nisn, nama, email, jenis_kelamin, nama_ayah, nama_ibu, nama_wali, no_telp_wali, status",
-    )
-    .eq("id", id)
-    .maybeSingle();
+  // `ta` dan `santri` independen (filter beda: is_aktif vs id) — paralel.
+  const [{ data: ta }, { data: santri }] = await Promise.all([
+    supabase
+      .from("tahun_ajaran")
+      .select("id, tahun, tanggal_mulai, tanggal_selesai")
+      .eq("is_aktif", true)
+      .maybeSingle(),
+    supabase
+      .from("santri")
+      .select(
+        "id, nis, nisn, nama, email, jenis_kelamin, nama_ayah, nama_ibu, nama_wali, no_telp_wali, status",
+      )
+      .eq("id", id)
+      .maybeSingle(),
+  ]);
   if (!santri) notFound();
 
   let kelasNama: string | null = null;

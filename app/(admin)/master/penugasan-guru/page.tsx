@@ -51,32 +51,6 @@ export default async function Page({
     );
   }
 
-  const { data: kelasData } = await supabase
-    .from("kelas")
-    .select("id, nama_kelas, level:level_pendidikan(nama)")
-    .eq("tahun_ajaran_id", ta.id)
-    .order("nama_kelas");
-  const kelasOptions = (
-    (kelasData ?? []) as unknown as {
-      id: string;
-      nama_kelas: string;
-      level: { nama: string } | null;
-    }[]
-  ).map((k) => ({
-    id: k.id,
-    label: k.level?.nama ? `${k.nama_kelas} · ${k.level.nama}` : k.nama_kelas,
-  }));
-
-  // Jumlah kelas yang ditugaskan per pegawai (TA aktif).
-  const { data: gkData } = await supabase
-    .from("guru_kelas")
-    .select("pegawai_id, kelas:kelas!inner(tahun_ajaran_id)")
-    .eq("kelas.tahun_ajaran_id", ta.id);
-  const countMap = new Map<string, number>();
-  for (const r of (gkData ?? []) as unknown as { pegawai_id: string }[]) {
-    countMap.set(r.pegawai_id, (countMap.get(r.pegawai_id) ?? 0) + 1);
-  }
-
   let query = supabase
     .from("pegawai")
     .select("id, nama, jabatan", { count: "exact" })
@@ -88,7 +62,35 @@ export default async function Page({
     const term = q.replace(/[,()*]/g, " ").trim();
     if (term) query = query.or(`nama.ilike.*${term}*,jabatan.ilike.*${term}*`);
   }
-  const { data, count } = await query.range(from, to);
+
+  // 3 query di bawah cuma butuh `ta.id`, independen satu sama lain — paralel.
+  const [{ data: kelasData }, { data: gkData }, { data, count }] = await Promise.all([
+    supabase
+      .from("kelas")
+      .select("id, nama_kelas, level:level_pendidikan(nama)")
+      .eq("tahun_ajaran_id", ta.id)
+      .order("nama_kelas"),
+    // Jumlah kelas yang ditugaskan per pegawai (TA aktif).
+    supabase
+      .from("guru_kelas")
+      .select("pegawai_id, kelas:kelas!inner(tahun_ajaran_id)")
+      .eq("kelas.tahun_ajaran_id", ta.id),
+    query.range(from, to),
+  ]);
+  const kelasOptions = (
+    (kelasData ?? []) as unknown as {
+      id: string;
+      nama_kelas: string;
+      level: { nama: string } | null;
+    }[]
+  ).map((k) => ({
+    id: k.id,
+    label: k.level?.nama ? `${k.nama_kelas} · ${k.level.nama}` : k.nama_kelas,
+  }));
+  const countMap = new Map<string, number>();
+  for (const r of (gkData ?? []) as unknown as { pegawai_id: string }[]) {
+    countMap.set(r.pegawai_id, (countMap.get(r.pegawai_id) ?? 0) + 1);
+  }
   const rows = (data ?? []) as PegawaiRow[];
 
   const columns: Column<PegawaiRow>[] = [
