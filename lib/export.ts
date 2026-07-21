@@ -1,11 +1,14 @@
-import * as XLSX from "xlsx";
+// `xlsx` dimuat dinamis (bukan import statis) — dipanggil dari komponen client,
+// jadi tanpa ini library-nya ikut ke-bundle ke JS halaman walau user gak pernah
+// klik tombol Excel. Sama pola dgn `jsPDF` di `lib/pdf.ts`.
 
-export function downloadExcel(
+export async function downloadExcel(
   filename: string,
   sheetName: string,
   rows: Record<string, unknown>[],
   colWidths?: number[],
 ) {
+  const XLSX = await import("xlsx");
   const ws = XLSX.utils.json_to_sheet(rows);
   if (colWidths?.length) {
     ws["!cols"] = colWidths.map((wch) => ({ wch }));
@@ -15,7 +18,7 @@ export function downloadExcel(
   XLSX.writeFile(wb, filename);
 }
 
-export function downloadExcelMultiSheet(
+export async function downloadExcelMultiSheet(
   filename: string,
   sheets: {
     sheetName: string;
@@ -23,6 +26,7 @@ export function downloadExcelMultiSheet(
     colWidths?: number[];
   }[],
 ) {
+  const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
   for (const sheet of sheets) {
     const ws = XLSX.utils.json_to_sheet(sheet.rows);
