@@ -38,6 +38,7 @@ import {
   type AbsensiStatus,
   type SesiStatus,
   type PengajuanStatus,
+  type KategoriAbsen,
   PENGAJUAN_STATUS_LABEL,
 } from "@/lib/absensi-status";
 import { DateFilter } from "./date-filter";
@@ -52,6 +53,7 @@ import {
   PengajuanBulananExport,
   type PengajuanBulananRow,
 } from "./pengajuan-bulanan-export";
+import { RekapHarianExport } from "./rekap-harian-export";
 
 type Row = {
   pegawaiId: string;
@@ -65,6 +67,35 @@ type Row = {
   overrideLokasi: boolean;
   overrideAlasan: string | null;
   bebasLokasi: boolean;
+};
+
+/** Rekap harian lengkap (mode "Per Rentang", 1 baris per pegawai per tanggal). */
+type HarianRow = Row & { tanggal: string };
+
+type PegawaiJadwalRow = {
+  id: string;
+  nama: string;
+  jam_masuk_jadwal: string | null;
+  jam_pulang_jadwal: string | null;
+  hari_libur: number | null;
+  jadwal_harian_berbeda: boolean;
+  shift_ganda: boolean;
+  jam_masuk_jadwal_2: string | null;
+  jam_pulang_jadwal_2: string | null;
+  tanggal_mulai_absensi: string | null;
+  bebas_lokasi: boolean;
+};
+
+type AbsensiRecordRow = {
+  pegawai_id: string;
+  tanggal: string;
+  jam_masuk_aktual: string | null;
+  jam_pulang_aktual: string | null;
+  jam_masuk_aktual_2: string | null;
+  jam_pulang_aktual_2: string | null;
+  kategori_absen: KategoriAbsen | null;
+  override_lokasi: boolean;
+  override_alasan: string | null;
 };
 
 export type TelatMasukRow = {
@@ -174,6 +205,104 @@ function datesInRange(dari: string, sampai: string): string[] {
     cur.setDate(cur.getDate() + 1);
   }
   return dates;
+}
+
+/**
+ * Status + jam masuk/pulang 1 pegawai pada 1 tanggal — dipakai baik oleh mode
+ * "Per Tanggal" (1 tanggal) maupun rekap harian lengkap di "Per Rentang"
+ * (dipanggil berulang per tanggal dalam rentang), supaya logikanya konsisten
+ * di 1 tempat, gak diduplikasi.
+ */
+function computeRowForDate(
+  p: PegawaiJadwalRow,
+  tgl: string,
+  absensiMap: Map<string, AbsensiRecordRow>,
+  jadwalHarianMap: Map<
+    string,
+    Record<number, { jam_masuk: string | null; jam_pulang: string | null }>
+  >,
+  jadwalSementaraMap: Map<
+    string,
+    { tanggal_mulai: string; tanggal_selesai: string; jam_masuk: string; jam_pulang: string }[]
+  >,
+  liburKhususSet: Set<string>,
+  toleransiMenit: number,
+  tanggalMulaiGlobal: string | null,
+): Row {
+  const record = absensiMap.get(`${p.id}_${tgl}`) ?? null;
+  const jadwal = {
+    jam_masuk_jadwal: p.jam_masuk_jadwal,
+    jam_pulang_jadwal: p.jam_pulang_jadwal,
+    hari_libur: p.hari_libur,
+    jadwal_harian: p.jadwal_harian_berbeda
+      ? (jadwalHarianMap.get(p.id) ?? null)
+      : null,
+    jadwal_sementara: jadwalSementaraMap.get(p.id) ?? [],
+  };
+  const tanggalMulaiEfektif = effectiveTanggalMulai(
+    tanggalMulaiGlobal,
+    p.tanggal_mulai_absensi,
+  );
+
+  let status: AbsensiStatus;
+  let sesiStatuses: SesiStatus[] | null = null;
+  if (p.shift_ganda) {
+    const jadwalSesi2 = {
+      jam_masuk_jadwal: p.jam_masuk_jadwal_2,
+      jam_pulang_jadwal: p.jam_pulang_jadwal_2,
+      hari_libur: p.hari_libur,
+      jadwal_harian: null,
+      jadwal_sementara: jadwalSementaraMap.get(p.id) ?? [],
+    };
+    const record2 = record
+      ? {
+          jam_masuk_aktual: record.jam_masuk_aktual_2,
+          jam_pulang_aktual: record.jam_pulang_aktual_2,
+          kategori_absen: record.kategori_absen,
+        }
+      : null;
+    const statusesSesi1 = computeDayStatusList(
+      tgl,
+      record,
+      jadwal,
+      toleransiMenit,
+      liburKhususSet,
+      tanggalMulaiEfektif,
+    );
+    const statusesSesi2 = computeDayStatusList(
+      tgl,
+      record2,
+      jadwalSesi2,
+      toleransiMenit,
+      liburKhususSet,
+      tanggalMulaiEfektif,
+    );
+    sesiStatuses = combineSesiStatuses(statusesSesi1, statusesSesi2);
+    status = sesiStatuses[0]?.status ?? "normal";
+  } else {
+    status = computeDayStatus(
+      tgl,
+      record,
+      jadwal,
+      toleransiMenit,
+      liburKhususSet,
+      tanggalMulaiEfektif,
+    );
+  }
+
+  return {
+    pegawaiId: p.id,
+    nama: p.nama,
+    jamMasukAktual: record?.jam_masuk_aktual ?? null,
+    jamPulangAktual: record?.jam_pulang_aktual ?? null,
+    jamMasukAktual2: record?.jam_masuk_aktual_2 ?? null,
+    jamPulangAktual2: record?.jam_pulang_aktual_2 ?? null,
+    status,
+    sesiStatuses,
+    overrideLokasi: record?.override_lokasi ?? false,
+    overrideAlasan: record?.override_alasan ?? null,
+    bebasLokasi: p.bebas_lokasi,
+  };
 }
 
 export default async function Page({
@@ -321,82 +450,41 @@ export default async function Page({
     (absensiRows ?? []).map((r) => [`${r.pegawai_id}_${r.tanggal}`, r]),
   );
 
-  const allRows: Row[] = (pegawaiList ?? []).map((p) => {
-    const record = absensiMap.get(`${p.id}_${tanggal}`) ?? null;
-    const jadwal = {
-      jam_masuk_jadwal: p.jam_masuk_jadwal,
-      jam_pulang_jadwal: p.jam_pulang_jadwal,
-      hari_libur: p.hari_libur,
-      jadwal_harian: p.jadwal_harian_berbeda
-        ? (jadwalHarianMap.get(p.id) ?? null)
-        : null,
-      jadwal_sementara: jadwalSementaraMap.get(p.id) ?? [],
-    };
-    const tanggalMulaiEfektif = effectiveTanggalMulai(
+  const allRows: Row[] = (pegawaiList ?? []).map((p) =>
+    computeRowForDate(
+      p,
+      tanggal,
+      absensiMap,
+      jadwalHarianMap,
+      jadwalSementaraMap,
+      liburKhususSet,
+      toleransiMenit,
       tanggalMulai,
-      p.tanggal_mulai_absensi,
-    );
+    ),
+  );
 
-    let status: AbsensiStatus;
-    let sesiStatuses: SesiStatus[] | null = null;
-    if (p.shift_ganda) {
-      const jadwalSesi2 = {
-        jam_masuk_jadwal: p.jam_masuk_jadwal_2,
-        jam_pulang_jadwal: p.jam_pulang_jadwal_2,
-        hari_libur: p.hari_libur,
-        jadwal_harian: null,
-        jadwal_sementara: jadwalSementaraMap.get(p.id) ?? [],
-      };
-      const record2 = record
-        ? {
-            jam_masuk_aktual: record.jam_masuk_aktual_2,
-            jam_pulang_aktual: record.jam_pulang_aktual_2,
-            kategori_absen: record.kategori_absen,
-          }
-        : null;
-      const statusesSesi1 = computeDayStatusList(
-        tanggal,
-        record,
-        jadwal,
-        toleransiMenit,
-        liburKhususSet,
-        tanggalMulaiEfektif,
-      );
-      const statusesSesi2 = computeDayStatusList(
-        tanggal,
-        record2,
-        jadwalSesi2,
-        toleransiMenit,
-        liburKhususSet,
-        tanggalMulaiEfektif,
-      );
-      sesiStatuses = combineSesiStatuses(statusesSesi1, statusesSesi2);
-      status = sesiStatuses[0]?.status ?? "normal";
-    } else {
-      status = computeDayStatus(
-        tanggal,
-        record,
-        jadwal,
-        toleransiMenit,
-        liburKhususSet,
-        tanggalMulaiEfektif,
-      );
-    }
-
-    return {
-      pegawaiId: p.id,
-      nama: p.nama,
-      jamMasukAktual: record?.jam_masuk_aktual ?? null,
-      jamPulangAktual: record?.jam_pulang_aktual ?? null,
-      jamMasukAktual2: record?.jam_masuk_aktual_2 ?? null,
-      jamPulangAktual2: record?.jam_pulang_aktual_2 ?? null,
-      status,
-      sesiStatuses,
-      overrideLokasi: record?.override_lokasi ?? false,
-      overrideAlasan: record?.override_alasan ?? null,
-      bebasLokasi: p.bebas_lokasi,
-    };
-  });
+  // Rekap harian lengkap (semua tanggal dalam rentang, termasuk Normal/Libur —
+  // beda dari 3 tabel keterlambatan di bawah yg cuma isi baris bermasalah).
+  // Hanya dihitung kalau pencarian nama diisi (dipakai sbg "pilih pegawai"),
+  // supaya gak dump ribuan baris (semua pegawai x semua tanggal) tanpa filter.
+  const harianRows: HarianRow[] =
+    mode === "bulanan" && q
+      ? (pegawaiList ?? []).flatMap((p) =>
+          rangeDates.map((tgl) => ({
+            ...computeRowForDate(
+              p,
+              tgl,
+              absensiMap,
+              jadwalHarianMap,
+              jadwalSementaraMap,
+              liburKhususSet,
+              toleransiMenit,
+              tanggalMulai,
+            ),
+            tanggal: tgl,
+          })),
+        )
+      : [];
 
   const isStatusFilterActive =
     !!statusFilter && Object.hasOwn(STATUS_LABEL, statusFilter);
@@ -554,6 +642,7 @@ export default async function Page({
   const keluarParams = parsePageParamsNamed(sp, "keluarPage", "keluarPerPage");
   const curangParams = parsePageParamsNamed(sp, "curangPage", "curangPerPage");
   const pengajuanParams = parsePageParamsNamed(sp, "pengajuanPage", "pengajuanPerPage");
+  const harianParams = parsePageParamsNamed(sp, "harianPage", "harianPerPage");
   const pagedTelatMasuk = paginateArray(telatMasukRows, masukParams.page, masukParams.perPage);
   const pagedTelatKeluar = paginateArray(telatKeluarRows, keluarParams.page, keluarParams.perPage);
   const pagedCurang = paginateArray(curangRows, curangParams.page, curangParams.perPage);
@@ -562,6 +651,85 @@ export default async function Page({
     pengajuanParams.page,
     pengajuanParams.perPage,
   );
+  const pagedHarian = paginateArray(harianRows, harianParams.page, harianParams.perPage);
+
+  const harianColumns: Column<HarianRow>[] = [
+    {
+      key: "tanggal",
+      header: "Tanggal",
+      cell: (r) => formatDateID(r.tanggal),
+    },
+    {
+      key: "nama",
+      header: "Pegawai",
+      cell: (r) => <span className="font-medium">{r.nama}</span>,
+    },
+    {
+      key: "masuk",
+      header: "Clock In",
+      cell: (r) =>
+        r.sesiStatuses ? (
+          <div className="font-mono text-xs leading-tight">
+            <p>S1: {formatJamWIB(r.jamMasukAktual)}</p>
+            <p>S2: {formatJamWIB(r.jamMasukAktual2)}</p>
+          </div>
+        ) : (
+          <span className="font-mono">{formatJamWIB(r.jamMasukAktual)}</span>
+        ),
+    },
+    {
+      key: "pulang",
+      header: "Clock Out",
+      cell: (r) =>
+        r.sesiStatuses ? (
+          <div className="font-mono text-xs leading-tight">
+            <p>S1: {formatJamWIB(r.jamPulangAktual)}</p>
+            <p>S2: {formatJamWIB(r.jamPulangAktual2)}</p>
+          </div>
+        ) : (
+          <span className="font-mono">{formatJamWIB(r.jamPulangAktual)}</span>
+        ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      cell: (r) =>
+        r.sesiStatuses ? (
+          <SesiStatusCell statuses={r.sesiStatuses} />
+        ) : (
+          <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+        ),
+    },
+    {
+      key: "lokasi",
+      header: "Lokasi",
+      cell: (r) =>
+        r.overrideLokasi ? (
+          r.overrideAlasan ? (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Badge variant="warning" className="cursor-pointer">
+                  Manual — di luar radius
+                </Badge>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Alasan Lokasi Manual</DialogTitle>
+                  <DialogDescription>
+                    {r.nama} — {formatDateID(r.tanggal)}
+                  </DialogDescription>
+                </DialogHeader>
+                <p className="text-sm">{r.overrideAlasan}</p>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <Badge variant="warning">Manual — di luar radius</Badge>
+          )
+        ) : r.bebasLokasi ? (
+          <Badge variant="outline">Dikecualikan</Badge>
+        ) : null,
+    },
+  ];
 
   const pengajuanBulananColumns: Column<PengajuanBulananRow>[] = [
     {
@@ -953,6 +1121,41 @@ export default async function Page({
               />
             </div>
           )}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold">Rekap Harian Lengkap</h3>
+              {q && (
+                <RekapHarianExport
+                  dari={rangeDates[0]}
+                  sampai={rangeDates[rangeDates.length - 1]}
+                  rows={harianRows}
+                />
+              )}
+            </div>
+            {q ? (
+              <>
+                <DataTable
+                  columns={harianColumns}
+                  rows={pagedHarian.rows}
+                  getRowId={(r) => `${r.pegawaiId}_${r.tanggal}`}
+                  empty="Tidak ada data pada rentang ini."
+                />
+                <Pagination
+                  page={pagedHarian.page}
+                  perPage={harianParams.perPage}
+                  totalPages={pagedHarian.totalPages}
+                  totalItems={pagedHarian.totalItems}
+                  pageParam="harianPage"
+                  perPageParam="harianPerPage"
+                />
+              </>
+            ) : (
+              <p className="rounded-card border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
+                Cari nama pegawai di kolom pencarian di atas untuk melihat rekap harian
+                lengkap (semua tanggal, termasuk yang Normal/Libur) beserta unduh Excel-nya.
+              </p>
+            )}
+          </div>
         </>
       )}
     </div>
