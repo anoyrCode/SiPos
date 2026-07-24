@@ -211,7 +211,7 @@ export function PerkembanganChart({
             allowDecimals={false}
             axisLine={false}
             tickLine={false}
-            width={32}
+            width={48}
           />
           <Tooltip contentStyle={tooltipStyle} />
           <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
