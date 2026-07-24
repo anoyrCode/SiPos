@@ -35,6 +35,15 @@ type Tx = {
   tanggal_kejadian: string;
 };
 
+/** Bentuk hasil RPC `dashboard_stats` (agregasi transaksi_poin di database). */
+type DashboardStats = {
+  per_santri: { santri_id: string; pos: number; neg: number }[];
+  per_poin: { master_poin_id: string; count: number }[];
+  per_month: { month: string; pos: number; neg: number }[];
+  per_level: { level: string; count: number }[];
+  prev: { pos: number; neg: number; count: number } | null;
+};
+
 const TX_PAGE_SIZE = 1000;
 
 /**
@@ -167,8 +176,7 @@ export default async function Page() {
     mpRes,
     recentRes,
     jabatanGuruRes,
-    tx,
-    txSebelumnya,
+    statsRes,
     { data: skData },
   ] = await Promise.all([
     supabase
@@ -188,18 +196,10 @@ export default async function Page() {
       .order("created_at", { ascending: false })
       .limit(50),
     supabase.from("jabatan").select("nama").eq("is_guru", true),
-    fetchAllTransaksi<Tx>(
-      supabase,
-      "santri_id, master_poin_id, tipe, nilai_poin, tanggal_kejadian",
-      ta?.id,
-    ),
-    taSebelumnya
-      ? fetchAllTransaksi<{ tipe: string; nilai_poin: number }>(
-          supabase,
-          "tipe, nilai_poin",
-          taSebelumnya.id,
-        )
-      : Promise.resolve([] as { tipe: string; nilai_poin: number }[]),
+    supabase.rpc("dashboard_stats", {
+      p_ta: ta?.id ?? null,
+      p_ta_prev: taSebelumnya?.id ?? null,
+    }),
     skQuery,
   ]);
 
@@ -220,7 +220,8 @@ export default async function Page() {
     (p) => p.jenis_kelamin === "P" && isGuruLike(p),
   ).length;
 
-  // Perbandingan dgn tahun ajaran sebelumnya (kalau ada).
+  // Perbandingan dgn tahun ajaran sebelumnya — diisi di blok agregat di
+  // bawah (setelah santriSum/poinCount/prevTotals tersedia).
   let perbandinganTa: {
     taSebelumnyaLabel: string;
     posAktif: number;
@@ -230,19 +231,6 @@ export default async function Page() {
     jumlahAktif: number;
     jumlahSebelumnya: number;
   } | null = null;
-  if (taSebelumnya) {
-    const sum = (rows: { tipe: string; nilai_poin: number }[], tipe: string) =>
-      rows.filter((r) => r.tipe === tipe).reduce((s, r) => s + r.nilai_poin, 0);
-    perbandinganTa = {
-      taSebelumnyaLabel: taSebelumnya.tahun,
-      posAktif: sum(tx, "POSITIF"),
-      posSebelumnya: sum(txSebelumnya, "POSITIF"),
-      negAktif: sum(tx, "NEGATIF"),
-      negSebelumnya: sum(txSebelumnya, "NEGATIF"),
-      jumlahAktif: tx.length,
-      jumlahSebelumnya: txSebelumnya.length,
-    };
-  }
   const santriKelas = new Map<string, string>();
   for (const row of (skData ?? []) as unknown as {
     santri_id: string;
@@ -264,11 +252,97 @@ export default async function Page() {
     ]),
   );
 
-  // Statistik poin: jumlah kejadian per poin
+  // ---- Agregat transaksi_poin ----
+  // Sumber utama: RPC dashboard_stats (penjumlahan di database — cepat,
+  // cuma transfer hasil ringkas). Kalau RPC gagal (mis. migration 0032
+  // belum dijalankan di Supabase), fallback ke agregasi di JS dari
+  // fetchAllTransaksi (lambat, tapi tetap render — deploy aman).
+  const santriSum = new Map<string, { pos: number; neg: number }>();
   const poinCount = new Map<string, number>();
-  for (const t of tx) {
-    poinCount.set(t.master_poin_id, (poinCount.get(t.master_poin_id) ?? 0) + 1);
+  const buckets = new Map<string, { pos: number; neg: number }>();
+  const levelCount = new Map<string, number>();
+  let prevTotals: { pos: number; neg: number; count: number } | null = null;
+
+  const stats = (statsRes.data as DashboardStats | null) ?? null;
+  if (stats && !statsRes.error) {
+    for (const r of stats.per_santri)
+      santriSum.set(r.santri_id, { pos: r.pos, neg: r.neg });
+    for (const r of stats.per_poin) poinCount.set(r.master_poin_id, r.count);
+    for (const r of stats.per_month)
+      buckets.set(r.month, { pos: r.pos, neg: r.neg });
+    for (const r of stats.per_level) levelCount.set(r.level, r.count);
+    prevTotals = stats.prev;
+  } else {
+    const tx = await fetchAllTransaksi<Tx>(
+      supabase,
+      "santri_id, master_poin_id, tipe, nilai_poin, tanggal_kejadian",
+      ta?.id,
+    );
+    for (const t of tx) {
+      const s = santriSum.get(t.santri_id) ?? { pos: 0, neg: 0 };
+      if (t.tipe === "POSITIF") s.pos += t.nilai_poin;
+      else s.neg += t.nilai_poin;
+      santriSum.set(t.santri_id, s);
+
+      poinCount.set(t.master_poin_id, (poinCount.get(t.master_poin_id) ?? 0) + 1);
+
+      const k = t.tanggal_kejadian.slice(0, 7);
+      const e = buckets.get(k) ?? { pos: 0, neg: 0 };
+      if (t.tipe === "POSITIF") e.pos += t.nilai_poin;
+      else e.neg += t.nilai_poin;
+      buckets.set(k, e);
+
+      if (t.tipe === "NEGATIF") {
+        const lv = poinMeta.get(t.master_poin_id)?.level || "Lainnya";
+        levelCount.set(lv, (levelCount.get(lv) ?? 0) + 1);
+      }
+    }
+    if (taSebelumnya) {
+      const txPrev = await fetchAllTransaksi<{ tipe: string; nilai_poin: number }>(
+        supabase,
+        "tipe, nilai_poin",
+        taSebelumnya.id,
+      );
+      const sum = (tipe: string) =>
+        txPrev.filter((r) => r.tipe === tipe).reduce((s, r) => s + r.nilai_poin, 0);
+      prevTotals = { pos: sum("POSITIF"), neg: sum("NEGATIF"), count: txPrev.length };
+    }
   }
+
+  // Poin per kelas — dijumlahkan dari total per santri + peta santri→kelas
+  // (setara menjumlahkan tiap transaksi, tanpa perlu baris mentah).
+  const kelasSum = new Map<string, { pos: number; neg: number }>();
+  for (const [santriId, v] of santriSum) {
+    const kelasNama = santriKelas.get(santriId);
+    if (!kelasNama) continue;
+    const ks = kelasSum.get(kelasNama) ?? { pos: 0, neg: 0 };
+    ks.pos += v.pos;
+    ks.neg += v.neg;
+    kelasSum.set(kelasNama, ks);
+  }
+
+  if (taSebelumnya) {
+    let posAktif = 0;
+    let negAktif = 0;
+    for (const v of santriSum.values()) {
+      posAktif += v.pos;
+      negAktif += v.neg;
+    }
+    let jumlahAktif = 0;
+    for (const c of poinCount.values()) jumlahAktif += c;
+    const prev = prevTotals ?? { pos: 0, neg: 0, count: 0 };
+    perbandinganTa = {
+      taSebelumnyaLabel: taSebelumnya.tahun,
+      posAktif,
+      posSebelumnya: prev.pos,
+      negAktif,
+      negSebelumnya: prev.neg,
+      jumlahAktif,
+      jumlahSebelumnya: prev.count,
+    };
+  }
+
+  // Statistik poin: jumlah kejadian per poin (dari poinCount di atas)
   const statAll = [...poinCount.entries()].map(([id, count]) => ({
     count,
     label: poinMeta.get(id)?.nama_poin ?? "?",
@@ -284,40 +358,6 @@ export default async function Page() {
     .sort((a, b) => b.count - a.count)
     .slice(0, TOP_N)
     .map(({ label, count }) => ({ label, count }));
-
-  // Perkembangan bulanan
-  const buckets = new Map<string, { pos: number; neg: number }>();
-  // Sebaran level pelanggaran (negatif)
-  const levelCount = new Map<string, number>();
-  // Peringkat santri
-  const santriSum = new Map<string, { pos: number; neg: number }>();
-  // Poin per kelas
-  const kelasSum = new Map<string, { pos: number; neg: number }>();
-
-  for (const t of tx) {
-    const kelasNama = santriKelas.get(t.santri_id);
-    if (kelasNama) {
-      const ks = kelasSum.get(kelasNama) ?? { pos: 0, neg: 0 };
-      if (t.tipe === "POSITIF") ks.pos += t.nilai_poin;
-      else ks.neg += t.nilai_poin;
-      kelasSum.set(kelasNama, ks);
-    }
-    const k = t.tanggal_kejadian.slice(0, 7);
-    const e = buckets.get(k) ?? { pos: 0, neg: 0 };
-    if (t.tipe === "POSITIF") e.pos += t.nilai_poin;
-    else e.neg += t.nilai_poin;
-    buckets.set(k, e);
-
-    const s = santriSum.get(t.santri_id) ?? { pos: 0, neg: 0 };
-    if (t.tipe === "POSITIF") s.pos += t.nilai_poin;
-    else s.neg += t.nilai_poin;
-    santriSum.set(t.santri_id, s);
-
-    if (t.tipe === "NEGATIF") {
-      const lv = poinMeta.get(t.master_poin_id)?.level || "Lainnya";
-      levelCount.set(lv, (levelCount.get(lv) ?? 0) + 1);
-    }
-  }
 
   const monthKeys =
     ta?.tanggal_mulai && ta?.tanggal_selesai
