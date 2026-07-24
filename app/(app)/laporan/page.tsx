@@ -146,7 +146,32 @@ export default async function Page({
     const scopedSantriIds = scopedKelasIds
       ? [...new Set(placements.map((p) => p.santri_id))]
       : null;
-    const tx = await fetchAllTransaksi(supabase, taId, scopedSantriIds);
+
+    // Total poin per santri — dari RPC agregasi di database (cepat, cuma
+    // transfer hasil ringkas). Fallback ke agregasi JS dari fetchAllTransaksi
+    // kalau RPC gagal (mis. migration 0033 belum dijalankan) — deploy aman.
+    const sumRpc = await supabase.rpc("laporan_sum_per_santri", {
+      p_ta: taId,
+      p_santri_ids: scopedSantriIds,
+    });
+    let perSantri: { santri_id: string; pos: number; neg: number }[];
+    if (!sumRpc.error && Array.isArray(sumRpc.data)) {
+      perSantri = sumRpc.data as { santri_id: string; pos: number; neg: number }[];
+    } else {
+      const tx = await fetchAllTransaksi(supabase, taId, scopedSantriIds);
+      const m = new Map<string, { pos: number; neg: number }>();
+      for (const t of tx) {
+        const e = m.get(t.santri_id) ?? { pos: 0, neg: 0 };
+        if (t.tipe === "POSITIF") e.pos += t.nilai_poin;
+        else e.neg += t.nilai_poin;
+        m.set(t.santri_id, e);
+      }
+      perSantri = [...m.entries()].map(([santri_id, v]) => ({
+        santri_id,
+        pos: v.pos,
+        neg: v.neg,
+      }));
+    }
 
     const santriToKelas = new Map<string, { id: string; nama: string }>();
     const kelasAgg = new Map<
@@ -172,21 +197,20 @@ export default async function Page({
     let noneNeg = 0;
     const santriAgg = new Map<string, { pos: number; neg: number }>();
 
-    for (const t of tx) {
-      const e = santriAgg.get(t.santri_id) ?? { pos: 0, neg: 0 };
-      if (t.tipe === "POSITIF") e.pos += t.nilai_poin;
-      else e.neg += t.nilai_poin;
-      santriAgg.set(t.santri_id, e);
+    // Total per santri sudah dijumlahkan (RPC/fallback) — tinggal masukkan
+    // ke bucket kelas / "Tanpa Kelas". Setara menjumlahkan tiap transaksi.
+    for (const { santri_id, pos, neg } of perSantri) {
+      santriAgg.set(santri_id, { pos, neg });
 
-      const k = santriToKelas.get(t.santri_id);
+      const k = santriToKelas.get(santri_id);
       if (k) {
         const ke = kelasAgg.get(k.id)!;
-        if (t.tipe === "POSITIF") ke.pos += t.nilai_poin;
-        else ke.neg += t.nilai_poin;
+        ke.pos += pos;
+        ke.neg += neg;
       } else {
-        noneSantri.add(t.santri_id);
-        if (t.tipe === "POSITIF") nonePos += t.nilai_poin;
-        else noneNeg += t.nilai_poin;
+        noneSantri.add(santri_id);
+        nonePos += pos;
+        noneNeg += neg;
       }
     }
 

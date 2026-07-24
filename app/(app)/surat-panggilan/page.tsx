@@ -18,6 +18,10 @@ type NegatifTx = {
 };
 
 const TX_PAGE_SIZE = 1000;
+// Ambang SP terendah (SP1). Santri dengan total negatif di bawah ini tidak
+// pernah ditampilkan di tabel Surat Panggilan (lihat SP_LEVELS di komponen
+// tabel), jadi rincian pelanggarannya tidak perlu diambil sama sekali.
+const SP_AMBANG_MIN = 300;
 
 /**
  * Ambil SEMUA transaksi NEGATIF 1 tahun ajaran, dipaginasi penuh —
@@ -29,11 +33,12 @@ const TX_PAGE_SIZE = 1000;
 async function fetchAllNegatif(
   supabase: Awaited<ReturnType<typeof createClient>>,
   taId: string,
+  santriIds?: string[] | null,
 ): Promise<NegatifTx[]> {
   const rows: NegatifTx[] = [];
   let from = 0;
   for (;;) {
-    const { data } = await supabase
+    let q = supabase
       .from("transaksi_poin")
       .select(
         "santri_id, nilai_poin, tanggal_kejadian, catatan, master_poin:master_poin(nama_poin, kode_poin)",
@@ -41,6 +46,15 @@ async function fetchAllNegatif(
       .eq("tahun_ajaran_id", taId)
       .eq("tipe", "NEGATIF")
       .range(from, from + TX_PAGE_SIZE - 1);
+    if (santriIds) {
+      q = q.in(
+        "santri_id",
+        santriIds.length > 0
+          ? santriIds
+          : ["00000000-0000-0000-0000-000000000000"],
+      );
+    }
+    const { data } = await q;
     const page = (data ?? []) as unknown as NegatifTx[];
     rows.push(...page);
     if (page.length < TX_PAGE_SIZE) break;
@@ -75,13 +89,32 @@ export default async function Page() {
   let rows: SuratPanggilanRow[] = [];
 
   if (ta?.id) {
-    const [tx, skRes] = await Promise.all([
-      fetchAllNegatif(supabase, ta.id),
+    // Total negatif per santri (RPC agregasi di DB — cepat) + peta kelas,
+    // dijalankan paralel.
+    const [totalsRpc, skRes] = await Promise.all([
+      supabase.rpc("surat_panggilan_totals", { p_ta: ta.id }),
       supabase
         .from("santri_kelas")
         .select("santri_id, kelas:kelas!inner(nama_kelas, tahun_ajaran_id)")
         .eq("kelas.tahun_ajaran_id", ta.id),
     ]);
+
+    // Rincian pelanggaran diambil HANYA utk santri yang tembus ambang SP
+    // terendah (>=300) — yang biasanya segelintir, bukan semua santri
+    // bernilai negatif. Fallback: kalau RPC gagal (mis. migration 0033
+    // belum dijalankan), ambil semua negatif seperti sebelumnya.
+    let tx: NegatifTx[];
+    if (!totalsRpc.error && Array.isArray(totalsRpc.data)) {
+      const flaggedIds = (totalsRpc.data as { santri_id: string; total: number }[])
+        .filter((t) => t.total >= SP_AMBANG_MIN)
+        .map((t) => t.santri_id);
+      tx =
+        flaggedIds.length > 0
+          ? await fetchAllNegatif(supabase, ta.id, flaggedIds)
+          : [];
+    } else {
+      tx = await fetchAllNegatif(supabase, ta.id);
+    }
 
     const santriKelas = new Map<string, string>();
     for (const row of (skRes.data ?? []) as unknown as {
