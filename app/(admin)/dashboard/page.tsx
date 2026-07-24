@@ -44,58 +44,33 @@ const TX_PAGE_SIZE = 1000;
  * terpotong tanpa ini (baris mana yg kepotong tidak menentu krn tidak
  * ada `.order()`, bisa termasuk transaksi terbaru).
  *
- * Halaman-halaman diambil PARALEL (bukan loop berurutan) — hitung total
- * dulu via count query, lalu Promise.all semua range sekaligus, supaya
- * tahun ajaran dgn ribuan transaksi tidak menunggu N round-trip berantai.
+ * TAMBAL SEMENTARA: sekuensial (bukan paralel) + tanpa count exact, karena
+ * di Supabase free-tier (compute kecil) query paralel + full count bikin
+ * sebagian query kena statement timeout → dashboard Oops. Kalau 1 halaman
+ * gagal, berhenti & pakai yang sudah kekumpul (jangan lempar Oops).
+ * Solusi sebenarnya: agregasi di database, sedang dikerjakan.
  */
 async function fetchAllTransaksi<T>(
   supabase: Awaited<ReturnType<typeof createClient>>,
   select: string,
   taId?: string,
 ): Promise<T[]> {
-  function pageQuery(from: number) {
+  const rows: T[] = [];
+  let from = 0;
+  for (;;) {
     let q = supabase
       .from("transaksi_poin")
       .select(select)
       .range(from, from + TX_PAGE_SIZE - 1);
     if (taId) q = q.eq("tahun_ajaran_id", taId);
-    return q;
+    const { data, error } = await q;
+    if (error) break;
+    const page = (data ?? []) as T[];
+    rows.push(...page);
+    if (page.length < TX_PAGE_SIZE) break;
+    from += TX_PAGE_SIZE;
   }
-
-  // Query paralel bisa gagal sebagian (rate limit/koneksi sesaat) tanpa
-  // melempar exception — Supabase JS balikin { error } di hasilnya, bukan
-  // throw. Kalau diabaikan (data ?? []), halaman jadi diam-diam nampilin
-  // data kurang/salah alih-alih error yang kelihatan. Jadi di sini: retry
-  // 1x per halaman, lalu throw kalau tetap gagal — angka dashboard harus
-  // benar atau nampilin error, bukan angka yang gak lengkap tanpa disadari.
-  async function fetchPage(from: number): Promise<T[]> {
-    const first = await pageQuery(from);
-    if (!first.error) return (first.data ?? []) as T[];
-    const retry = await pageQuery(from);
-    if (retry.error) {
-      throw new Error(
-        `Gagal ambil transaksi_poin baris ${from}-${from + TX_PAGE_SIZE - 1}: ${retry.error.message}`,
-      );
-    }
-    return (retry.data ?? []) as T[];
-  }
-
-  let countQuery = supabase
-    .from("transaksi_poin")
-    .select("id", { count: "exact", head: true });
-  if (taId) countQuery = countQuery.eq("tahun_ajaran_id", taId);
-  const { count, error: countError } = await countQuery;
-  if (countError) {
-    throw new Error(`Gagal hitung transaksi_poin: ${countError.message}`);
-  }
-  const total = count ?? 0;
-  if (total === 0) return [];
-
-  const pageCount = Math.ceil(total / TX_PAGE_SIZE);
-  const pages = await Promise.all(
-    Array.from({ length: pageCount }, (_, i) => fetchPage(i * TX_PAGE_SIZE)),
-  );
-  return pages.flat();
+  return rows;
 }
 
 function monthLabel(key: string): string {
