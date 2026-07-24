@@ -43,27 +43,36 @@ const TX_PAGE_SIZE = 1000;
  * secara default, jadi tahun ajaran dgn >1000 transaksi bakal diam-diam
  * terpotong tanpa ini (baris mana yg kepotong tidak menentu krn tidak
  * ada `.order()`, bisa termasuk transaksi terbaru).
+ *
+ * Halaman-halaman diambil PARALEL (bukan loop berurutan) — hitung total
+ * dulu via count query, lalu Promise.all semua range sekaligus, supaya
+ * tahun ajaran dgn ribuan transaksi tidak menunggu N round-trip berantai.
  */
 async function fetchAllTransaksi<T>(
   supabase: Awaited<ReturnType<typeof createClient>>,
   select: string,
   taId?: string,
 ): Promise<T[]> {
-  const rows: T[] = [];
-  let from = 0;
-  for (;;) {
-    let q = supabase
-      .from("transaksi_poin")
-      .select(select)
-      .range(from, from + TX_PAGE_SIZE - 1);
-    if (taId) q = q.eq("tahun_ajaran_id", taId);
-    const { data } = await q;
-    const page = (data ?? []) as T[];
-    rows.push(...page);
-    if (page.length < TX_PAGE_SIZE) break;
-    from += TX_PAGE_SIZE;
-  }
-  return rows;
+  let countQuery = supabase
+    .from("transaksi_poin")
+    .select("id", { count: "exact", head: true });
+  if (taId) countQuery = countQuery.eq("tahun_ajaran_id", taId);
+  const { count } = await countQuery;
+  const total = count ?? 0;
+  if (total === 0) return [];
+
+  const pageCount = Math.ceil(total / TX_PAGE_SIZE);
+  const pages = await Promise.all(
+    Array.from({ length: pageCount }, (_, i) => {
+      let q = supabase
+        .from("transaksi_poin")
+        .select(select)
+        .range(i * TX_PAGE_SIZE, i * TX_PAGE_SIZE + TX_PAGE_SIZE - 1);
+      if (taId) q = q.eq("tahun_ajaran_id", taId);
+      return q;
+    }),
+  );
+  return pages.flatMap((p) => (p.data ?? []) as T[]);
 }
 
 function monthLabel(key: string): string {
