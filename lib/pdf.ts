@@ -181,7 +181,7 @@ export async function downloadSuratPanggilan(params: {
     year: "numeric",
   });
 
-  let y = await drawHeader(doc, "Surat Peringatan Orang Tua / Wali Santri", [
+  let y = await drawHeader(doc, "Surat Peringatan kepada Orang Tua / Wali Santri", [
     `Tanggal: ${today}`,
   ]);
 
