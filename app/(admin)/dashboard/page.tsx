@@ -525,7 +525,7 @@ export default async function Page() {
             <CardTitle className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 text-negative">
                 <MailWarning className="size-4" />
-                Perlu Tindakan (Surat Panggilan)
+                Perlu Tindakan (Surat Peringatan)
               </span>
               <Link
                 href="/surat-panggilan"
@@ -536,7 +536,7 @@ export default async function Page() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <ol className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto pr-1 scrollbar-thin sm:max-h-none sm:grid-cols-2 sm:overflow-visible sm:pr-0 lg:grid-cols-4">
               {perluTindakanSP.map((s) => (
                 <li key={s.id}>
                   <Link

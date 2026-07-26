@@ -218,8 +218,8 @@ export default async function Page() {
     <div className="animate-enter space-y-6 p-6 md:p-8">
       <PageHeader
         icon={MailWarning}
-        title="Surat Panggilan"
-        description="Cetak surat panggilan orang tua/wali untuk santri dengan akumulasi poin negatif melewati ambang batas."
+        title="Surat Peringatan"
+        description="Cetak surat peringatan orang tua/wali untuk santri dengan akumulasi poin negatif melewati ambang batas."
       />
       <SuratPanggilanTable
         rows={rows}

@@ -49,8 +49,8 @@ const PERMS: { key: PermKey; label: string; desc: string }[] = [
   },
   {
     key: "perm_tindak_lanjut_sp",
-    label: "— Tindak Lanjut Surat Panggilan",
-    desc: "Menandai/membatalkan status tindak lanjut di Surat Panggilan. Izin ini juga membuka akses ke halaman Surat Panggilan tanpa perlu izin laporan penuh.",
+    label: "— Tindak Lanjut Surat Peringatan",
+    desc: "Menandai/membatalkan status tindak lanjut di Surat Peringatan. Izin ini juga membuka akses ke halaman Surat Peringatan tanpa perlu izin laporan penuh.",
   },
   {
     key: "perm_master",

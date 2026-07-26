@@ -181,7 +181,7 @@ export async function downloadSuratPanggilan(params: {
     year: "numeric",
   });
 
-  let y = await drawHeader(doc, "Surat Pemanggilan Orang Tua / Wali Santri", [
+  let y = await drawHeader(doc, "Surat Peringatan Orang Tua / Wali Santri", [
     `Tanggal: ${today}`,
   ]);
 
@@ -202,7 +202,7 @@ export async function downloadSuratPanggilan(params: {
   y += 9;
 
   const bodyLines = doc.splitTextToSize(
-    `Dengan hormat, berdasarkan pemantauan poin pembinaan santri, tercatat akumulasi poin negatif putra/putri Bapak/Ibu telah mencapai batas yang memerlukan perhatian bersama (ambang batas pembinaan: ${ambangBatas} poin). Sehubungan dengan hal tersebut, kami bermaksud mengundang Bapak/Ibu untuk hadir ke sekolah guna berdiskusi dan bersama-sama menentukan langkah pembinaan terbaik bagi perkembangan putra/putri Bapak/Ibu. Atas perhatian dan kerja sama Bapak/Ibu, kami sampaikan terima kasih.`,
+    `Dengan hormat, berdasarkan pemantauan poin pembinaan santri, kami sampaikan bahwa akumulasi poin negatif putra/putri Bapak/Ibu telah mencapai ambang batas pembinaan (${ambangBatas} poin). Sehubungan dengan hal tersebut, surat peringatan ini kami terbitkan sebagai bentuk perhatian serius terhadap perkembangan perilaku santri yang bersangkutan, dan kami mohon kehadiran Bapak/Ibu di sekolah guna membahas langkah pembinaan lanjutan yang diperlukan. Atas perhatian dan kerja sama Bapak/Ibu, kami sampaikan terima kasih.`,
     W - 28,
   );
   doc.text(bodyLines, 14, y);

@@ -81,9 +81,9 @@ export function navForProfile(
   if (perms.laporan) {
     transaksi.push({ href: "/riwayat-poin", label: "Riwayat Poin" });
     transaksi.push({ href: "/laporan", label: "Laporan" });
-    transaksi.push({ href: "/surat-panggilan", label: "Surat Panggilan" });
+    transaksi.push({ href: "/surat-panggilan", label: "Surat Peringatan" });
   } else if (perms.tindak_lanjut_sp) {
-    transaksi.push({ href: "/surat-panggilan", label: "Surat Panggilan" });
+    transaksi.push({ href: "/surat-panggilan", label: "Surat Peringatan" });
   }
   if (perms.absensi) transaksi.push({ href: "/absensi", label: "Absensi" });
   if (perms.master || perms.approve_absensi || perms.rekap_absensi)

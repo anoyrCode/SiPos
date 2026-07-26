@@ -207,7 +207,7 @@ export function SuratPanggilanTable({
                   action={batalkanTindakLanjut}
                   id={r.tindakLanjut.id}
                   title="Batalkan tanda tindak lanjut?"
-                  description={`${r.nama} akan muncul lagi di daftar Surat Panggilan.`}
+                  description={`${r.nama} akan muncul lagi di daftar Surat Peringatan.`}
                   confirmLabel="Batalkan"
                   successMessage="Tanda tindak lanjut dibatalkan."
                   trigger={
