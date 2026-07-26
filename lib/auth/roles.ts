@@ -17,6 +17,7 @@ export type Perms = {
   dashboard: boolean; // lihat Dashboard saja (subset dari master)
   approve_absensi: boolean; // approve/tolak pengajuan izin/sakit pegawai lain
   rekap_absensi: boolean; // lihat rekap kehadiran semua pegawai (subset dari master)
+  tindak_lanjut_sp: boolean; // tandai/batalkan status tindak lanjut Surat Panggilan
 };
 
 export const EMPTY_PERMS: Perms = {
@@ -35,6 +36,7 @@ export const EMPTY_PERMS: Perms = {
   dashboard: false,
   approve_absensi: false,
   rekap_absensi: false,
+  tindak_lanjut_sp: false,
 };
 
 export type NavItem = { href: string; label: string; badge?: number };
@@ -48,6 +50,7 @@ export function homePathForProfile({ role, perms }: ProfileLike): string {
   if (perms.super || perms.master || perms.dashboard) return "/dashboard";
   if (perms.input_poin) return "/input-poin";
   if (perms.laporan) return "/riwayat-poin";
+  if (perms.tindak_lanjut_sp) return "/surat-panggilan";
   if (perms.kesehatan || perms.scope_kelas) return "/uks";
   if (perms.santri || perms.pegawai) return "/master/santri";
   if (perms.akun || perms.akun_staff) return "/master/akun-staff";
@@ -78,6 +81,8 @@ export function navForProfile(
   if (perms.laporan) {
     transaksi.push({ href: "/riwayat-poin", label: "Riwayat Poin" });
     transaksi.push({ href: "/laporan", label: "Laporan" });
+    transaksi.push({ href: "/surat-panggilan", label: "Surat Panggilan" });
+  } else if (perms.tindak_lanjut_sp) {
     transaksi.push({ href: "/surat-panggilan", label: "Surat Panggilan" });
   }
   if (perms.absensi) transaksi.push({ href: "/absensi", label: "Absensi" });
