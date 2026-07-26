@@ -22,6 +22,7 @@ import type { PeranRow } from "./schema";
 const PERM_BADGES: { key: keyof PeranRow; label: string }[] = [
   { key: "perm_input_poin", label: "Input poin" },
   { key: "perm_laporan", label: "Laporan" },
+  { key: "perm_tindak_lanjut_sp", label: "Tindak Lanjut SP" },
   { key: "perm_master", label: "Master" },
   { key: "perm_santri", label: "Santri" },
   { key: "perm_pegawai", label: "Pegawai" },
@@ -48,7 +49,7 @@ export default async function Page({
   let query = supabase
     .from("app_role")
     .select(
-      "id, nama, deskripsi, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_akun_wali, perm_absensi, perm_dashboard, perm_approve_absensi, perm_rekap_absensi, is_super",
+      "id, nama, deskripsi, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_akun_wali, perm_absensi, perm_dashboard, perm_approve_absensi, perm_rekap_absensi, perm_tindak_lanjut_sp, is_super",
       { count: "exact" },
     )
     .order("is_super", { ascending: false })

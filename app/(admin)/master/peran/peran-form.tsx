@@ -37,7 +37,8 @@ type PermKey =
   | "perm_absensi"
   | "perm_dashboard"
   | "perm_approve_absensi"
-  | "perm_rekap_absensi";
+  | "perm_rekap_absensi"
+  | "perm_tindak_lanjut_sp";
 
 const PERMS: { key: PermKey; label: string; desc: string }[] = [
   { key: "perm_input_poin", label: "Input poin", desc: "Mencatat poin santri." },
@@ -45,6 +46,11 @@ const PERMS: { key: PermKey; label: string; desc: string }[] = [
     key: "perm_laporan",
     label: "Lihat riwayat & laporan",
     desc: "Membuka Riwayat Poin & Laporan.",
+  },
+  {
+    key: "perm_tindak_lanjut_sp",
+    label: "— Tindak Lanjut Surat Panggilan",
+    desc: "Menandai/membatalkan status tindak lanjut di Surat Panggilan. Izin ini juga membuka akses ke halaman Surat Panggilan tanpa perlu izin laporan penuh.",
   },
   {
     key: "perm_master",
@@ -126,6 +132,7 @@ export function PeranForm({ initial }: { initial?: PeranRow }) {
     perm_dashboard: initial?.perm_dashboard ?? false,
     perm_approve_absensi: initial?.perm_approve_absensi ?? false,
     perm_rekap_absensi: initial?.perm_rekap_absensi ?? false,
+    perm_tindak_lanjut_sp: initial?.perm_tindak_lanjut_sp ?? false,
   };
 
   const form = useForm<PeranInput>({
