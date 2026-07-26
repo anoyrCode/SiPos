@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileText } from "lucide-react";
+import { toast } from "sonner";
 
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { Pagination } from "@/components/shared/pagination";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -17,9 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { orDash } from "@/lib/format";
+import { formatDateID, orDash } from "@/lib/format";
 import { downloadSuratPanggilan, type PelanggaranItem } from "@/lib/pdf";
 import { parseClientPageParams, paginateArray } from "@/lib/list-params";
+import { batalkanTindakLanjut, tandaiTindakLanjut } from "./actions";
 
 const SP_LEVELS = [
   { level: 1, ambang: 300 },
@@ -35,6 +39,12 @@ function spLevelFor(totalNegatif: number) {
   return level;
 }
 
+export type TindakLanjutInfo = {
+  id: string;
+  ditandaiOleh: string;
+  ditandaiPada: string;
+};
+
 export type SuratPanggilanRow = {
   id: string;
   nama: string;
@@ -44,14 +54,19 @@ export type SuratPanggilanRow = {
   noTelpWali: string | null;
   totalNegatif: number;
   pelanggaran: PelanggaranItem[];
+  tindakLanjut: TindakLanjutInfo | null;
 };
 
 export function SuratPanggilanTable({
   rows,
   taLabel,
+  taId,
+  canTindakLanjut,
 }: {
   rows: SuratPanggilanRow[];
   taLabel: string;
+  taId: string;
+  canTindakLanjut: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -63,7 +78,10 @@ export function SuratPanggilanTable({
   });
   const ambang = SP_LEVELS.find((l) => l.level === sp)?.ambang ?? 300;
   const [q, setQ] = useState("");
+  const [showHandled, setShowHandled] = useState(false);
   const [printingId, setPrintingId] = useState<string | null>(null);
+  const [markingId, setMarkingId] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
   const first = useRef(true);
 
   useEffect(() => {
@@ -85,8 +103,9 @@ export function SuratPanggilanTable({
     const t = q.trim().toLowerCase();
     return rows
       .filter((r) => r.totalNegatif >= ambang)
-      .filter((r) => (t ? r.nama.toLowerCase().includes(t) : true));
-  }, [rows, ambang, q]);
+      .filter((r) => (t ? r.nama.toLowerCase().includes(t) : true))
+      .filter((r) => showHandled || !r.tindakLanjut);
+  }, [rows, ambang, q, showHandled]);
 
   const { page, perPage } = parseClientPageParams(searchParams);
   const paged = paginateArray(filtered, page, perPage);
@@ -105,6 +124,20 @@ export function SuratPanggilanTable({
     } finally {
       setPrintingId(null);
     }
+  }
+
+  async function handleTandai(row: SuratPanggilanRow) {
+    const level = spLevelFor(row.totalNegatif);
+    if (!level || !taId) return;
+    setMarkingId(row.id);
+    const res = await tandaiTindakLanjut(row.id, taId, level);
+    setMarkingId(null);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(`${row.nama} ditandai sudah ditindak.`);
+    startTransition(() => router.refresh());
   }
 
   const columns: Column<SuratPanggilanRow>[] = [
@@ -151,15 +184,50 @@ export function SuratPanggilanTable({
       key: "aksi",
       header: "",
       cell: (r) => (
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => handlePrint(r)}
-          disabled={printingId === r.id}
-        >
-          <FileText data-icon="inline-start" />
-          {printingId === r.id ? "Memproses…" : "Cetak Surat"}
-        </Button>
+        <div className="flex flex-col items-end gap-1.5">
+          {r.tindakLanjut && (
+            <p className="text-xs text-muted-foreground">
+              Sudah ditindak oleh {r.tindakLanjut.ditandaiOleh} ·{" "}
+              {formatDateID(r.tindakLanjut.ditandaiPada)}
+            </p>
+          )}
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => handlePrint(r)}
+              disabled={printingId === r.id}
+            >
+              <FileText data-icon="inline-start" />
+              {printingId === r.id ? "Memproses…" : "Cetak Surat"}
+            </Button>
+            {canTindakLanjut &&
+              (r.tindakLanjut ? (
+                <ConfirmDialog
+                  action={batalkanTindakLanjut}
+                  id={r.tindakLanjut.id}
+                  title="Batalkan tanda tindak lanjut?"
+                  description={`${r.nama} akan muncul lagi di daftar Surat Panggilan.`}
+                  confirmLabel="Batalkan"
+                  successMessage="Tanda tindak lanjut dibatalkan."
+                  trigger={
+                    <Button size="sm" variant="outline">
+                      Batalkan
+                    </Button>
+                  }
+                />
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleTandai(r)}
+                  disabled={markingId === r.id}
+                >
+                  {markingId === r.id ? "Menandai…" : "Tandai Selesai"}
+                </Button>
+              ))}
+          </div>
+        </div>
       ),
     },
   ];
@@ -198,6 +266,12 @@ export function SuratPanggilanTable({
             placeholder="Cari nama santri…"
           />
         </div>
+        <label className="flex cursor-pointer items-center gap-2 pb-2">
+          <Switch checked={showHandled} onCheckedChange={setShowHandled} />
+          <span className="text-sm text-muted-foreground">
+            Tampilkan yang sudah ditindak
+          </span>
+        </label>
       </div>
 
       <DataTable

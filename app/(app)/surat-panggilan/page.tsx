@@ -23,6 +23,20 @@ const TX_PAGE_SIZE = 1000;
 // tabel), jadi rincian pelanggarannya tidak perlu diambil sama sekali.
 const SP_AMBANG_MIN = 300;
 
+const SP_LEVELS = [
+  { level: 1, ambang: 300 },
+  { level: 2, ambang: 600 },
+  { level: 3, ambang: 900 },
+];
+
+function spLevelFor(totalNegatif: number): number | null {
+  let level: number | null = null;
+  for (const sp of SP_LEVELS) {
+    if (totalNegatif >= sp.ambang) level = sp.level;
+  }
+  return level;
+}
+
 /**
  * Ambil SEMUA transaksi NEGATIF 1 tahun ajaran, dipaginasi penuh —
  * Supabase/PostgREST membatasi 1000 baris per request secara default,
@@ -65,7 +79,7 @@ async function fetchAllNegatif(
 
 export default async function Page() {
   const profile = await getProfile();
-  if (!profile?.perms.laporan) {
+  if (!(profile?.perms.laporan || profile?.perms.tindak_lanjut_sp)) {
     return (
       <div className="animate-enter space-y-6 p-6 md:p-8">
         <Card>
@@ -91,13 +105,40 @@ export default async function Page() {
   if (ta?.id) {
     // Total negatif per santri (RPC agregasi di DB — cepat) + peta kelas,
     // dijalankan paralel.
-    const [totalsRpc, skRes] = await Promise.all([
+    const [totalsRpc, skRes, tindakLanjutRes] = await Promise.all([
       supabase.rpc("surat_panggilan_totals", { p_ta: ta.id }),
       supabase
         .from("santri_kelas")
         .select("santri_id, kelas:kelas!inner(nama_kelas, tahun_ajaran_id)")
         .eq("kelas.tahun_ajaran_id", ta.id),
+      supabase
+        .from("surat_panggilan_tindak_lanjut")
+        .select("id, santri_id, level, created_at, pegawai:pegawai(nama)")
+        .eq("tahun_ajaran_id", ta.id),
     ]);
+
+    // Peta (santri_id, level) -> info tanda — dipakai supaya tanda cuma
+    // "menempel" ke level yang PERSIS sama dgn saat ditandai. Kalau total
+    // negatif santri sudah naik ke level lebih tinggi dari tanda yang ada,
+    // santri itu otomatis dianggap belum ditindak untuk level barunya.
+    type TindakLanjutMarkRow = {
+      id: string;
+      santri_id: string;
+      level: number;
+      created_at: string;
+      pegawai: { nama: string } | null;
+    };
+    const tindakLanjutMap = new Map<
+      string,
+      { id: string; ditandaiOleh: string; ditandaiPada: string }
+    >();
+    for (const m of (tindakLanjutRes.data ?? []) as unknown as TindakLanjutMarkRow[]) {
+      tindakLanjutMap.set(`${m.santri_id}:${m.level}`, {
+        id: m.id,
+        ditandaiOleh: m.pegawai?.nama ?? "—",
+        ditandaiPada: m.created_at,
+      });
+    }
 
     // Rincian pelanggaran diambil HANYA utk santri yang tembus ambang SP
     // terendah (>=300) — yang biasanya segelintir, bukan semua santri
@@ -153,6 +194,8 @@ export default async function Page() {
         .map((id) => {
           const s = santriMap.get(id);
           const e = agg.get(id)!;
+          const level = spLevelFor(e.total);
+          const mark = level ? tindakLanjutMap.get(`${id}:${level}`) : undefined;
           return {
             id,
             nama: s?.nama ?? "?",
@@ -164,6 +207,7 @@ export default async function Page() {
             pelanggaran: e.pelanggaran.sort((a, b) =>
               a.tanggal < b.tanggal ? 1 : -1,
             ),
+            tindakLanjut: mark ?? null,
           };
         })
         .sort((a, b) => b.totalNegatif - a.totalNegatif);
@@ -177,7 +221,12 @@ export default async function Page() {
         title="Surat Panggilan"
         description="Cetak surat panggilan orang tua/wali untuk santri dengan akumulasi poin negatif melewati ambang batas."
       />
-      <SuratPanggilanTable rows={rows} taLabel={taLabel} />
+      <SuratPanggilanTable
+        rows={rows}
+        taLabel={taLabel}
+        taId={ta?.id ?? ""}
+        canTindakLanjut={!!profile?.perms.master || !!profile?.perms.tindak_lanjut_sp}
+      />
     </div>
   );
 }
