@@ -21,6 +21,8 @@ type KelasRekap = {
 };
 
 const TX_PAGE_SIZE = 1000;
+/** Jumlah id maksimal per permintaan `.in(...)` — lihat catatan di pengambilan nama santri. */
+const NAME_CHUNK_SIZE = 150;
 
 /**
  * Ambil SEMUA baris transaksi_poin utk 1 tahun ajaran, dipaginasi penuh
@@ -238,11 +240,23 @@ export default async function Page({
     // Per santri (yang punya transaksi)
     const ids = [...santriAgg.keys()];
     if (ids.length > 0) {
-      const { data: names } = await supabase
-        .from("santri")
-        .select("id, nama")
-        .in("id", ids);
-      const nameMap = new Map((names ?? []).map((s) => [s.id, s.nama]));
+      // Nama diambil per potongan, bukan sekali kirim semua id. PostgREST
+      // menaruh daftar id di URL, jadi ratusan UUID (mis. 780 santri ≈ 30rb
+      // karakter) melewati batas panjang URL server dan permintaannya
+      // ditolak diam-diam — akibatnya SEMUA nama jatuh ke "?".
+      const nameChunks = await Promise.all(
+        Array.from(
+          { length: Math.ceil(ids.length / NAME_CHUNK_SIZE) },
+          (_, i) =>
+            supabase
+              .from("santri")
+              .select("id, nama")
+              .in("id", ids.slice(i * NAME_CHUNK_SIZE, (i + 1) * NAME_CHUNK_SIZE)),
+        ),
+      );
+      const nameMap = new Map(
+        nameChunks.flatMap((c) => (c.data ?? []).map((s) => [s.id, s.nama] as const)),
+      );
       santriRekap = ids
         .map((id) => {
           const v = santriAgg.get(id)!;
