@@ -4,7 +4,7 @@ import { PENGAJUAN_STATUS_LABEL, type PengajuanStatus } from "@/lib/absensi-stat
 
 export type PengajuanRow = {
   id: string;
-  kategori: "izin" | "sakit";
+  kategori: "izin" | "sakit" | "pulang_awal";
   tanggalMulai: string;
   tanggalSelesai: string;
   status: PengajuanStatus;
@@ -14,6 +14,7 @@ export type PengajuanRow = {
 const KATEGORI_LABEL: Record<PengajuanRow["kategori"], string> = {
   izin: "Izin",
   sakit: "Sakit",
+  pulang_awal: "Pulang Awal",
 };
 
 const STATUS_VARIANT: Record<PengajuanStatus, "warning" | "positive" | "negative"> = {

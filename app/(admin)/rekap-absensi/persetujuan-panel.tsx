@@ -15,7 +15,7 @@ import { TolakDialog } from "./tolak-dialog";
 type Row = {
   id: string;
   nama: string;
-  kategori: "izin" | "sakit";
+  kategori: "izin" | "sakit" | "pulang_awal";
   tanggalMulai: string;
   tanggalSelesai: string;
   keterangan: string | null;
@@ -26,6 +26,7 @@ type Row = {
 const KATEGORI_LABEL: Record<Row["kategori"], string> = {
   izin: "Izin",
   sakit: "Sakit",
+  pulang_awal: "Pulang Awal",
 };
 
 const STATUS_VARIANT: Record<PengajuanStatus, "warning" | "positive" | "negative"> = {

@@ -26,14 +26,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/shared/field";
 import { ajukanIzin } from "./actions";
-import type { KategoriAbsen } from "@/lib/absensi-status";
+import type { KategoriPengajuan } from "@/lib/absensi-status";
 
 export function IzinDialog() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [kategori, setKategori] = useState<KategoriAbsen>("izin");
+  const [kategori, setKategori] = useState<KategoriPengajuan>("izin");
+  // Pulang awal berlaku satu hari saja & tidak perlu bukti.
+  const isPulangAwal = kategori === "pulang_awal";
   const [mulai, setMulai] = useState("");
   const [selesai, setSelesai] = useState("");
   const [keterangan, setKeterangan] = useState("");
@@ -50,7 +52,7 @@ export function IzinDialog() {
 
   async function onSubmit() {
     setError(null);
-    if (!mulai || !selesai) {
+    if (!mulai || (!isPulangAwal && !selesai)) {
       setError("Tanggal wajib diisi.");
       return;
     }
@@ -62,7 +64,7 @@ export function IzinDialog() {
     const formData = new FormData();
     formData.set("kategori", kategori);
     formData.set("tanggal_mulai", mulai);
-    formData.set("tanggal_selesai", selesai);
+    formData.set("tanggal_selesai", isPulangAwal ? mulai : selesai);
     formData.set("keterangan", keterangan);
     if (bukti) formData.set("bukti", bukti);
     const res = await ajukanIzin(formData);
@@ -104,7 +106,7 @@ export function IzinDialog() {
             <Field label="Kategori" required>
               <Select
                 value={kategori}
-                onValueChange={(v) => setKategori(v as KategoriAbsen)}
+                onValueChange={(v) => setKategori(v as KategoriPengajuan)}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -112,11 +114,16 @@ export function IzinDialog() {
                 <SelectContent>
                   <SelectItem value="izin">Izin</SelectItem>
                   <SelectItem value="sakit">Sakit</SelectItem>
+                  <SelectItem value="pulang_awal">Pulang Awal</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Dari Tanggal" htmlFor="mulai" required>
+            <div className={isPulangAwal ? undefined : "grid grid-cols-2 gap-3"}>
+              <Field
+                label={isPulangAwal ? "Tanggal" : "Dari Tanggal"}
+                htmlFor="mulai"
+                required
+              >
                 <Input
                   id="mulai"
                   type="date"
@@ -124,14 +131,16 @@ export function IzinDialog() {
                   onChange={(e) => setMulai(e.target.value)}
                 />
               </Field>
-              <Field label="Sampai Tanggal" htmlFor="selesai" required>
-                <Input
-                  id="selesai"
-                  type="date"
-                  value={selesai}
-                  onChange={(e) => setSelesai(e.target.value)}
-                />
-              </Field>
+              {!isPulangAwal && (
+                <Field label="Sampai Tanggal" htmlFor="selesai" required>
+                  <Input
+                    id="selesai"
+                    type="date"
+                    value={selesai}
+                    onChange={(e) => setSelesai(e.target.value)}
+                  />
+                </Field>
+              )}
             </div>
             <Field label="Keterangan" htmlFor="keterangan">
               <Textarea
@@ -140,23 +149,25 @@ export function IzinDialog() {
                 onChange={(e) => setKeterangan(e.target.value)}
               />
             </Field>
-            <Field
-              label="Bukti Surat Dokter"
-              htmlFor="bukti"
-              required={kategori === "sakit"}
-              hint={
-                kategori === "sakit"
-                  ? "Wajib untuk kategori Sakit. JPG/PNG/PDF, maks 5MB."
-                  : "Opsional. JPG/PNG/PDF, maks 5MB."
-              }
-            >
-              <Input
-                id="bukti"
-                type="file"
-                accept=".jpg,.jpeg,.png,.pdf"
-                onChange={(e) => setBukti(e.target.files?.[0] ?? null)}
-              />
-            </Field>
+            {!isPulangAwal && (
+              <Field
+                label="Bukti Surat Dokter"
+                htmlFor="bukti"
+                required={kategori === "sakit"}
+                hint={
+                  kategori === "sakit"
+                    ? "Wajib untuk kategori Sakit. JPG/PNG/PDF, maks 5MB."
+                    : "Opsional. JPG/PNG/PDF, maks 5MB."
+                }
+              >
+                <Input
+                  id="bukti"
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.pdf"
+                  onChange={(e) => setBukti(e.target.files?.[0] ?? null)}
+                />
+              </Field>
+            )}
           </div>
           {error && (
             <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
