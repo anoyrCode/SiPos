@@ -12,6 +12,7 @@ import {
   todayJakarta,
   type JadwalPegawai,
   type KategoriAbsen,
+  type KategoriPengajuan,
 } from "@/lib/absensi-status";
 import { dbErrorMessage, type FormResult } from "@/lib/forms";
 
@@ -159,7 +160,7 @@ export async function getOpenSession(
     override_alasan: row.override_alasan,
   };
 }
-const KATEGORI_VALID: KategoriAbsen[] = ["izin", "sakit"];
+const KATEGORI_VALID: KategoriPengajuan[] = ["izin", "sakit", "pulang_awal"];
 
 /** Semua tanggal "YYYY-MM-DD" dari start s.d. end (inklusif), maks 31 hari. */
 function enumerateDates(start: string, end: string): string[] {
@@ -322,13 +323,17 @@ export async function ajukanIzin(formData: FormData): Promise<FormResult> {
   const bukti = formData.get("bukti");
   const file = bukti instanceof File && bukti.size > 0 ? bukti : null;
 
-  if (!KATEGORI_VALID.includes(kategori as KategoriAbsen)) {
+  if (!KATEGORI_VALID.includes(kategori as KategoriPengajuan)) {
     return { ok: false, error: "Kategori tidak valid." };
   }
-  if (!tanggalMulai || !tanggalSelesai) {
+  // Pulang awal berlaku satu hari saja — paksa tanggal selesai = tanggal
+  // mulai, jangan percaya nilai dari form.
+  const isPulangAwal = kategori === "pulang_awal";
+  const tanggalAkhir = isPulangAwal ? tanggalMulai : tanggalSelesai;
+  if (!tanggalMulai || !tanggalAkhir) {
     return { ok: false, error: "Tanggal wajib diisi." };
   }
-  if (tanggalSelesai < tanggalMulai) {
+  if (tanggalAkhir < tanggalMulai) {
     return { ok: false, error: "Tanggal selesai harus sama atau setelah tanggal mulai." };
   }
   if (kategori === "sakit" && !file) {
@@ -343,25 +348,28 @@ export async function ajukanIzin(formData: FormData): Promise<FormResult> {
     }
   }
 
-  const dates = enumerateDates(tanggalMulai, tanggalSelesai);
+  const dates = enumerateDates(tanggalMulai, tanggalAkhir);
   if (dates.length === 0 || dates.length > 31) {
     return { ok: false, error: "Rentang tanggal maksimal 31 hari." };
   }
 
   const supabase = await createClient();
-  const { data: existingRows } = await supabase
-    .from("absensi")
-    .select("tanggal, jam_masuk_aktual, jam_pulang_aktual")
-    .eq("pegawai_id", profile.pegawai_id)
-    .in("tanggal", dates);
-  const conflict = (existingRows ?? []).find(
-    (r) => r.jam_masuk_aktual || r.jam_pulang_aktual,
-  );
-  if (conflict) {
-    return {
-      ok: false,
-      error: `Tanggal ${conflict.tanggal} sudah ada data clock in/out, tidak bisa ditimpa.`,
-    };
+  // Pulang awal tidak menimpa apa pun — wajar hari itu sudah ada clock in.
+  if (!isPulangAwal) {
+    const { data: existingRows } = await supabase
+      .from("absensi")
+      .select("tanggal, jam_masuk_aktual, jam_pulang_aktual")
+      .eq("pegawai_id", profile.pegawai_id)
+      .in("tanggal", dates);
+    const conflict = (existingRows ?? []).find(
+      (r) => r.jam_masuk_aktual || r.jam_pulang_aktual,
+    );
+    if (conflict) {
+      return {
+        ok: false,
+        error: `Tanggal ${conflict.tanggal} sudah ada data clock in/out, tidak bisa ditimpa.`,
+      };
+    }
   }
 
   let buktiPath: string | null = null;
@@ -381,7 +389,7 @@ export async function ajukanIzin(formData: FormData): Promise<FormResult> {
       pegawai_id: profile.pegawai_id,
       kategori,
       tanggal_mulai: tanggalMulai,
-      tanggal_selesai: tanggalSelesai,
+      tanggal_selesai: tanggalAkhir,
       keterangan: keterangan || null,
       bukti_url: buktiPath,
     })
@@ -391,17 +399,22 @@ export async function ajukanIzin(formData: FormData): Promise<FormResult> {
     return { ok: false, error: dbErrorMessage(pengajuanErr) };
   }
 
-  const rows = dates.map((tanggal) => ({
-    pegawai_id: profile.pegawai_id,
-    tanggal,
-    kategori_absen: kategori as KategoriAbsen,
-    keterangan: keterangan || null,
-    pengajuan_id: pengajuan.id,
-  }));
-  const { error } = await supabase
-    .from("absensi")
-    .upsert(rows, { onConflict: "pegawai_id,tanggal" });
-  if (error) return { ok: false, error: dbErrorMessage(error) };
+  // Penjagaan inti fitur Pulang Awal: kategori ini TIDAK boleh menyentuh
+  // tabel `absensi` sama sekali — pegawainya tetap clock in & clock out
+  // seperti biasa, dan pengajuannya hanya dibaca saat status dihitung.
+  if (!isPulangAwal) {
+    const rows = dates.map((tanggal) => ({
+      pegawai_id: profile.pegawai_id,
+      tanggal,
+      kategori_absen: kategori as KategoriAbsen,
+      keterangan: keterangan || null,
+      pengajuan_id: pengajuan.id,
+    }));
+    const { error } = await supabase
+      .from("absensi")
+      .upsert(rows, { onConflict: "pegawai_id,tanggal" });
+    if (error) return { ok: false, error: dbErrorMessage(error) };
+  }
 
   revalidatePath(PATH);
   return { ok: true };
