@@ -229,8 +229,15 @@ function computeRowForDate(
   liburKhususSet: Set<string>,
   toleransiMenit: number,
   tanggalMulaiGlobal: string | null,
+  izinPulangAwalSet: Set<string>,
 ): Row {
-  const record = absensiMap.get(`${p.id}_${tgl}`) ?? null;
+  const rawRecord = absensiMap.get(`${p.id}_${tgl}`) ?? null;
+  // Flag ini bukan kolom database — ditempelkan di sini supaya
+  // computeStatusPulang/computeMenitLebihAwalPulang tahu kepulangan awal
+  // hari ini berizin, tanpa perlu mengubah tanda tangan fungsi mana pun.
+  const record = rawRecord
+    ? { ...rawRecord, izin_pulang_awal: izinPulangAwalSet.has(`${p.id}_${tgl}`) }
+    : null;
   const jadwal = {
     jam_masuk_jadwal: p.jam_masuk_jadwal,
     jam_pulang_jadwal: p.jam_pulang_jadwal,
@@ -400,6 +407,7 @@ export default async function Page({
     { data: liburKhususRows },
     { data: jadwalHarianRows },
     { data: jadwalSementaraRows },
+    { data: pulangAwalRows },
   ] = await Promise.all([
     pegawaiQuery,
     absensiQuery,
@@ -415,7 +423,27 @@ export default async function Page({
     supabase
       .from("pegawai_jadwal_sementara")
       .select("pegawai_id, tanggal_mulai, tanggal_selesai, jam_masuk, jam_pulang"),
+    // Pengajuan pulang-awal yang aktif. Status "menunggu" ikut disertakan:
+    // selama belum diproses, hari itu tidak ditandai melanggar — baru
+    // kembali jadi "Pulang Sebelum Waktunya" kalau DITOLAK (statusnya
+    // berubah sehingga keluar dari filter ini). Konsisten dgn Izin/Sakit.
+    supabase
+      .from("absensi_pengajuan")
+      .select("pegawai_id, tanggal_mulai")
+      .eq("kategori", "pulang_awal")
+      .in("status", ["menunggu", "disetujui"])
+      .gte("tanggal_mulai", mode === "bulanan" ? rangeDates[0] : tanggal)
+      .lte(
+        "tanggal_mulai",
+        mode === "bulanan" ? rangeDates[rangeDates.length - 1] : tanggal,
+      ),
   ]);
+
+  const izinPulangAwalSet = new Set(
+    ((pulangAwalRows ?? []) as { pegawai_id: string; tanggal_mulai: string }[]).map(
+      (r) => `${r.pegawai_id}_${r.tanggal_mulai}`,
+    ),
+  );
 
   const jadwalHarianMap = new Map<
     string,
@@ -461,6 +489,7 @@ export default async function Page({
       liburKhususSet,
       toleransiMenit,
       tanggalMulai,
+      izinPulangAwalSet,
     ),
   );
 
@@ -481,6 +510,7 @@ export default async function Page({
               liburKhususSet,
               toleransiMenit,
               tanggalMulai,
+              izinPulangAwalSet,
             ),
             tanggal: tgl,
           })),
@@ -554,6 +584,10 @@ export default async function Page({
               sesi === 1
                 ? (rawRecord?.jam_pulang_aktual ?? null)
                 : (rawRecord?.jam_pulang_aktual_2 ?? null),
+            // Tanpa ini, badge di rekap harian sudah benar tapi hari berizin
+            // MASIH muncul di tabel pelanggaran HRD — padahal itulah tujuan
+            // utama fitur Pulang Awal.
+            izin_pulang_awal: izinPulangAwalSet.has(`${p.id}_${tgl}`),
           };
           if (computeStatusMasuk(tgl, record, jadwalSesi, toleransiMenit) === "telat") {
             telatMasukRows.push({
