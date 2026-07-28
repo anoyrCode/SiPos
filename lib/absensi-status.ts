@@ -10,14 +10,29 @@ export type AbsensiStatus =
   | "masuk_libur"
   | "izin"
   | "sakit"
+  | "pulang_awal_izin"
   | "belum_mulai";
 
 export type KategoriAbsen = "izin" | "sakit";
+
+/**
+ * Kategori pengajuan absensi. Sengaja DIPISAH dari `KategoriAbsen`:
+ * 'pulang_awal' hanya sah sebagai kategori pengajuan dan tidak pernah
+ * masuk ke kolom `absensi.kategori_absen` — hari itu pegawai tetap
+ * clock in & clock out seperti biasa.
+ */
+export type KategoriPengajuan = KategoriAbsen | "pulang_awal";
 
 export type AbsensiRecord = {
   jam_masuk_aktual: string | null;
   jam_pulang_aktual: string | null;
   kategori_absen?: KategoriAbsen | null;
+  /**
+   * Diisi pemanggil (bukan dari kolom database): true bila hari itu ada
+   * pengajuan pulang-awal yang masih menunggu atau sudah disetujui.
+   * Dipakai agar kepulangan lebih awal tidak dihitung pelanggaran.
+   */
+  izin_pulang_awal?: boolean;
 };
 
 export type JadwalPegawai = {
@@ -189,13 +204,17 @@ export function computeStatusPulang(
   tanggal: string,
   record: AbsensiRecord | null,
   jadwal: JadwalPegawai,
-): "normal" | "curang" | "telat_clock_out" | "belum_absen" {
+): "normal" | "curang" | "telat_clock_out" | "belum_absen" | "pulang_awal_izin" {
   if (!record?.jam_pulang_aktual) return "belum_absen";
   const { jam_masuk_jadwal, jam_pulang_jadwal } = resolveJadwalHari(tanggal, jadwal);
   if (!jam_pulang_jadwal) return "normal";
   const jadwalPulang = jadwalPulangInstant(tanggal, jam_masuk_jadwal, jam_pulang_jadwal);
   const aktual = new Date(record.jam_pulang_aktual);
-  if (aktual < jadwalPulang) return "curang";
+  if (aktual < jadwalPulang) {
+    // Izin hanya menggantikan "curang" — status jam masuk tidak disentuh,
+    // jadi pegawai yang terlambat datang tetap tercatat Terlambat.
+    return record.izin_pulang_awal ? "pulang_awal_izin" : "curang";
+  }
   const batasTelat = new Date(jadwalPulang.getTime() + 8 * 60 * 60 * 1000);
   if (aktual > batasTelat) return "telat_clock_out";
   return "normal";
@@ -212,6 +231,9 @@ export function computeMenitLebihAwalPulang(
 ): number {
   const { jam_masuk_jadwal, jam_pulang_jadwal } = resolveJadwalHari(tanggal, jadwal);
   if (!record?.jam_pulang_aktual || !jam_pulang_jadwal) return 0;
+  // Hari berizin tidak dihitung sebagai kepulangan awal — inilah yang
+  // membuatnya tidak muncul di tabel pelanggaran & ekspor Excel HRD.
+  if (record.izin_pulang_awal) return 0;
   const jadwalPulang = jadwalPulangInstant(tanggal, jam_masuk_jadwal, jam_pulang_jadwal);
   const aktual = new Date(record.jam_pulang_aktual);
   const diffMs = jadwalPulang.getTime() - aktual.getTime();
@@ -292,6 +314,7 @@ export function computeDayStatusList(
   if (statusMasuk === "telat") statuses.push("telat");
   if (statusPulang === "telat_clock_out") statuses.push("telat_clock_out");
   else if (statusPulang === "curang") statuses.push("curang");
+  else if (statusPulang === "pulang_awal_izin") statuses.push("pulang_awal_izin");
   return statuses.length > 0 ? statuses : ["normal"];
 }
 
@@ -332,6 +355,7 @@ export const STATUS_LABEL: Record<AbsensiStatus, string> = {
   masuk_libur: "Lembur",
   izin: "Izin",
   sakit: "Sakit",
+  pulang_awal_izin: "Pulang Awal (Berizin)",
   belum_mulai: "Belum Mulai",
 };
 

@@ -138,6 +138,7 @@ const STATUS_VARIANT: Record<
   masuk_libur: "primary",
   izin: "outline",
   sakit: "warning",
+  pulang_awal_izin: "outline",
   belum_mulai: "outline",
 };
 
