@@ -304,7 +304,19 @@ export async function requireRole(...roles: Role[]): Promise<Profile> {
   return profile;
 }
 
-/** Wajib staff internal (punya hak akses apa pun selain wali). */
+/**
+ * Wajib staff internal (punya hak akses apa pun selain wali).
+ *
+ * PENTING: daftar di bawah harus mencakup SETIAP anggota `Perms` (selain
+ * `super` yang sudah implisit). Kalau ada hak akses yang terlewat sementara
+ * `homePathForProfile()` mengarahkan pemiliknya ke halaman di dalam grup
+ * layout ini, hasilnya redirect loop tak berujung: layout menolak →
+ * mengarahkan ke beranda → beranda itu halaman ini lagi → menolak lagi.
+ * Pernah terjadi pada `scope_kelas` (diarahkan ke /uks, padahal /uks sendiri
+ * mengizinkannya). Tiap pantulan memakan satu pemanggilan fungsi, jadi ini
+ * juga soal biaya, bukan cuma UX. Menambah anggota baru di `Perms` berarti
+ * wajib menambahnya di sini juga.
+ */
 export async function requireStaff(): Promise<Profile> {
   const profile = await requireAuth();
   const p = profile.perms;
@@ -315,9 +327,11 @@ export async function requireStaff(): Promise<Profile> {
     p.master ||
     p.akun ||
     p.kesehatan ||
+    p.scope_kelas ||
     p.santri ||
     p.pegawai ||
     p.akun_staff ||
+    p.akun_wali ||
     p.absensi ||
     p.dashboard ||
     p.approve_absensi ||
