@@ -103,6 +103,8 @@ function enumerateMonths(start: string, end: string): string[] {
 }
 
 const TOP_N = 7;
+/** Jumlah santri SP yang ditampilkan di kartu "Perlu Tindakan". */
+const SP_TAMPIL = 8;
 
 /** Persentase perubahan dibanding tahun sebelumnya + arah (naik/turun/tetap). */
 function formatDelta(
@@ -419,8 +421,14 @@ export default async function Page() {
   }
   const spEligible = negSorted.filter(([, v]) => v.neg >= 300);
 
+  // Hanya 8 santri SP teratas yang ditampilkan (lihat perluTindakanSP di
+  // bawah), jadi nama yang perlu diambil cukup 8 itu — bukan SELURUH
+  // spEligible yang jumlahnya tumbuh terus seiring santri melewati ambang
+  // 300. Tanpa batas ini, daftar id di query nama makin panjang sampai
+  // akhirnya melewati batas panjang URL dan SEMUA nama jatuh ke "?" —
+  // persis bug yang terjadi di Laporan Per Santri.
   const idSet = new Set(
-    [...topNeg, ...topPos, ...spEligible].map(([id]) => id),
+    [...topNeg, ...topPos, ...spEligible.slice(0, SP_TAMPIL)].map(([id]) => id),
   );
   const nameMap = new Map<string, string>();
   if (idSet.size > 0) {
@@ -435,7 +443,7 @@ export default async function Page() {
     nama: nameMap.get(id) ?? "?",
     total: v.pos - v.neg,
   }));
-  const perluTindakanSP = spEligible.slice(0, 8).map(([id, v]) => ({
+  const perluTindakanSP = spEligible.slice(0, SP_TAMPIL).map(([id, v]) => ({
     id,
     nama: nameMap.get(id) ?? "?",
     total: v.neg,

@@ -9,6 +9,10 @@ import { dbErrorMessage, type FormResult } from "@/lib/forms";
 import { normalizePhone, phoneToWaliEmail } from "@/lib/auth/phone";
 
 const PATH = "/master/akun-wali";
+/** Batas baris per permintaan PostgREST (default Supabase). */
+const SANTRI_PAGE_SIZE = 1000;
+/** Jumlah nomor maksimal per permintaan `.in(...)` — hindari URL kepanjangan. */
+const PHONE_CHUNK_SIZE = 150;
 
 type AccountResult = { ok: true; password: string } | { ok: false; error: string };
 type GenerateResult =
@@ -28,14 +32,27 @@ export async function generateWaliFromSantri(): Promise<GenerateResult> {
   if (!(await canAkunWali())) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
-  const { data: santri, error } = await supabase
-    .from("santri")
-    .select("id, nama_wali, no_telp_wali")
-    .not("no_telp_wali", "is", null);
-  if (error) return { ok: false, error: dbErrorMessage(error) };
+
+  // Diambil bertahap: PostgREST membatasi 1000 baris per permintaan, jadi
+  // sekali ambil polos akan diam-diam memotong daftar santri begitu
+  // jumlahnya melewati 1000 — sebagian wali tidak akan pernah dibuatkan
+  // akun, tanpa pesan error apa pun.
+  const santri: { id: string; nama_wali: string | null; no_telp_wali: string | null }[] = [];
+  for (let from = 0; ; from += SANTRI_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("santri")
+      .select("id, nama_wali, no_telp_wali")
+      .not("no_telp_wali", "is", null)
+      .order("id")
+      .range(from, from + SANTRI_PAGE_SIZE - 1);
+    if (error) return { ok: false, error: dbErrorMessage(error) };
+    const page = data ?? [];
+    santri.push(...page);
+    if (page.length < SANTRI_PAGE_SIZE) break;
+  }
 
   const groups = new Map<string, { nama: string; santriIds: string[] }>();
-  for (const s of santri ?? []) {
+  for (const s of santri) {
     const phone = normalizePhone(s.no_telp_wali ?? "");
     if (!phone) continue;
     const g = groups.get(phone) ?? { nama: "", santriIds: [] };
@@ -50,13 +67,19 @@ export async function generateWaliFromSantri(): Promise<GenerateResult> {
   }
 
   const phones = [...groups.keys()];
-  const { data: existingWali, error: existErr } = await supabase
-    .from("wali")
-    .select("id, no_telp")
-    .in("no_telp", phones);
-  if (existErr) return { ok: false, error: dbErrorMessage(existErr) };
 
-  const waliIdByPhone = new Map((existingWali ?? []).map((w) => [w.no_telp, w.id]));
+  // Dicek per potongan: daftar nomor dikirim lewat URL, jadi ratusan nomor
+  // sekaligus melewati batas panjang URL dan permintaannya ditolak — akibatnya
+  // wali yang sudah ada dianggap belum ada, lalu insert-nya bentrok unique.
+  const waliIdByPhone = new Map<string, string>();
+  for (let i = 0; i < phones.length; i += PHONE_CHUNK_SIZE) {
+    const { data: existingWali, error: existErr } = await supabase
+      .from("wali")
+      .select("id, no_telp")
+      .in("no_telp", phones.slice(i, i + PHONE_CHUNK_SIZE));
+    if (existErr) return { ok: false, error: dbErrorMessage(existErr) };
+    for (const w of existingWali ?? []) waliIdByPhone.set(w.no_telp, w.id);
+  }
 
   const toInsert = phones
     .filter((phone) => !waliIdByPhone.has(phone))
