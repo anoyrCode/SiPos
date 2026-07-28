@@ -59,6 +59,7 @@ export function RankingList({
           <li key={it.id}>
             <Link
               href={`/santri/${it.id}`}
+              prefetch={false}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted",
                 isMedal && MEDAL_ROW_BG[idx],

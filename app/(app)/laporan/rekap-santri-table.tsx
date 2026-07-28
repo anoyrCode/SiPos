@@ -91,6 +91,7 @@ export function RekapSantriTable({
       cell: (r) => (
         <Link
           href={`/santri/${r.id}`}
+          prefetch={false}
           className="font-medium text-primary hover:underline"
         >
           {r.nama}
