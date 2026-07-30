@@ -15,6 +15,7 @@ import { SiposMark } from "./sipos-mark";
 import { initials } from "./app-shell";
 import { logout } from "@/lib/auth/actions";
 import type { NavGroup } from "@/lib/auth/roles";
+import { cn } from "@/lib/utils";
 
 export function MobileNav({
   nav,
@@ -35,7 +36,19 @@ export function MobileNav({
           <Menu />
         </Button>
       </DialogTrigger>
-      <DialogContent className="left-0 top-0 flex h-full max-w-[16rem] translate-x-0 translate-y-0 flex-col gap-4 rounded-none rounded-r-card">
+      <DialogContent
+        className={cn(
+          "left-0 top-0 flex h-full max-w-[16rem] translate-x-0 translate-y-0 flex-col gap-4 rounded-none rounded-r-card",
+          // DialogContent dasar dianimasikan zoom (utk modal di tengah layar).
+          // Drawer ini muncul dari tepi kiri — men-scale kotak setinggi 100vh
+          // dari titik tengahnya bikin tepi atas/bawah "meloncat" (terasa
+          // kasar). Ganti jadi geser murni: matikan zoom (paksa via `!`,
+          // krn tailwind-merge tidak mengenali zoom-in-95 vs zoom-in-100
+          // sbg kelas yg saling menggantikan) + tambah slide-in-from-left.
+          "data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left",
+          "data-[state=open]:zoom-in-100! data-[state=closed]:zoom-out-100!",
+        )}
+      >
         <DialogTitle className="flex items-center gap-2 font-heading text-lg font-extrabold tracking-tight">
           <SiposMark className="size-8" />
           <span>
