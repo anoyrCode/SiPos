@@ -37,6 +37,12 @@ export function MobileNav({
         </Button>
       </DialogTrigger>
       <DialogContent
+        // Overlay dialog dasar memakai backdrop-blur. Blur memaksa GPU
+        // me-render ulang seluruh area di belakangnya SETIAP FRAME selama
+        // animasi — di ponsel kelas menengah biayanya melewati anggaran
+        // 16,7ms per frame, jadi gerakannya tersendat. Untuk drawer layar
+        // penuh seperti ini, blur dimatikan; warna gelapnya sudah cukup.
+        overlayClassName="backdrop-blur-none"
         className={cn(
           "left-0 top-0 flex h-full max-w-[16rem] translate-x-0 translate-y-0 flex-col gap-4 rounded-none rounded-r-card",
           // DialogContent dasar dianimasikan zoom (utk modal di tengah layar).

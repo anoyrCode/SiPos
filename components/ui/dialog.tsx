@@ -29,12 +29,20 @@ function DialogOverlay({
 
 function DialogContent({
   className,
+  overlayClassName,
   children,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content>) {
+}: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  /**
+   * Kelas tambahan untuk overlay di belakang dialog. Opsional — dipakai
+   * mis. oleh drawer mobile untuk mematikan `backdrop-blur` yang mahal
+   * di GPU ponsel saat animasi berjalan.
+   */
+  overlayClassName?: string;
+}) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
