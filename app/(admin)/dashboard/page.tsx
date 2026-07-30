@@ -25,6 +25,7 @@ import {
   StatistikPoinChart,
 } from "./charts";
 import { RankingList } from "./ranking-list";
+import { PerluPerhatianList } from "./perlu-perhatian-list";
 import { cn } from "@/lib/utils";
 
 type Tx = {
@@ -180,6 +181,7 @@ export default async function Page() {
     jabatanGuruRes,
     statsRes,
     { data: skData },
+    { data: santriGenderRows },
   ] = await Promise.all([
     supabase
       .from("santri")
@@ -203,7 +205,14 @@ export default async function Page() {
       p_ta_prev: taSebelumnya?.id ?? null,
     }),
     skQuery,
+    // Jenis kelamin seluruh santri aktif — dipakai utk filter Peringkat Poin
+    // Positif & Perlu Perhatian. Tanpa filter ID (select penuh, bukan
+    // .in()), jadi aman berapa pun jumlah santrinya.
+    supabase.from("santri").select("id, jenis_kelamin").eq("status", "aktif"),
   ]);
+  const santriGenderMap = new Map(
+    (santriGenderRows ?? []).map((s) => [s.id, s.jenis_kelamin]),
+  );
 
   // Guru/musyrif: jabatan (utama ATAU tambahan) cocok daftar is_guru=true dari master jabatan.
   const guruNamaSet = new Set(
@@ -398,14 +407,29 @@ export default async function Page() {
   const maxKelas = Math.max(1, ...peringkatKelas.map((k) => k.total));
 
   const PERINGKAT_N = 20;
+  const PERLU_PERHATIAN_N = 7;
   const negSorted = [...santriSum.entries()]
     .filter(([, v]) => v.neg > 0)
     .sort((a, b) => b[1].neg - a[1].neg);
   const posSorted = [...santriSum.entries()]
     .filter(([, v]) => v.pos - v.neg > 0)
     .sort((a, b) => (b[1].pos - b[1].neg) - (a[1].pos - a[1].neg));
-  const topNeg = negSorted.slice(0, PERINGKAT_N);
-  const topPos = posSorted.slice(0, PERINGKAT_N);
+
+  // Top-N dihitung ULANG per jenis kelamin (bukan disaring dari daftar
+  // gabungan yg sudah dipotong) — kalau tidak, santri yg sebenarnya top-3
+  // di antara sesama jenis kelaminnya bisa hilang total kalau kebetulan
+  // peringkat gabungannya di luar N.
+  type GenderKey = "all" | "L" | "P";
+  const GENDER_KEYS: GenderKey[] = ["all", "L", "P"];
+  function byGender<T extends [string, unknown]>(rows: T[], g: GenderKey): T[] {
+    return g === "all" ? rows : rows.filter(([id]) => santriGenderMap.get(id) === g);
+  }
+  const posByGender = Object.fromEntries(
+    GENDER_KEYS.map((g) => [g, byGender(posSorted, g).slice(0, PERINGKAT_N)]),
+  ) as Record<GenderKey, typeof posSorted>;
+  const negByGender = Object.fromEntries(
+    GENDER_KEYS.map((g) => [g, byGender(negSorted, g).slice(0, PERLU_PERHATIAN_N)]),
+  ) as Record<GenderKey, typeof negSorted>;
 
   const SP_LEVELS = [
     { level: 1, ambang: 300 },
@@ -428,7 +452,11 @@ export default async function Page() {
   // akhirnya melewati batas panjang URL dan SEMUA nama jatuh ke "?" —
   // persis bug yang terjadi di Laporan Per Santri.
   const idSet = new Set(
-    [...topNeg, ...topPos, ...spEligible.slice(0, SP_TAMPIL)].map(([id]) => id),
+    [
+      ...GENDER_KEYS.flatMap((g) => posByGender[g]),
+      ...GENDER_KEYS.flatMap((g) => negByGender[g]),
+      ...spEligible.slice(0, SP_TAMPIL),
+    ].map(([id]) => id),
   );
   const nameMap = new Map<string, string>();
   if (idSet.size > 0) {
@@ -438,22 +466,32 @@ export default async function Page() {
       .in("id", [...idSet]);
     for (const s of names ?? []) nameMap.set(s.id, s.nama);
   }
-  const peringkatPos = topPos.map(([id, v]) => ({
-    id,
-    nama: nameMap.get(id) ?? "?",
-    total: v.pos - v.neg,
-  }));
+  const peringkatPos = Object.fromEntries(
+    GENDER_KEYS.map((g) => [
+      g,
+      posByGender[g].map(([id, v]) => ({
+        id,
+        nama: nameMap.get(id) ?? "?",
+        total: v.pos - v.neg,
+      })),
+    ]),
+  ) as Record<GenderKey, { id: string; nama: string; total: number }[]>;
   const perluTindakanSP = spEligible.slice(0, SP_TAMPIL).map(([id, v]) => ({
     id,
     nama: nameMap.get(id) ?? "?",
     total: v.neg,
     sp: spLevelFor(v.neg) ?? 1,
   }));
-  const perluPerhatian = negSorted.slice(0, 7).map(([id, v]) => ({
-    id,
-    nama: nameMap.get(id) ?? "?",
-    total: v.neg,
-  }));
+  const perluPerhatian = Object.fromEntries(
+    GENDER_KEYS.map((g) => [
+      g,
+      negByGender[g].map(([id, v]) => ({
+        id,
+        nama: nameMap.get(id) ?? "?",
+        total: v.neg,
+      })),
+    ]),
+  ) as Record<GenderKey, { id: string; nama: string; total: number }[]>;
 
   const recent = (recentRes.data ?? []) as unknown as {
     id: string;
@@ -704,33 +742,7 @@ export default async function Page() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {perluPerhatian.length === 0 ? (
-              <p className="py-10 text-center text-sm text-muted-foreground">
-                Tidak ada santri dengan poin negatif. 🎉
-              </p>
-            ) : (
-              <ol className="max-h-72 space-y-0.5 overflow-y-auto pr-1 scrollbar-thin">
-                {perluPerhatian.map((s, idx) => (
-                  <li key={s.id}>
-                    <Link
-                      href={`/santri/${s.id}`}
-                      prefetch={false}
-                      className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted"
-                    >
-                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-negative-soft text-xs font-semibold text-negative">
-                        {idx + 1}
-                      </span>
-                      <span className="flex-1 truncate text-sm font-medium">
-                        {s.nama}
-                      </span>
-                      <Badge variant="negative" className="font-mono">
-                        −{s.total}
-                      </Badge>
-                    </Link>
-                  </li>
-                ))}
-              </ol>
-            )}
+            <PerluPerhatianList items={perluPerhatian} />
           </CardContent>
         </Card>
         <Card className="lg:col-span-1">
