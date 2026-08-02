@@ -9,6 +9,7 @@ import {
   SuratPanggilanTable,
   type SuratPanggilanRow,
 } from "./surat-panggilan-table";
+import { AmbangSpForm } from "./ambang-form";
 
 type NegatifTx = {
   santri_id: string;
@@ -238,7 +239,9 @@ export default async function Page() {
         icon={MailWarning}
         title="Surat Peringatan"
         description="Cetak surat peringatan orang tua/wali untuk santri dengan akumulasi poin negatif melewati ambang batas."
-      />
+      >
+        {profile?.perms.master && <AmbangSpForm initial={ambang} />}
+      </PageHeader>
       <SuratPanggilanTable
         rows={rows}
         taLabel={taLabel}
