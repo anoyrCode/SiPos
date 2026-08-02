@@ -16,7 +16,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { requireDashboard } from "@/lib/auth/dal";
 import { formatDateID } from "@/lib/format";
-import { DEFAULT_AMBANG, spLevelFor } from "@/lib/surat-panggilan";
+import { DEFAULT_AMBANG, spLevelFor, type SpAmbang } from "@/lib/surat-panggilan";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -39,7 +39,7 @@ type Tx = {
 
 /** Bentuk hasil RPC `dashboard_stats` (agregasi transaksi_poin di database). */
 type DashboardStats = {
-  per_santri: { santri_id: string; pos: number; neg: number }[];
+  per_santri: { santri_id: string; pos: number; neg: number; neg_sp: number }[];
   per_poin: { master_poin_id: string; count: number }[];
   per_month: { month: string; pos: number; neg: number }[];
   per_level: { level: string; count: number }[];
@@ -183,6 +183,8 @@ export default async function Page() {
     statsRes,
     { data: skData },
     { data: santriGenderRows },
+    ambangRes,
+    levelSpRes,
   ] = await Promise.all([
     supabase
       .from("santri")
@@ -210,9 +212,27 @@ export default async function Page() {
     // Positif & Perlu Perhatian. Tanpa filter ID (select penuh, bukan
     // .in()), jadi aman berapa pun jumlah santrinya.
     supabase.from("santri").select("id, jenis_kelamin").eq("status", "aktif"),
+    supabase
+      .from("surat_panggilan_pengaturan")
+      .select("ambang_sp1, ambang_sp2, ambang_sp3")
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("master_level_poin")
+      .select("nama")
+      .eq("tipe", "NEGATIF")
+      .eq("hitung_sp", true),
   ]);
   const santriGenderMap = new Map(
     (santriGenderRows ?? []).map((s) => [s.id, s.jenis_kelamin]),
+  );
+
+  // Ambang & level dasar Surat Peringatan — dipakai HANYA oleh widget
+  // "Perlu Tindakan". Peringkat & skor bersih tetap dari seluruh poin negatif.
+  // Fallback DEFAULT_AMBANG kalau migrasi 0038 belum dijalankan.
+  const ambangSp: SpAmbang = ambangRes.data ?? DEFAULT_AMBANG;
+  const levelSpSet = new Set(
+    (levelSpRes.data ?? []).map((l) => l.nama as string),
   );
 
   // Guru/musyrif: jabatan (utama ATAU tambahan) cocok daftar is_guru=true dari master jabatan.
@@ -269,7 +289,10 @@ export default async function Page() {
   // cuma transfer hasil ringkas). Kalau RPC gagal (mis. migration 0032
   // belum dijalankan di Supabase), fallback ke agregasi di JS dari
   // fetchAllTransaksi (lambat, tapi tetap render — deploy aman).
-  const santriSum = new Map<string, { pos: number; neg: number }>();
+  const santriSum = new Map<
+    string,
+    { pos: number; neg: number; negSp: number }
+  >();
   const poinCount = new Map<string, number>();
   const buckets = new Map<string, { pos: number; neg: number }>();
   const levelCount = new Map<string, number>();
@@ -278,7 +301,9 @@ export default async function Page() {
   const stats = (statsRes.data as DashboardStats | null) ?? null;
   if (stats && !statsRes.error) {
     for (const r of stats.per_santri)
-      santriSum.set(r.santri_id, { pos: r.pos, neg: r.neg });
+      // `?? 0` menjaga halaman tetap render kalau migrasi 0038 belum
+      // dijalankan — RPC versi lama tidak mengirim field ini.
+      santriSum.set(r.santri_id, { pos: r.pos, neg: r.neg, negSp: r.neg_sp ?? 0 });
     for (const r of stats.per_poin) poinCount.set(r.master_poin_id, r.count);
     for (const r of stats.per_month)
       buckets.set(r.month, { pos: r.pos, neg: r.neg });
@@ -291,9 +316,13 @@ export default async function Page() {
       ta?.id,
     );
     for (const t of tx) {
-      const s = santriSum.get(t.santri_id) ?? { pos: 0, neg: 0 };
+      const s = santriSum.get(t.santri_id) ?? { pos: 0, neg: 0, negSp: 0 };
       if (t.tipe === "POSITIF") s.pos += t.nilai_poin;
-      else s.neg += t.nilai_poin;
+      else {
+        s.neg += t.nilai_poin;
+        const lv = poinMeta.get(t.master_poin_id)?.level;
+        if (lv && levelSpSet.has(lv)) s.negSp += t.nilai_poin;
+      }
       santriSum.set(t.santri_id, s);
 
       poinCount.set(t.master_poin_id, (poinCount.get(t.master_poin_id) ?? 0) + 1);
@@ -432,7 +461,11 @@ export default async function Page() {
     GENDER_KEYS.map((g) => [g, byGender(negSorted, g).slice(0, PERLU_PERHATIAN_N)]),
   ) as Record<GenderKey, typeof negSorted>;
 
-  const spEligible = negSorted.filter(([, v]) => v.neg >= DEFAULT_AMBANG.ambang_sp1);
+  // Diurutkan ulang berdasarkan negSp (bukan menyaring negSorted yang
+  // terurut berdasarkan neg) — supaya 8 santri teratas yang tampil benar.
+  const spEligible = [...santriSum.entries()]
+    .filter(([, v]) => v.negSp >= ambangSp.ambang_sp1)
+    .sort((a, b) => b[1].negSp - a[1].negSp);
 
   // Hanya 8 santri SP teratas yang ditampilkan (lihat perluTindakanSP di
   // bawah), jadi nama yang perlu diambil cukup 8 itu — bukan SELURUH
@@ -468,8 +501,8 @@ export default async function Page() {
   const perluTindakanSP = spEligible.slice(0, SP_TAMPIL).map(([id, v]) => ({
     id,
     nama: nameMap.get(id) ?? "?",
-    total: v.neg,
-    sp: spLevelFor(v.neg, DEFAULT_AMBANG) ?? 1,
+    total: v.negSp,
+    sp: spLevelFor(v.negSp, ambangSp) ?? 1,
   }));
   const perluPerhatian = Object.fromEntries(
     GENDER_KEYS.map((g) => [
