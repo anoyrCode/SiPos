@@ -2,7 +2,7 @@ import { MailWarning } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth/dal";
-import { DEFAULT_AMBANG, spLevelFor } from "@/lib/surat-panggilan";
+import { DEFAULT_AMBANG, spLevelFor, type SpAmbang } from "@/lib/surat-panggilan";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -15,33 +15,49 @@ type NegatifTx = {
   nilai_poin: number;
   tanggal_kejadian: string;
   catatan: string | null;
-  master_poin: { nama_poin: string; kode_poin: string } | null;
+  master_poin: {
+    nama_poin: string;
+    kode_poin: string;
+    level: string | null;
+  } | null;
 };
 
 const TX_PAGE_SIZE = 1000;
 
 /**
- * Ambil SEMUA transaksi NEGATIF 1 tahun ajaran, dipaginasi penuh —
+ * Ambil SEMUA transaksi NEGATIF 1 tahun ajaran yang levelnya ikut
+ * menghitung ambang SP (`master_level_poin.hitung_sp`), dipaginasi penuh —
  * Supabase/PostgREST membatasi 1000 baris per request secara default,
  * jadi tahun ajaran dgn >1000 transaksi negatif bakal diam-diam
  * terpotong tanpa ini (bisa bikin santri yg sebenarnya sudah kena
  * ambang SP tidak muncul di daftar).
+ *
+ * Penyaringan level dilakukan di sini juga (bukan cuma di RPC total),
+ * supaya rincian pelanggaran yang tampil di tabel & tercetak di surat
+ * PDF konsisten dengan angka totalnya.
  */
 async function fetchAllNegatif(
   supabase: Awaited<ReturnType<typeof createClient>>,
   taId: string,
+  levelsSP: string[],
   santriIds?: string[] | null,
 ): Promise<NegatifTx[]> {
+  // Tidak ada level yang dicentang = tidak ada dasar SP sama sekali.
+  if (levelsSP.length === 0) return [];
   const rows: NegatifTx[] = [];
   let from = 0;
   for (;;) {
     let q = supabase
       .from("transaksi_poin")
       .select(
-        "santri_id, nilai_poin, tanggal_kejadian, catatan, master_poin:master_poin(nama_poin, kode_poin)",
+        "santri_id, nilai_poin, tanggal_kejadian, catatan, master_poin:master_poin!inner(nama_poin, kode_poin, level)",
       )
       .eq("tahun_ajaran_id", taId)
       .eq("tipe", "NEGATIF")
+      // Filter pada embedded resource — butuh !inner supaya baris induk
+      // ikut tersaring (pola sama seperti kelas!inner di query santri_kelas
+      // di bawah).
+      .in("master_poin.level", levelsSP)
       .range(from, from + TX_PAGE_SIZE - 1);
     if (santriIds) {
       q = q.in(
@@ -76,19 +92,32 @@ export default async function Page() {
 
   const supabase = await createClient();
 
-  const { data: ta } = await supabase
-    .from("tahun_ajaran")
-    .select("id, tahun")
-    .eq("is_aktif", true)
-    .maybeSingle();
+  // Fallback DEFAULT_AMBANG dipakai kalau migrasi 0038 belum dijalankan —
+  // halaman tetap render dengan angka lama, tidak crash. Diambil di luar
+  // blok `if (ta?.id)` supaya dialog Atur Ambang tetap menampilkan nilai
+  // asli walau belum ada tahun ajaran aktif (kalau tidak, menyimpan dari
+  // dialog akan menimpa setting dengan angka default).
+  const [{ data: ta }, { data: ambangRow }] = await Promise.all([
+    supabase
+      .from("tahun_ajaran")
+      .select("id, tahun")
+      .eq("is_aktif", true)
+      .maybeSingle(),
+    supabase
+      .from("surat_panggilan_pengaturan")
+      .select("ambang_sp1, ambang_sp2, ambang_sp3")
+      .limit(1)
+      .maybeSingle(),
+  ]);
   const taLabel = ta?.tahun ?? "—";
+  const ambang: SpAmbang = ambangRow ?? DEFAULT_AMBANG;
 
   let rows: SuratPanggilanRow[] = [];
 
   if (ta?.id) {
     // Total negatif per santri (RPC agregasi di DB — cepat) + peta kelas,
     // dijalankan paralel.
-    const [totalsRpc, skRes, tindakLanjutRes] = await Promise.all([
+    const [totalsRpc, skRes, tindakLanjutRes, levelRes] = await Promise.all([
       supabase.rpc("surat_panggilan_totals", { p_ta: ta.id }),
       supabase
         .from("santri_kelas")
@@ -98,7 +127,13 @@ export default async function Page() {
         .from("surat_panggilan_tindak_lanjut")
         .select("id, santri_id, level, created_at, pegawai:pegawai(nama)")
         .eq("tahun_ajaran_id", ta.id),
+      supabase
+        .from("master_level_poin")
+        .select("nama")
+        .eq("tipe", "NEGATIF")
+        .eq("hitung_sp", true),
     ]);
+    const levelsSP = (levelRes.data ?? []).map((l) => l.nama as string);
 
     // Peta (santri_id, level) -> info tanda — dipakai supaya tanda cuma
     // "menempel" ke level yang PERSIS sama dgn saat ditandai. Kalau total
@@ -123,21 +158,21 @@ export default async function Page() {
       });
     }
 
-    // Rincian pelanggaran diambil HANYA utk santri yang tembus ambang SP
-    // terendah (>=300) — yang biasanya segelintir, bukan semua santri
-    // bernilai negatif. Fallback: kalau RPC gagal (mis. migration 0033
-    // belum dijalankan), ambil semua negatif seperti sebelumnya.
+    // Rincian pelanggaran diambil HANYA utk santri yang tembus ambang SP1 —
+    // yang biasanya segelintir, bukan semua santri bernilai negatif.
+    // Fallback: kalau RPC gagal (mis. migration 0033 belum dijalankan),
+    // ambil semua negatif berlevel SP seperti sebelumnya.
     let tx: NegatifTx[];
     if (!totalsRpc.error && Array.isArray(totalsRpc.data)) {
       const flaggedIds = (totalsRpc.data as { santri_id: string; total: number }[])
-        .filter((t) => t.total >= DEFAULT_AMBANG.ambang_sp1)
+        .filter((t) => t.total >= ambang.ambang_sp1)
         .map((t) => t.santri_id);
       tx =
         flaggedIds.length > 0
-          ? await fetchAllNegatif(supabase, ta.id, flaggedIds)
+          ? await fetchAllNegatif(supabase, ta.id, levelsSP, flaggedIds)
           : [];
     } else {
-      tx = await fetchAllNegatif(supabase, ta.id);
+      tx = await fetchAllNegatif(supabase, ta.id, levelsSP);
     }
 
     const santriKelas = new Map<string, string>();
@@ -177,7 +212,7 @@ export default async function Page() {
         .map((id) => {
           const s = santriMap.get(id);
           const e = agg.get(id)!;
-          const level = spLevelFor(e.total, DEFAULT_AMBANG);
+          const level = spLevelFor(e.total, ambang);
           const mark = level ? tindakLanjutMap.get(`${id}:${level}`) : undefined;
           return {
             id,
@@ -208,6 +243,7 @@ export default async function Page() {
         rows={rows}
         taLabel={taLabel}
         taId={ta?.id ?? ""}
+        ambang={ambang}
         canTindakLanjut={!!profile?.perms.master || !!profile?.perms.tindak_lanjut_sp}
       />
     </div>
