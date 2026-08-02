@@ -30,7 +30,7 @@ export default async function Page({
   const supabase = await createClient();
   let query = supabase
     .from("master_level_poin")
-    .select("id, tipe, nama, urutan", { count: "exact" })
+    .select("id, tipe, nama, urutan, hitung_sp", { count: "exact" })
     .order("tipe", { ascending: true })
     .order("urutan", { ascending: true });
   if (q) query = query.ilike("nama", `%${q}%`);
@@ -60,6 +60,18 @@ export default async function Page({
           {r.urutan}
         </span>
       ),
+    },
+    {
+      key: "hitung_sp",
+      header: "Hitung SP",
+      cell: (r) =>
+        r.tipe !== "NEGATIF" ? (
+          <span className="text-muted-foreground">—</span>
+        ) : r.hitung_sp ? (
+          <Badge variant="negative">Ya</Badge>
+        ) : (
+          <span className="text-muted-foreground">Tidak</span>
+        ),
     },
     {
       key: "aksi",

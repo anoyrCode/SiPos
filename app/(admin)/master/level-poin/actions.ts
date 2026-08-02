@@ -11,6 +11,14 @@ const PATH = "/master/level-poin";
 // Form poin membaca level dari sini, jadi ikut di-revalidate.
 const POIN_PATHS = ["/master/poin-positif", "/master/poin-negatif"];
 
+/**
+ * `hitung_sp` hanya bermakna untuk level NEGATIF (ambang Surat Peringatan).
+ * Dipaksa di server — jangan cuma andalkan form menyembunyikan switch-nya.
+ */
+function normalize(input: LevelPoinInput): LevelPoinInput {
+  return input.tipe === "NEGATIF" ? input : { ...input, hitung_sp: false };
+}
+
 function revalidateAll() {
   revalidatePath(PATH);
   for (const p of POIN_PATHS) revalidatePath(p);
@@ -24,7 +32,9 @@ export async function createLevelPoin(
   if (!parsed.success) return { ok: false, error: "Data tidak valid." };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("master_level_poin").insert(parsed.data);
+  const { error } = await supabase
+    .from("master_level_poin")
+    .insert(normalize(parsed.data));
   if (error) return { ok: false, error: dbErrorMessage(error) };
 
   revalidateAll();
@@ -42,7 +52,7 @@ export async function updateLevelPoin(
   const supabase = await createClient();
   const { error } = await supabase
     .from("master_level_poin")
-    .update(parsed.data)
+    .update(normalize(parsed.data))
     .eq("id", id);
   if (error) return { ok: false, error: dbErrorMessage(error) };
 

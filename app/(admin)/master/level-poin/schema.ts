@@ -7,6 +7,7 @@ export const levelPoinSchema = z.object({
     .number({ error: "Urutan harus berupa angka." })
     .int("Harus bilangan bulat.")
     .min(0, "Minimal 0."),
+  hitung_sp: z.boolean(),
 });
 
 export type LevelPoinInput = z.infer<typeof levelPoinSchema>;
@@ -16,4 +17,5 @@ export type LevelPoinRow = {
   tipe: "POSITIF" | "NEGATIF";
   nama: string;
   urutan: number;
+  hitung_sp: boolean;
 };

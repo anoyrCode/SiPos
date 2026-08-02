@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Pencil, Plus } from "lucide-react";
 
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Field } from "@/components/shared/field";
 import { levelPoinSchema, type LevelPoinInput, type LevelPoinRow } from "./schema";
 import { createLevelPoin, updateLevelPoin } from "./actions";
@@ -44,12 +45,15 @@ export function LevelPoinForm({
     tipe: initial?.tipe ?? defaultTipe ?? "POSITIF",
     nama: initial?.nama ?? "",
     urutan: initial?.urutan ?? 0,
+    hitung_sp: initial?.hitung_sp ?? false,
   };
 
   const form = useForm<LevelPoinInput>({
     resolver: zodResolver(levelPoinSchema),
     defaultValues: defaults,
   });
+
+  const tipe = useWatch({ control: form.control, name: "tipe" });
 
   const onSubmit = form.handleSubmit(async (values) => {
     setServerError(null);
@@ -140,6 +144,31 @@ export function LevelPoinForm({
                 {...form.register("urutan", { valueAsNumber: true })}
               />
             </Field>
+            {tipe === "NEGATIF" && (
+              <Controller
+                control={form.control}
+                name="hitung_sp"
+                render={({ field }) => (
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 bg-muted/20 p-3">
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      className="mt-0.5"
+                    />
+                    <span className="space-y-0.5">
+                      <span className="block text-sm font-medium">
+                        Hitung untuk Surat Peringatan
+                      </span>
+                      <span className="block text-sm text-muted-foreground">
+                        Hanya pelanggaran berlevel ini yang menambah ambang SP.
+                        Level yang tidak dicentang tetap tercatat di riwayat dan
+                        tetap mempengaruhi skor santri.
+                      </span>
+                    </span>
+                  </label>
+                )}
+              />
+            )}
           </div>
           {serverError && (
             <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
