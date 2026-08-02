@@ -23,21 +23,8 @@ import {
 import { formatDateID, orDash } from "@/lib/format";
 import { downloadSuratPanggilan, type PelanggaranItem } from "@/lib/pdf";
 import { parseClientPageParams, paginateArray } from "@/lib/list-params";
+import { DEFAULT_AMBANG, spLevelFor, spLevels } from "@/lib/surat-panggilan";
 import { batalkanTindakLanjut, tandaiTindakLanjut } from "./actions";
-
-const SP_LEVELS = [
-  { level: 1, ambang: 300 },
-  { level: 2, ambang: 600 },
-  { level: 3, ambang: 900 },
-];
-
-function spLevelFor(totalNegatif: number) {
-  let level: number | null = null;
-  for (const sp of SP_LEVELS) {
-    if (totalNegatif >= sp.ambang) level = sp.level;
-  }
-  return level;
-}
 
 export type TindakLanjutInfo = {
   id: string;
@@ -72,11 +59,13 @@ export function SuratPanggilanTable({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  const levels = spLevels(DEFAULT_AMBANG);
+
   const [sp, setSp] = useState(() => {
     const fromUrl = Number(searchParams.get("sp"));
-    return SP_LEVELS.some((l) => l.level === fromUrl) ? fromUrl : 1;
+    return levels.some((l) => l.level === fromUrl) ? fromUrl : 1;
   });
-  const ambang = SP_LEVELS.find((l) => l.level === sp)?.ambang ?? 300;
+  const ambang = levels.find((l) => l.level === sp)?.ambang ?? DEFAULT_AMBANG.ambang_sp1;
   const [q, setQ] = useState("");
   const [showHandled, setShowHandled] = useState(false);
   const [printingId, setPrintingId] = useState<string | null>(null);
@@ -127,7 +116,7 @@ export function SuratPanggilanTable({
   }
 
   async function handleTandai(row: SuratPanggilanRow) {
-    const level = spLevelFor(row.totalNegatif);
+    const level = spLevelFor(row.totalNegatif, DEFAULT_AMBANG);
     if (!level || !taId) return;
     setMarkingId(row.id);
     const res = await tandaiTindakLanjut(row.id, taId, level);
@@ -174,8 +163,10 @@ export function SuratPanggilanTable({
           <Badge variant="negative" className="font-mono">
             −{r.totalNegatif}
           </Badge>
-          {spLevelFor(r.totalNegatif) && (
-            <Badge variant="outline">SP {spLevelFor(r.totalNegatif)}</Badge>
+          {spLevelFor(r.totalNegatif, DEFAULT_AMBANG) && (
+            <Badge variant="outline">
+              SP {spLevelFor(r.totalNegatif, DEFAULT_AMBANG)}
+            </Badge>
           )}
         </div>
       ),
@@ -247,7 +238,7 @@ export function SuratPanggilanTable({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {SP_LEVELS.map((l) => (
+              {levels.map((l) => (
                 <SelectItem key={l.level} value={String(l.level)}>
                   SP {l.level} (≥ {l.ambang} poin)
                 </SelectItem>

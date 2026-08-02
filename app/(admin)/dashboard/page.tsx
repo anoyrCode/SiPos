@@ -16,6 +16,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { requireDashboard } from "@/lib/auth/dal";
 import { formatDateID } from "@/lib/format";
+import { DEFAULT_AMBANG, spLevelFor } from "@/lib/surat-panggilan";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -431,19 +432,7 @@ export default async function Page() {
     GENDER_KEYS.map((g) => [g, byGender(negSorted, g).slice(0, PERLU_PERHATIAN_N)]),
   ) as Record<GenderKey, typeof negSorted>;
 
-  const SP_LEVELS = [
-    { level: 1, ambang: 300 },
-    { level: 2, ambang: 600 },
-    { level: 3, ambang: 900 },
-  ];
-  function spLevelFor(totalNegatif: number): number | null {
-    let level: number | null = null;
-    for (const sp of SP_LEVELS) {
-      if (totalNegatif >= sp.ambang) level = sp.level;
-    }
-    return level;
-  }
-  const spEligible = negSorted.filter(([, v]) => v.neg >= 300);
+  const spEligible = negSorted.filter(([, v]) => v.neg >= DEFAULT_AMBANG.ambang_sp1);
 
   // Hanya 8 santri SP teratas yang ditampilkan (lihat perluTindakanSP di
   // bawah), jadi nama yang perlu diambil cukup 8 itu — bukan SELURUH
@@ -480,7 +469,7 @@ export default async function Page() {
     id,
     nama: nameMap.get(id) ?? "?",
     total: v.neg,
-    sp: spLevelFor(v.neg) ?? 1,
+    sp: spLevelFor(v.neg, DEFAULT_AMBANG) ?? 1,
   }));
   const perluPerhatian = Object.fromEntries(
     GENDER_KEYS.map((g) => [

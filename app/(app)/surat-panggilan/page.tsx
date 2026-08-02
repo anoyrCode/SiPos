@@ -2,6 +2,7 @@ import { MailWarning } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth/dal";
+import { DEFAULT_AMBANG, spLevelFor } from "@/lib/surat-panggilan";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -18,24 +19,6 @@ type NegatifTx = {
 };
 
 const TX_PAGE_SIZE = 1000;
-// Ambang SP terendah (SP1). Santri dengan total negatif di bawah ini tidak
-// pernah ditampilkan di tabel Surat Panggilan (lihat SP_LEVELS di komponen
-// tabel), jadi rincian pelanggarannya tidak perlu diambil sama sekali.
-const SP_AMBANG_MIN = 300;
-
-const SP_LEVELS = [
-  { level: 1, ambang: 300 },
-  { level: 2, ambang: 600 },
-  { level: 3, ambang: 900 },
-];
-
-function spLevelFor(totalNegatif: number): number | null {
-  let level: number | null = null;
-  for (const sp of SP_LEVELS) {
-    if (totalNegatif >= sp.ambang) level = sp.level;
-  }
-  return level;
-}
 
 /**
  * Ambil SEMUA transaksi NEGATIF 1 tahun ajaran, dipaginasi penuh —
@@ -147,7 +130,7 @@ export default async function Page() {
     let tx: NegatifTx[];
     if (!totalsRpc.error && Array.isArray(totalsRpc.data)) {
       const flaggedIds = (totalsRpc.data as { santri_id: string; total: number }[])
-        .filter((t) => t.total >= SP_AMBANG_MIN)
+        .filter((t) => t.total >= DEFAULT_AMBANG.ambang_sp1)
         .map((t) => t.santri_id);
       tx =
         flaggedIds.length > 0
@@ -194,7 +177,7 @@ export default async function Page() {
         .map((id) => {
           const s = santriMap.get(id);
           const e = agg.get(id)!;
-          const level = spLevelFor(e.total);
+          const level = spLevelFor(e.total, DEFAULT_AMBANG);
           const mark = level ? tindakLanjutMap.get(`${id}:${level}`) : undefined;
           return {
             id,
