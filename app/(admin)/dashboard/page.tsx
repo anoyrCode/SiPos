@@ -185,6 +185,7 @@ export default async function Page() {
     { data: santriGenderRows },
     ambangRes,
     levelSpRes,
+    tindakLanjutRes,
   ] = await Promise.all([
     supabase
       .from("santri")
@@ -222,6 +223,12 @@ export default async function Page() {
       .select("nama")
       .eq("tipe", "NEGATIF")
       .eq("hitung_sp", true),
+    ta?.id
+      ? supabase
+          .from("surat_panggilan_tindak_lanjut")
+          .select("santri_id, level")
+          .eq("tahun_ajaran_id", ta.id)
+      : Promise.resolve({ data: [] as { santri_id: string; level: number }[] }),
   ]);
   const santriGenderMap = new Map(
     (santriGenderRows ?? []).map((s) => [s.id, s.jenis_kelamin]),
@@ -233,6 +240,16 @@ export default async function Page() {
   const ambangSp: SpAmbang = ambangRes.data ?? DEFAULT_AMBANG;
   const levelSpSet = new Set(
     (levelSpRes.data ?? []).map((l) => l.nama as string),
+  );
+
+  // Santri yang sudah ditandai "sudah ditindak" di halaman Surat Peringatan.
+  // Kunci `santri_id:level` — tanda hanya menempel ke level yang PERSIS sama,
+  // sama seperti di halaman SP: kalau poinnya naik ke level lebih tinggi,
+  // santri itu muncul lagi karena butuh tindakan baru.
+  const sudahDitindak = new Set(
+    ((tindakLanjutRes.data ?? []) as { santri_id: string; level: number }[]).map(
+      (m) => `${m.santri_id}:${m.level}`,
+    ),
   );
 
   // Guru/musyrif: jabatan (utama ATAU tambahan) cocok daftar is_guru=true dari master jabatan.
@@ -465,6 +482,10 @@ export default async function Page() {
   // terurut berdasarkan neg) — supaya 8 santri teratas yang tampil benar.
   const spEligible = [...santriSum.entries()]
     .filter(([, v]) => v.negSp >= ambangSp.ambang_sp1)
+    .filter(
+      ([id, v]) =>
+        !sudahDitindak.has(`${id}:${spLevelFor(v.negSp, ambangSp) ?? 1}`),
+    )
     .sort((a, b) => b[1].negSp - a[1].negSp);
 
   // Hanya 8 santri SP teratas yang ditampilkan (lihat perluTindakanSP di
