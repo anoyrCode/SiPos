@@ -147,7 +147,7 @@ export default async function Page() {
                         {initials(s.nama)}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-heading text-base font-semibold capitalize">
+                        <p className="font-heading text-base font-semibold capitalize">
                           {s.nama}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">

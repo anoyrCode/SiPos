@@ -41,10 +41,10 @@ export function RiwayatPoinList({ items }: { items: RiwayatPoinItem[] }) {
       <div className="space-y-2">
         {pageItems.map((t) => (
           <Card key={t.id}>
-            <CardContent className="flex items-center justify-between gap-4 py-3.5">
+            <CardContent className="flex items-start justify-between gap-4 py-3.5">
               <div className="min-w-0">
-                <p className="truncate font-medium">{t.nama_poin ?? "—"}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="font-medium">{t.nama_poin ?? "—"}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {formatDateID(t.tanggal_kejadian)}
                   {t.catatan ? ` · ${t.catatan}` : ""}
                 </p>

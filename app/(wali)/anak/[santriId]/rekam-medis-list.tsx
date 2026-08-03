@@ -28,13 +28,11 @@ export function RekamMedisList({ items }: { items: RekamItem[] }) {
           className="rounded-xl border border-border/70 bg-card p-3 shadow-sm transition-colors hover:border-primary/30"
         >
           <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex min-w-0 items-start gap-2.5">
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Stethoscope className="size-4" />
               </span>
-              <p className="truncate text-sm font-semibold capitalize">
-                {r.keluhan}
-              </p>
+              <p className="text-sm font-semibold capitalize">{r.keluhan}</p>
             </div>
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[0.7rem] text-muted-foreground">
               <CalendarDays className="size-3" />

@@ -41,16 +41,18 @@ export function RiwayatList({ items }: { items: RiwayatItem[] }) {
           return (
             <div
               key={t.id}
-              className="flex items-center justify-between gap-3 rounded-lg border-l-2 px-3 py-2 transition-colors hover:bg-muted/50"
+              className="flex items-start justify-between gap-3 rounded-lg border-l-2 px-3 py-2 transition-colors hover:bg-muted/50"
               style={{
                 borderColor: isPos ? "var(--chart-pos)" : "var(--chart-neg)",
               }}
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium leading-tight">
+                <p className="text-sm font-medium leading-tight">
                   {t.nama_poin ?? "—"}
                 </p>
-                <p className="truncate text-[0.7rem] text-muted-foreground">
+                {/* Catatan itu teks bebas — dibatasi 2 baris supaya catatan
+                    panjang tidak membuat satu kartu jadi sangat tinggi. */}
+                <p className="mt-0.5 line-clamp-2 text-[0.7rem] text-muted-foreground">
                   {formatDateID(t.tanggal_kejadian)}
                   {t.catatan ? ` · ${t.catatan}` : ""}
                 </p>
