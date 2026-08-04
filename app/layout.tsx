@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { PwaInstallPrompt } from "@/components/shared/pwa-install-prompt";
+import { ServiceWorkerRegister } from "@/components/shared/service-worker-register";
 
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -45,11 +46,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js')})}`,
-          }}
-        />
+        <ServiceWorkerRegister />
         <ThemeProvider>
           {children}
           <Toaster richColors position="bottom-right" />
