@@ -74,6 +74,17 @@ export function todayJakarta(): string {
   }).format(new Date());
 }
 
+/** Tanggal (YYYY-MM-DD) suatu instant di zona Jakarta — sibling `todayJakarta()`
+ * untuk instant selain "sekarang" (mis. `created_at` dari database). */
+export function dateJakarta(input: string | Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(input));
+}
+
 /**
  * Gabungkan tanggal mulai absensi GLOBAL (`absensi_pengaturan.tanggal_mulai`)
  * dengan tanggal mulai KHUSUS 1 pegawai (`pegawai.tanggal_mulai_absensi`,
