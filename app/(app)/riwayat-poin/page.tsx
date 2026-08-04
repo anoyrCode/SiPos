@@ -2,7 +2,6 @@ import { Download, History, Trash2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth/dal";
-import { dateJakarta, todayJakarta } from "@/lib/absensi-status";
 import {
   getStr,
   parseListParams,
@@ -31,7 +30,6 @@ type Row = {
   tanggal_kejadian: string;
   catatan: string | null;
   pegawai_id: string | null;
-  created_at: string;
   santri: { nama: string; nis: string | null } | null;
   master_poin: { kode_poin: string; nama_poin: string } | null;
   pegawai: { nama: string } | null;
@@ -133,7 +131,7 @@ export default async function Page({
   let query = supabase
     .from("transaksi_poin")
     .select(
-      "id, tipe, nilai_poin, is_override, tanggal_kejadian, catatan, pegawai_id, created_at, santri:santri(nama, nis), master_poin:master_poin(kode_poin, nama_poin), pegawai:pegawai(nama)",
+      "id, tipe, nilai_poin, is_override, tanggal_kejadian, catatan, pegawai_id, santri:santri(nama, nis), master_poin:master_poin(kode_poin, nama_poin), pegawai:pegawai(nama)",
       { count: "exact" },
     )
     .order("tanggal_kejadian", { ascending: false })
@@ -146,7 +144,6 @@ export default async function Page({
 
   const { data, count } = await query.range(from, to);
   const rows = (data ?? []) as unknown as Row[];
-  const todayStr = todayJakarta();
 
   const columns: Column<Row>[] = [
     {
@@ -226,13 +223,11 @@ export default async function Page({
             className: "text-right",
             cell: (r: Row) => {
               // Admin selalu boleh. Selain admin, cuma baris miliknya
-              // sendiri yang dibuat HARI INI (WIB) — mirror persis
-              // canTouchTransaksi() di actions.ts & RLS migrasi 0039.
+              // sendiri, tanpa batas waktu (lihat migrasi 0040) — mirror
+              // persis canTouchTransaksi() di actions.ts.
               const canTouch =
                 isAdminUser ||
-                (profile.pegawai_id !== null &&
-                  r.pegawai_id === profile.pegawai_id &&
-                  dateJakarta(r.created_at) === todayStr);
+                (profile.pegawai_id !== null && r.pegawai_id === profile.pegawai_id);
               if (!canTouch) return null;
               return (
                 <div className="flex justify-end">
@@ -275,7 +270,7 @@ export default async function Page({
             isAdminUser
               ? "Semua transaksi poin santri."
               : profile.pegawai_id
-                ? "Riwayat transaksi poin. Transaksi milik Anda bisa diedit/dihapus pada hari yang sama."
+                ? "Riwayat transaksi poin. Transaksi milik Anda bisa diedit/dihapus kapan saja."
                 : "Riwayat transaksi poin (hanya lihat)."
           }
         />
