@@ -4,8 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Award,
+  BookMarked,
   CalendarDays,
   ClipboardCheck,
+  ClipboardList,
+  Clock,
   Dot,
   FileBarChart2,
   Fingerprint,
@@ -31,7 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { NavGroup } from "@/lib/auth/roles";
 
-const ICONS: Record<string, LucideIcon> = {
+export const ICONS: Record<string, LucideIcon> = {
   "/dashboard": LayoutDashboard,
   "/input-poin": SquarePen,
   "/riwayat-poin": History,
@@ -54,6 +57,8 @@ const ICONS: Record<string, LucideIcon> = {
   "/master/peran": ShieldCheck,
   "/uks": HeartPulse,
   "/anak": Users,
+  "/penilaian": ClipboardList,
+  "/hafalan": BookMarked,
 };
 
 
@@ -92,6 +97,7 @@ export function SidebarNav({
                   active
                     ? "bg-linear-to-r from-primary/15 to-primary/3 text-primary"
                     : "text-muted-foreground hover:translate-x-0.5 hover:bg-accent/60 hover:text-foreground",
+                  item.comingSoon && !active && "opacity-60",
                 )}
               >
                 {/* Accent bar kiri — tumbuh saat aktif/hover */}
@@ -119,6 +125,15 @@ export function SidebarNav({
                 {!!item.badge && (
                   <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-destructive px-1 text-[0.62rem] font-semibold text-white">
                     {item.badge > 9 ? "9+" : item.badge}
+                  </span>
+                )}
+                {/* Item belum tersedia — badge "Segera" menang atas titik
+                    aktif, TAPI kalau justru sedang dibuka (mis. via bookmark
+                    langsung), tidak perlu ditandai pudar/segera lagi. */}
+                {item.comingSoon && !active && !item.badge && (
+                  <span className="ml-auto flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[0.62rem] font-medium text-amber-600 dark:text-amber-400">
+                    <Clock className="size-2.5" />
+                    Segera
                   </span>
                 )}
                 {/* Titik penanda aktif di kanan */}
