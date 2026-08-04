@@ -39,7 +39,12 @@ export const EMPTY_PERMS: Perms = {
   tindak_lanjut_sp: false,
 };
 
-export type NavItem = { href: string; label: string; badge?: number };
+export type NavItem = {
+  href: string;
+  label: string;
+  badge?: number;
+  comingSoon?: boolean;
+};
 export type NavGroup = { title?: string; items: NavItem[] };
 
 type ProfileLike = { role: Role; perms: Perms };
@@ -66,7 +71,15 @@ export function navForProfile(
   pendingApprovalCount = 0,
 ): NavGroup[] {
   if (role === "wali") {
-    return [{ items: [{ href: "/anak", label: "Anak Saya" }] }];
+    return [
+      {
+        items: [
+          { href: "/anak", label: "Poin" },
+          { href: "/penilaian", label: "Penilaian", comingSoon: true },
+          { href: "/hafalan", label: "Hafalan", comingSoon: true },
+        ],
+      },
+    ];
   }
 
   const groups: NavGroup[] = [];
