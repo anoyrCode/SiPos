@@ -288,3 +288,28 @@ export async function removeSantriFromWali(
   revalidatePath(PATH);
   return { ok: true };
 }
+
+/**
+ * `wali.nama` cuma snapshot sekali dari `santri.nama_wali` saat akun
+ * pertama dibuat (lihat generateWaliFromSantri) — tidak pernah ikut
+ * berubah kalau nama_wali diedit belakangan di data Santri. Ini satu-
+ * satunya jalan admin membetulkannya, independen dari data Santri.
+ */
+export async function updateWaliNama(
+  waliId: string,
+  nama: string,
+): Promise<FormResult> {
+  if (!(await canAkunWali())) return { ok: false, error: "Tidak diizinkan." };
+  const trimmed = nama.trim();
+  if (!trimmed) return { ok: false, error: "Nama wajib diisi." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("wali")
+    .update({ nama: trimmed })
+    .eq("id", waliId);
+  if (error) return { ok: false, error: dbErrorMessage(error) };
+
+  revalidatePath(PATH);
+  return { ok: true };
+}

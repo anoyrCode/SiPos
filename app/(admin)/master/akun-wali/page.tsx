@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { GenerateWaliButton } from "./generate-button";
 import { WaliAccountActions } from "./account-actions";
 import { WaliAnakDialog } from "./anak-dialog";
+import { WaliEditNamaDialog } from "./edit-nama-dialog";
 
 type WaliRow = {
   id: string;
@@ -80,12 +81,15 @@ export default async function Page({
       headClassName: "text-right",
       className: "text-right",
       cell: (r) => (
-        <WaliAccountActions
-          waliId={r.id}
-          waliNama={r.nama ?? r.no_telp}
-          hasAccount={Boolean(r.user_id)}
-          email={phoneToWaliEmail(r.no_telp)}
-        />
+        <div className="flex items-center justify-end gap-1">
+          <WaliEditNamaDialog waliId={r.id} initialNama={r.nama ?? ""} />
+          <WaliAccountActions
+            waliId={r.id}
+            waliNama={r.nama ?? r.no_telp}
+            hasAccount={Boolean(r.user_id)}
+            email={phoneToWaliEmail(r.no_telp)}
+          />
+        </div>
       ),
     },
   ];
