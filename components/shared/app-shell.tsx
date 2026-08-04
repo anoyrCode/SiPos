@@ -2,6 +2,7 @@ import { LogOut } from "lucide-react";
 
 import { logout } from "@/lib/auth/actions";
 import type { NavGroup } from "@/lib/auth/roles";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SidebarNav } from "./sidebar-nav";
 import { MobileNav } from "./mobile-nav";
@@ -25,6 +26,7 @@ export function AppShell({
   jabatan,
   shift,
   email,
+  bottomNav,
   children,
 }: {
   nav: NavGroup[];
@@ -33,6 +35,7 @@ export function AppShell({
   jabatan?: string | null;
   shift?: number | null;
   email: string | null;
+  bottomNav?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const ini = initials(name);
@@ -111,7 +114,10 @@ export function AppShell({
             </form>
           </div>
         </header>
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className={cn("min-w-0 flex-1", bottomNav && "pb-20 md:pb-0")}>
+          {children}
+        </main>
+        {bottomNav}
       </div>
     </div>
   );

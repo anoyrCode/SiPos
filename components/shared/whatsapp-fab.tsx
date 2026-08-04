@@ -30,7 +30,7 @@ export function WhatsappFab({ name }: { name: string }) {
       aria-label="Hubungi CS via WhatsApp"
       onMouseEnter={() => setExpanded(true)}
       className={cn(
-        "animate-enter fixed bottom-5 right-5 z-40 flex items-center overflow-hidden bg-[#25D366] py-2.5 pl-2.5 text-white shadow-lg shadow-black/25 transition-all duration-300 hover:scale-[1.03] active:scale-95",
+        "animate-enter fixed bottom-20 right-5 z-40 flex items-center overflow-hidden bg-[#25D366] py-2.5 pl-2.5 text-white shadow-lg shadow-black/25 transition-all duration-300 hover:scale-[1.03] active:scale-95 md:bottom-5",
         expanded ? "gap-3 rounded-2xl pr-4" : "gap-0 rounded-full pr-2.5",
       )}
     >
