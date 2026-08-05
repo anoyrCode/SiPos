@@ -3,11 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ChevronRight } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { submitAbsensiSantri } from "./actions";
 
 type Status = "hadir" | "izin" | "sakit" | "alpa";
@@ -48,6 +49,7 @@ export function AbsensiSantriForm({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const single = groups.length <= 1;
   const [statuses, setStatuses] = useState<Record<string, Status>>(() => {
     const init: Record<string, Status> = {};
     for (const g of groups) {
@@ -66,6 +68,21 @@ export function AbsensiSantriForm({
     }
     return init;
   });
+  // Ditutup semua by default — musyrif dengan banyak kelas (mis. shift
+  // malam yang menampung seluruh pondok) cuma perlu render/scroll roster
+  // kelas yang sedang dikerjakan, bukan semuanya sekaligus.
+  const [expanded, setExpanded] = useState<Set<string>>(() =>
+    single ? new Set(groups.map((g) => g.kelasId)) : new Set(),
+  );
+
+  function toggleExpanded(kelasId: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(kelasId)) next.delete(kelasId);
+      else next.add(kelasId);
+      return next;
+    });
+  }
 
   function cycleStatus(santriId: string) {
     setStatuses((prev) => {
@@ -113,61 +130,86 @@ export function AbsensiSantriForm({
   const totalSantri = groups.reduce((n, g) => n + g.roster.length, 0);
 
   return (
-    <div className="space-y-6 pb-4">
-      {groups.map((g) => (
-        <div key={g.kelasId} id={`kelas-${g.kelasId}`} className="scroll-mt-24 space-y-2">
-          {groups.length > 1 && (
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold">{g.kelasNama}</h2>
-              {g.submitted && <Badge variant="positive">Sudah diisi</Badge>}
-            </div>
-          )}
-          {g.roster.length === 0 ? (
-            <Card>
-              <CardContent className="py-6 text-center text-sm text-muted-foreground">
-                Belum ada santri di kelas ini.
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {g.roster.map((s) => {
-                const status = statuses[s.id] ?? "hadir";
-                return (
-                  <Card key={s.id}>
-                    <CardContent className="flex flex-col gap-2 py-3">
-                      <button
-                        type="button"
-                        onClick={() => cycleStatus(s.id)}
-                        className="flex w-full items-center justify-between gap-3 text-left"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{s.nama}</p>
-                          {s.nis && (
-                            <p className="font-mono text-xs text-muted-foreground">{s.nis}</p>
+    <div className="space-y-2.5 pb-4">
+      {groups.map((g) => {
+        const isOpen = expanded.has(g.kelasId) || single;
+        return (
+          <div
+            key={g.kelasId}
+            id={`kelas-${g.kelasId}`}
+            className="scroll-mt-24 overflow-hidden rounded-card border border-border/70 bg-card shadow-sm"
+          >
+            {!single && (
+              <button
+                type="button"
+                onClick={() => toggleExpanded(g.kelasId)}
+                aria-expanded={isOpen}
+                className="flex w-full items-center justify-between gap-2 bg-muted/30 px-4 py-3 text-left"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <ChevronRight
+                    className={cn(
+                      "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                      isOpen && "rotate-90",
+                    )}
+                  />
+                  <span className="truncate text-sm font-semibold">{g.kelasNama}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    ({g.roster.length})
+                  </span>
+                </span>
+                {g.submitted && <Badge variant="positive">Sudah diisi</Badge>}
+              </button>
+            )}
+            {isOpen && (
+              <div className={cn(!single && "border-t border-border/50")}>
+                {g.roster.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    Belum ada santri di kelas ini.
+                  </p>
+                ) : (
+                  <div className="divide-y divide-border/50">
+                    {g.roster.map((s) => {
+                      const status = statuses[s.id] ?? "hadir";
+                      return (
+                        <div key={s.id} className="flex flex-col gap-2 px-4 py-2.5">
+                          <button
+                            type="button"
+                            onClick={() => cycleStatus(s.id)}
+                            className="flex w-full items-center justify-between gap-3 text-left"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">{s.nama}</p>
+                              {s.nis && (
+                                <p className="font-mono text-xs text-muted-foreground">
+                                  {s.nis}
+                                </p>
+                              )}
+                            </div>
+                            <Badge variant={STATUS_VARIANT[status]} className="shrink-0">
+                              {STATUS_LABEL[status]}
+                            </Badge>
+                          </button>
+                          {status !== "hadir" && (
+                            <Textarea
+                              placeholder="Catatan singkat (opsional)"
+                              value={notes[s.id] ?? ""}
+                              onChange={(e) =>
+                                setNotes((prev) => ({ ...prev, [s.id]: e.target.value }))
+                              }
+                              className="min-h-16 text-sm"
+                            />
                           )}
                         </div>
-                        <Badge variant={STATUS_VARIANT[status]} className="shrink-0">
-                          {STATUS_LABEL[status]}
-                        </Badge>
-                      </button>
-                      {status !== "hadir" && (
-                        <Textarea
-                          placeholder="Catatan singkat (opsional)"
-                          value={notes[s.id] ?? ""}
-                          onChange={(e) =>
-                            setNotes((prev) => ({ ...prev, [s.id]: e.target.value }))
-                          }
-                          className="min-h-16 text-sm"
-                        />
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      ))}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       {totalSantri > 0 && (
         <div className="sticky bottom-4 z-10">

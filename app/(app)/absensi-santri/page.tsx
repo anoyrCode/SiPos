@@ -237,25 +237,6 @@ export default async function Page({
         ))}
       </div>
 
-      {groups.length > 1 && (
-        <div className="flex flex-wrap gap-1.5">
-          {groups.map((g) => (
-            <a
-              key={g.kelasId}
-              href={`#kelas-${g.kelasId}`}
-              className={cn(
-                "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                g.submitted
-                  ? "border-positive/40 bg-positive-soft text-positive"
-                  : "border-border/70 text-muted-foreground hover:bg-accent/60",
-              )}
-            >
-              {g.kelasNama}
-            </a>
-          ))}
-        </div>
-      )}
-
       <AbsensiSantriForm checkpointId={selectedCheckpoint.id} tanggal={tanggal} groups={groups} />
     </div>
   );
