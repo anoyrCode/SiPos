@@ -28,6 +28,21 @@ export async function submitAbsensiSantri(
 
   const supabase = await createClient();
 
+  // RLS `absensi_santri_insert` hanya memvalidasi kelas + checkpoint, TIDAK
+  // memeriksa apakah santri_id-nya memang anggota kelas tsb — tanpa cek ini
+  // request yang dimodifikasi bisa menyelipkan santri dari kelas lain ke
+  // absensi kelas ini (walinya akan melihat catatan palsu).
+  if (pengecualian.length > 0) {
+    const { data: anggota } = await supabase
+      .from("santri_kelas")
+      .select("santri_id")
+      .eq("kelas_id", kelasId);
+    const anggotaSet = new Set((anggota ?? []).map((r) => r.santri_id));
+    if (pengecualian.some((p) => !anggotaSet.has(p.santri_id))) {
+      return { ok: false, error: "Ada santri yang bukan anggota kelas ini." };
+    }
+  }
+
   const { error: subError } = await supabase
     .from("absensi_santri_submission")
     .upsert(
