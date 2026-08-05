@@ -259,7 +259,17 @@ export default async function Page({
         </Link>
       )}
 
-      <AbsensiSantriForm checkpointId={selectedCheckpoint.id} tanggal={tanggal} groups={groups} />
+      {/* `key` WAJIB: pindah checkpoint itu soft-navigation (searchParams
+          berubah, posisi komponen di tree sama), jadi React akan MEMPERTAHANKAN
+          state form — inisialisasi useState hanya jalan sekali saat mount.
+          Tanpa key, status yang ditandai di checkpoint sebelumnya ikut kebawa
+          ke checkpoint berikutnya & bisa tersimpan sebagai data yang salah. */}
+      <AbsensiSantriForm
+        key={`${selectedCheckpoint.id}:${tanggal}`}
+        checkpointId={selectedCheckpoint.id}
+        tanggal={tanggal}
+        groups={groups}
+      />
     </div>
   );
 }
