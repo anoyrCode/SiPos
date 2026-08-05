@@ -27,15 +27,22 @@ function minutesOfDay(hhmmss: string): number {
   return h * 60 + m;
 }
 
-function nearestCheckpointId(checkpoints: Checkpoint[], nowHHMM: string): string {
+// Checkpoint yang PALING BARU TERLEWATI, bukan sekadar yang jaraknya
+// paling dekat — musyrif ngisi absen SESUDAH checkpoint terjadi, bukan
+// sebelumnya. Mis. jam 10:17 dgn checkpoint 09:00 & 11:20: nearest-by-
+// distance akan pilih 11:20 (63 menit vs 77 menit) padahal 11:20 belum
+// terjadi — yang benar tetap 09:00 (checkpoint yg baru saja lewat).
+// `elapsed` dihitung melingkar (mod 1440) supaya shift 3 yg lewat tengah
+// malam (21:00 → 04:50) tetap benar.
+function mostRecentCheckpointId(checkpoints: Checkpoint[], nowHHMM: string): string {
   const now = minutesOfDay(nowHHMM);
   let bestId = checkpoints[0].id;
-  let bestDiff = Infinity;
+  let bestElapsed = Infinity;
   for (const c of checkpoints) {
     const cm = minutesOfDay(c.jam);
-    const diff = Math.min(Math.abs(cm - now), 1440 - Math.abs(cm - now));
-    if (diff < bestDiff) {
-      bestDiff = diff;
+    const elapsed = (((now - cm) % 1440) + 1440) % 1440;
+    if (elapsed < bestElapsed) {
+      bestElapsed = elapsed;
       bestId = c.id;
     }
   }
@@ -116,7 +123,7 @@ export default async function Page({
   const checkpointParam = getStr(sp.checkpoint);
   const selectedCheckpoint =
     checkpoints.find((c) => c.id === checkpointParam) ??
-    checkpoints.find((c) => c.id === nearestCheckpointId(checkpoints, nowHHMM))!;
+    checkpoints.find((c) => c.id === mostRecentCheckpointId(checkpoints, nowHHMM))!;
 
   // Musyrif shift 3 (jaga malam) sering menampung SEMUA kelas sekaligus —
   // supaya tidak harus pindah halaman per kelas satu-satu, semua kelas
