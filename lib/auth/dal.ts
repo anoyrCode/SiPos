@@ -45,6 +45,8 @@ type AppRoleRow = {
   perm_approve_absensi: boolean;
   perm_rekap_absensi: boolean;
   perm_tindak_lanjut_sp: boolean;
+  perm_absensi_santri: boolean;
+  perm_rekap_absensi_santri: boolean;
 } | null;
 
 function resolvePerms(role: Role, r: AppRoleRow): Perms {
@@ -68,6 +70,8 @@ function resolvePerms(role: Role, r: AppRoleRow): Perms {
       approve_absensi: true,
       rekap_absensi: true,
       tindak_lanjut_sp: true,
+      absensi_santri: true,
+      rekap_absensi_santri: true,
     };
   }
   return {
@@ -87,6 +91,8 @@ function resolvePerms(role: Role, r: AppRoleRow): Perms {
     approve_absensi: !!r?.perm_approve_absensi,
     rekap_absensi: !!r?.perm_rekap_absensi,
     tindak_lanjut_sp: !!r?.perm_tindak_lanjut_sp,
+    absensi_santri: !!r?.perm_absensi_santri,
+    rekap_absensi_santri: !!r?.perm_rekap_absensi_santri,
   };
 }
 
@@ -123,7 +129,7 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   const { data } = await supabase
     .from("profiles")
     .select(
-      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_akun_wali, perm_absensi, perm_dashboard, perm_approve_absensi, perm_rekap_absensi, perm_tindak_lanjut_sp), pegawai:pegawai(nama, jabatan, shift), wali:wali(nama)",
+      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_akun_wali, perm_absensi, perm_dashboard, perm_approve_absensi, perm_rekap_absensi, perm_tindak_lanjut_sp, perm_absensi_santri, perm_rekap_absensi_santri), pegawai:pegawai(nama, jabatan, shift), wali:wali(nama)",
     )
     .eq("id", user.id)
     .single();
@@ -283,6 +289,36 @@ export async function requireRekapAbsensiAkses(): Promise<Profile> {
   const profile = await requireAuth();
   const p = profile.perms;
   if (!(p.master || p.approve_absensi || p.rekap_absensi)) {
+    redirect(homePathForProfile(profile));
+  }
+  return profile;
+}
+
+/** True bila boleh input absensi santri (master penuh atau perm khusus). */
+export async function canAbsensiSantri(): Promise<boolean> {
+  const profile = await getProfile();
+  return (profile?.perms.master || profile?.perms.absensi_santri) ?? false;
+}
+
+/** Wajib boleh input absensi santri. */
+export async function requireAbsensiSantri(): Promise<Profile> {
+  const profile = await requireAuth();
+  if (!(profile.perms.master || profile.perms.absensi_santri)) {
+    redirect(homePathForProfile(profile));
+  }
+  return profile;
+}
+
+/** True bila boleh lihat rekap kehadiran santri semua kelas (master penuh atau perm khusus). */
+export async function canRekapAbsensiSantri(): Promise<boolean> {
+  const profile = await getProfile();
+  return (profile?.perms.master || profile?.perms.rekap_absensi_santri) ?? false;
+}
+
+/** Wajib boleh akses halaman Rekap Absensi Santri. */
+export async function requireRekapAbsensiSantriAkses(): Promise<Profile> {
+  const profile = await requireAuth();
+  if (!(profile.perms.master || profile.perms.rekap_absensi_santri)) {
     redirect(homePathForProfile(profile));
   }
   return profile;

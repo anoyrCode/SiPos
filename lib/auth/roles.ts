@@ -18,6 +18,8 @@ export type Perms = {
   approve_absensi: boolean; // approve/tolak pengajuan izin/sakit pegawai lain
   rekap_absensi: boolean; // lihat rekap kehadiran semua pegawai (subset dari master)
   tindak_lanjut_sp: boolean; // tandai/batalkan status tindak lanjut Surat Panggilan
+  absensi_santri: boolean; // input kehadiran santri kelas yang diampu
+  rekap_absensi_santri: boolean; // lihat rekap kehadiran santri semua kelas
 };
 
 export const EMPTY_PERMS: Perms = {
@@ -37,6 +39,8 @@ export const EMPTY_PERMS: Perms = {
   approve_absensi: false,
   rekap_absensi: false,
   tindak_lanjut_sp: false,
+  absensi_santri: false,
+  rekap_absensi_santri: false,
 };
 
 export type NavItem = {
@@ -99,11 +103,18 @@ export function navForProfile(
     transaksi.push({ href: "/surat-panggilan", label: "Surat Peringatan" });
   }
   if (perms.absensi) transaksi.push({ href: "/absensi", label: "Absensi" });
+  if (perms.absensi_santri)
+    transaksi.push({ href: "/absensi-santri", label: "Absensi Santri" });
   if (perms.master || perms.approve_absensi || perms.rekap_absensi)
     transaksi.push({
       href: "/rekap-absensi",
       label: "Rekap Absensi",
       badge: pendingApprovalCount > 0 ? pendingApprovalCount : undefined,
+    });
+  if (perms.master || perms.rekap_absensi_santri)
+    transaksi.push({
+      href: "/rekap-absensi-santri",
+      label: "Rekap Absensi Santri",
     });
   if (transaksi.length > 0) {
     groups.push({ title: "Transaksi", items: transaksi });
