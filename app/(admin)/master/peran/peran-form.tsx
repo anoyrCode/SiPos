@@ -38,7 +38,9 @@ type PermKey =
   | "perm_dashboard"
   | "perm_approve_absensi"
   | "perm_rekap_absensi"
-  | "perm_tindak_lanjut_sp";
+  | "perm_tindak_lanjut_sp"
+  | "perm_absensi_santri"
+  | "perm_rekap_absensi_santri";
 
 const PERMS: { key: PermKey; label: string; desc: string }[] = [
   { key: "perm_input_poin", label: "Input poin", desc: "Mencatat poin santri." },
@@ -107,6 +109,16 @@ const PERMS: { key: PermKey; label: string; desc: string }[] = [
     label: "Kelola rekam medis (UKS)",
     desc: "Mencatat & melihat rekam medis santri di UKS.",
   },
+  {
+    key: "perm_absensi_santri",
+    label: "Absensi Santri",
+    desc: "Mencatat kehadiran santri per checkpoint di kelas yang ditugaskan.",
+  },
+  {
+    key: "perm_rekap_absensi_santri",
+    label: "— Lihat Rekap Absensi Santri (Semua Kelas)",
+    desc: "Buka rekap kehadiran santri lintas kelas, tanpa akses master data lain.",
+  },
 ];
 
 export function PeranForm({ initial }: { initial?: PeranRow }) {
@@ -133,6 +145,8 @@ export function PeranForm({ initial }: { initial?: PeranRow }) {
     perm_approve_absensi: initial?.perm_approve_absensi ?? false,
     perm_rekap_absensi: initial?.perm_rekap_absensi ?? false,
     perm_tindak_lanjut_sp: initial?.perm_tindak_lanjut_sp ?? false,
+    perm_absensi_santri: initial?.perm_absensi_santri ?? false,
+    perm_rekap_absensi_santri: initial?.perm_rekap_absensi_santri ?? false,
   };
 
   const form = useForm<PeranInput>({
