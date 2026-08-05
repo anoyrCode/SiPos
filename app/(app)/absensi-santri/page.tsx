@@ -8,16 +8,19 @@ import { todayJakarta } from "@/lib/absensi-status";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { AbsensiSantriForm } from "./absensi-santri-form";
+import { AbsensiSantriForm, type KelasGroup } from "./absensi-santri-form";
 
 type Checkpoint = { id: string; jam: string; urutan: number };
 type Kelas = { id: string; nama_kelas: string };
 type Santri = { id: string; nis: string | null; nama: string };
 type ExceptionRow = {
   santri_id: string;
+  kelas_id: string;
+  checkpoint_id: string;
   status: "izin" | "sakit" | "alpa";
   catatan: string | null;
 };
+type SubmissionRow = { kelas_id: string; checkpoint_id: string; updated_at: string };
 
 function minutesOfDay(hhmmss: string): number {
   const [h, m] = hhmmss.split(":").map(Number);
@@ -87,7 +90,7 @@ export default async function Page({
   const kelasOptions = ((gkData ?? []) as unknown as { kelas: Kelas | null }[])
     .map((r) => r.kelas)
     .filter((k): k is Kelas => Boolean(k))
-    .sort((a, b) => a.nama_kelas.localeCompare(b.nama_kelas));
+    .sort((a, b) => a.nama_kelas.localeCompare(b.nama_kelas, undefined, { numeric: true }));
 
   if (checkpoints.length === 0 || kelasOptions.length === 0) {
     return (
@@ -104,10 +107,6 @@ export default async function Page({
     );
   }
 
-  const kelasParam = getStr(sp.kelas);
-  const selectedKelas =
-    kelasOptions.find((k) => k.id === kelasParam) ?? kelasOptions[0];
-
   const nowHHMM = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Jakarta",
     hour: "2-digit",
@@ -119,104 +118,118 @@ export default async function Page({
     checkpoints.find((c) => c.id === checkpointParam) ??
     checkpoints.find((c) => c.id === nearestCheckpointId(checkpoints, nowHHMM))!;
 
-  const [{ data: rosterData }, { data: existingData }, { data: submissionsToday }] =
+  // Musyrif shift 3 (jaga malam) sering menampung SEMUA kelas sekaligus —
+  // supaya tidak harus pindah halaman per kelas satu-satu, semua kelas
+  // yang diampu ditampilkan sekaligus dalam satu layar (scroll), dibatch
+  // jadi 3 query total (bukan N query per kelas).
+  const kelasIds = kelasOptions.map((k) => k.id);
+
+  const [{ data: rosterData }, { data: allExceptionsData }, { data: allSubmissionsData }] =
     await Promise.all([
       supabase
         .from("santri_kelas")
-        .select("santri:santri(id, nis, nama)")
-        .eq("kelas_id", selectedKelas.id),
+        .select("kelas_id, santri:santri(id, nis, nama)")
+        .in("kelas_id", kelasIds),
       supabase
         .from("absensi_santri")
-        .select("santri_id, status, catatan")
-        .eq("checkpoint_id", selectedCheckpoint.id)
-        .eq("kelas_id", selectedKelas.id)
+        .select("santri_id, kelas_id, checkpoint_id, status, catatan")
+        .in("kelas_id", kelasIds)
         .eq("tanggal", tanggal),
       supabase
         .from("absensi_santri_submission")
-        .select("checkpoint_id, updated_at")
-        .eq("kelas_id", selectedKelas.id)
+        .select("kelas_id, checkpoint_id, updated_at")
+        .in("kelas_id", kelasIds)
         .eq("tanggal", tanggal)
         .order("updated_at", { ascending: false }),
     ]);
 
-  const roster = ((rosterData ?? []) as unknown as { santri: Santri | null }[])
-    .map((r) => r.santri)
-    .filter((s): s is Santri => Boolean(s))
-    .sort((a, b) => a.nama.localeCompare(b.nama));
-
-  const initialExceptions: Record<
-    string,
-    { status: "izin" | "sakit" | "alpa"; catatan: string | null }
-  > = {};
-  const existingForThisCheckpoint = (existingData ?? []) as ExceptionRow[];
-
-  if (existingForThisCheckpoint.length > 0) {
-    // Checkpoint ini sudah pernah diisi — pakai datanya apa adanya.
-    for (const e of existingForThisCheckpoint) {
-      initialExceptions[e.santri_id] = { status: e.status, catatan: e.catatan };
-    }
-  } else {
-    // Checkpoint ini BELUM diisi — carry-forward dari checkpoint lain yang
-    // paling baru disubmit hari ini untuk kelas yang sama (kalau ada).
-    const latestOther = (submissionsToday ?? []).find(
-      (s) => s.checkpoint_id !== selectedCheckpoint.id,
-    );
-    if (latestOther) {
-      const { data: carryData } = await supabase
-        .from("absensi_santri")
-        .select("santri_id, status, catatan")
-        .eq("checkpoint_id", latestOther.checkpoint_id)
-        .eq("kelas_id", selectedKelas.id)
-        .eq("tanggal", tanggal);
-      for (const e of (carryData ?? []) as ExceptionRow[]) {
-        initialExceptions[e.santri_id] = { status: e.status, catatan: e.catatan };
-      }
-    }
+  const rosterByKelas = new Map<string, Santri[]>();
+  for (const r of (rosterData ?? []) as unknown as {
+    kelas_id: string;
+    santri: Santri | null;
+  }[]) {
+    if (!r.santri) continue;
+    const list = rosterByKelas.get(r.kelas_id) ?? [];
+    list.push(r.santri);
+    rosterByKelas.set(r.kelas_id, list);
+  }
+  for (const list of rosterByKelas.values()) {
+    list.sort((a, b) => a.nama.localeCompare(b.nama));
   }
 
-  const submittedCheckpointIds = new Set(
-    (submissionsToday ?? []).map((s) => s.checkpoint_id),
-  );
+  const exceptionsByKelasCheckpoint = new Map<string, ExceptionRow[]>();
+  for (const e of (allExceptionsData ?? []) as ExceptionRow[]) {
+    const key = `${e.kelas_id}:${e.checkpoint_id}`;
+    const list = exceptionsByKelasCheckpoint.get(key) ?? [];
+    list.push(e);
+    exceptionsByKelasCheckpoint.set(key, list);
+  }
+
+  const submissionsByKelas = new Map<string, SubmissionRow[]>();
+  for (const s of (allSubmissionsData ?? []) as SubmissionRow[]) {
+    const list = submissionsByKelas.get(s.kelas_id) ?? [];
+    list.push(s);
+    submissionsByKelas.set(s.kelas_id, list);
+  }
+
+  const groups: KelasGroup[] = kelasOptions.map((k) => {
+    const roster = rosterByKelas.get(k.id) ?? [];
+    // `submissionsByKelas` sudah terurut desc updated_at (dari query di atas).
+    const kelasSubmissions = submissionsByKelas.get(k.id) ?? [];
+    const submitted = kelasSubmissions.some((s) => s.checkpoint_id === selectedCheckpoint.id);
+
+    const initialExceptions: Record<
+      string,
+      { status: "izin" | "sakit" | "alpa"; catatan: string | null }
+    > = {};
+    if (submitted) {
+      // Checkpoint ini sudah pernah diisi untuk kelas ini — pakai apa adanya.
+      const rows = exceptionsByKelasCheckpoint.get(`${k.id}:${selectedCheckpoint.id}`) ?? [];
+      for (const e of rows) {
+        initialExceptions[e.santri_id] = { status: e.status, catatan: e.catatan };
+      }
+    } else {
+      // BELUM diisi — carry-forward dari checkpoint lain yang paling baru
+      // disubmit hari ini untuk kelas yang sama (kalau ada).
+      const latestOther = kelasSubmissions.find(
+        (s) => s.checkpoint_id !== selectedCheckpoint.id,
+      );
+      if (latestOther) {
+        const rows =
+          exceptionsByKelasCheckpoint.get(`${k.id}:${latestOther.checkpoint_id}`) ?? [];
+        for (const e of rows) {
+          initialExceptions[e.santri_id] = { status: e.status, catatan: e.catatan };
+        }
+      }
+    }
+
+    return {
+      kelasId: k.id,
+      kelasNama: k.nama_kelas,
+      submitted,
+      roster,
+      initialExceptions,
+    };
+  });
 
   return (
     <div className="animate-enter space-y-6 p-6 md:p-8">
       <PageHeader
         icon={CalendarCheck}
         title="Absensi Santri"
-        description={`${selectedKelas.nama_kelas} · Shift ${profile.shift}`}
+        description={`${kelasOptions.length} kelas · Shift ${profile.shift}`}
       />
-
-      {kelasOptions.length > 1 && (
-        <div className="flex flex-wrap gap-2">
-          {kelasOptions.map((k) => (
-            <Link
-              key={k.id}
-              href={`/absensi-santri?kelas=${k.id}&checkpoint=${selectedCheckpoint.id}`}
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-                k.id === selectedKelas.id
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border/70 text-muted-foreground hover:bg-accent/60",
-              )}
-            >
-              {k.nama_kelas}
-            </Link>
-          ))}
-        </div>
-      )}
 
       <div className="flex flex-wrap gap-2">
         {checkpoints.map((c) => (
           <Link
             key={c.id}
-            href={`/absensi-santri?kelas=${selectedKelas.id}&checkpoint=${c.id}`}
+            href={`/absensi-santri?checkpoint=${c.id}`}
             className={cn(
               "rounded-full border px-3 py-1.5 font-mono text-sm font-medium transition-colors",
               c.id === selectedCheckpoint.id
                 ? "border-primary bg-primary/10 text-primary"
-                : submittedCheckpointIds.has(c.id)
-                  ? "border-positive/40 bg-positive-soft text-positive"
-                  : "border-border/70 text-muted-foreground hover:bg-accent/60",
+                : "border-border/70 text-muted-foreground hover:bg-accent/60",
             )}
           >
             {c.jam.slice(0, 5)}
@@ -224,13 +237,26 @@ export default async function Page({
         ))}
       </div>
 
-      <AbsensiSantriForm
-        kelasId={selectedKelas.id}
-        checkpointId={selectedCheckpoint.id}
-        tanggal={tanggal}
-        roster={roster}
-        initialExceptions={initialExceptions}
-      />
+      {groups.length > 1 && (
+        <div className="flex flex-wrap gap-1.5">
+          {groups.map((g) => (
+            <a
+              key={g.kelasId}
+              href={`#kelas-${g.kelasId}`}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                g.submitted
+                  ? "border-positive/40 bg-positive-soft text-positive"
+                  : "border-border/70 text-muted-foreground hover:bg-accent/60",
+              )}
+            >
+              {g.kelasNama}
+            </a>
+          ))}
+        </div>
+      )}
+
+      <AbsensiSantriForm checkpointId={selectedCheckpoint.id} tanggal={tanggal} groups={groups} />
     </div>
   );
 }
