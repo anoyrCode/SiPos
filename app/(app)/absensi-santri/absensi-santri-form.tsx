@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ChevronRight } from "lucide-react";
@@ -48,7 +48,6 @@ export function AbsensiSantriForm({
   groups: KelasGroup[];
 }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
   const single = groups.length <= 1;
   const [statuses, setStatuses] = useState<Record<string, Status>>(() => {
     const init: Record<string, Status> = {};
@@ -74,6 +73,12 @@ export function AbsensiSantriForm({
   const [expanded, setExpanded] = useState<Set<string>>(() =>
     single ? new Set(groups.map((g) => g.kelasId)) : new Set(),
   );
+  // Simpan SELALU per kelas, tidak pernah digabung — musyrif kadang cuma
+  // benar-benar mengawasi/mengecek sebagian dari kelas yang ditugaskan ke
+  // dia; kelas yang belum dia buka & tinjau TIDAK BOLEH ikut tersimpan
+  // (defaultnya "hadir semua"), supaya tidak menandai kelas yang belum
+  // dicek sebagai "sudah diisi".
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
 
   function toggleExpanded(kelasId: string) {
     setExpanded((prev) => {
@@ -92,47 +97,30 @@ export function AbsensiSantriForm({
     });
   }
 
-  function onSubmit() {
-    startTransition(async () => {
-      const results = await Promise.all(
-        groups
-          .filter((g) => g.roster.length > 0)
-          .map(async (g) => {
-            const pengecualian = g.roster
-              .filter((s) => statuses[s.id] !== "hadir")
-              .map((s) => ({
-                santri_id: s.id,
-                status: statuses[s.id] as "izin" | "sakit" | "alpa",
-                catatan: notes[s.id]?.trim() || null,
-              }));
-            const res = await submitAbsensiSantri(
-              g.kelasId,
-              checkpointId,
-              tanggal,
-              pengecualian,
-            );
-            return { kelasNama: g.kelasNama, res };
-          }),
-      );
-
-      const failed = results.filter((r) => !r.res.ok);
-      if (failed.length > 0) {
-        toast.error(`Gagal simpan ${failed.length} kelas: ${failed.map((f) => f.kelasNama).join(", ")}`);
-        return;
-      }
-      toast.success(
-        groups.length > 1 ? `Absensi ${groups.length} kelas tersimpan.` : "Absensi tersimpan.",
-      );
-      router.refresh();
-    });
+  async function onSubmitKelas(g: KelasGroup) {
+    setSubmittingId(g.kelasId);
+    const pengecualian = g.roster
+      .filter((s) => statuses[s.id] !== "hadir")
+      .map((s) => ({
+        santri_id: s.id,
+        status: statuses[s.id] as "izin" | "sakit" | "alpa",
+        catatan: notes[s.id]?.trim() || null,
+      }));
+    const res = await submitAbsensiSantri(g.kelasId, checkpointId, tanggal, pengecualian);
+    setSubmittingId(null);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(`Absensi ${g.kelasNama} tersimpan.`);
+    router.refresh();
   }
-
-  const totalSantri = groups.reduce((n, g) => n + g.roster.length, 0);
 
   return (
     <div className="space-y-2.5 pb-4">
       {groups.map((g) => {
         const isOpen = expanded.has(g.kelasId) || single;
+        const isSubmitting = submittingId === g.kelasId;
         return (
           <div
             key={g.kelasId}
@@ -168,64 +156,59 @@ export function AbsensiSantriForm({
                     Belum ada santri di kelas ini.
                   </p>
                 ) : (
-                  <div className="divide-y divide-border/50">
-                    {g.roster.map((s) => {
-                      const status = statuses[s.id] ?? "hadir";
-                      return (
-                        <div key={s.id} className="flex flex-col gap-2 px-4 py-2.5">
-                          <button
-                            type="button"
-                            onClick={() => cycleStatus(s.id)}
-                            className="flex w-full items-center justify-between gap-3 text-left"
-                          >
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium">{s.nama}</p>
-                              {s.nis && (
-                                <p className="font-mono text-xs text-muted-foreground">
-                                  {s.nis}
-                                </p>
-                              )}
-                            </div>
-                            <Badge variant={STATUS_VARIANT[status]} className="shrink-0">
-                              {STATUS_LABEL[status]}
-                            </Badge>
-                          </button>
-                          {status !== "hadir" && (
-                            <Textarea
-                              placeholder="Catatan singkat (opsional)"
-                              value={notes[s.id] ?? ""}
-                              onChange={(e) =>
-                                setNotes((prev) => ({ ...prev, [s.id]: e.target.value }))
-                              }
-                              className="min-h-16 text-sm"
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <>
+                    <div className="divide-y divide-border/50">
+                      {g.roster.map((s) => {
+                        const status = statuses[s.id] ?? "hadir";
+                        return (
+                          <div key={s.id} className="flex flex-col gap-2 px-4 py-2.5">
+                            <button
+                              type="button"
+                              onClick={() => cycleStatus(s.id)}
+                              className="flex w-full items-center justify-between gap-3 text-left"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{s.nama}</p>
+                                {s.nis && (
+                                  <p className="font-mono text-xs text-muted-foreground">
+                                    {s.nis}
+                                  </p>
+                                )}
+                              </div>
+                              <Badge variant={STATUS_VARIANT[status]} className="shrink-0">
+                                {STATUS_LABEL[status]}
+                              </Badge>
+                            </button>
+                            {status !== "hadir" && (
+                              <Textarea
+                                placeholder="Catatan singkat (opsional)"
+                                value={notes[s.id] ?? ""}
+                                onChange={(e) =>
+                                  setNotes((prev) => ({ ...prev, [s.id]: e.target.value }))
+                                }
+                                className="min-h-16 text-sm"
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="border-t border-border/50 p-3">
+                      <Button
+                        onClick={() => onSubmitKelas(g)}
+                        disabled={submittingId !== null}
+                        className="h-11 w-full"
+                      >
+                        {isSubmitting ? "Menyimpan…" : "Simpan Absensi"}
+                      </Button>
+                    </div>
+                  </>
                 )}
               </div>
             )}
           </div>
         );
       })}
-
-      {totalSantri > 0 && (
-        <div className="sticky bottom-4 z-10">
-          <Button
-            onClick={onSubmit}
-            disabled={pending}
-            className="h-12 w-full text-base shadow-lg"
-          >
-            {pending
-              ? "Menyimpan…"
-              : groups.length > 1
-                ? `Simpan Semua (${groups.length} kelas)`
-                : "Simpan Absensi"}
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
