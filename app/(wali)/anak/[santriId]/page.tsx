@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import {
   Activity,
   ArrowLeft,
+  CalendarCheck,
   HeartPulse,
   Minus,
   PieChart,
@@ -24,6 +25,7 @@ import { SantriProgressBar } from "@/components/shared/santri-progress-bar";
 import { KomposisiPoin, PerkembanganSkor } from "./charts";
 import { RiwayatList } from "./riwayat-list";
 import { RekamMedisList } from "./rekam-medis-list";
+import { KehadiranList } from "./kehadiran-list";
 import { BulanFilter } from "./bulan-filter";
 
 type Tx = {
@@ -130,6 +132,29 @@ export default async function Page({
     obat: string | null;
     catatan: string | null;
   }[];
+
+  // Absensi Santri: pengecualian (izin/sakit/alpa) saja — hadir tidak
+  // pernah tersimpan sebagai baris (RLS membatasi: wali hanya anaknya).
+  const { data: kehadiranData } = await supabase
+    .from("absensi_santri")
+    .select("id, tanggal, status, catatan, checkpoint:absensi_santri_checkpoint(jam)")
+    .eq("santri_id", santriId)
+    .order("tanggal", { ascending: false });
+  const kehadiran = (
+    (kehadiranData ?? []) as unknown as {
+      id: string;
+      tanggal: string;
+      status: "izin" | "sakit" | "alpa";
+      catatan: string | null;
+      checkpoint: { jam: string } | null;
+    }[]
+  ).map((k) => ({
+    id: k.id,
+    tanggal: k.tanggal,
+    jam: k.checkpoint?.jam ?? "00:00:00",
+    status: k.status,
+    catatan: k.catatan,
+  }));
 
   const pos = tx
     .filter((t) => t.tipe === "POSITIF")
@@ -400,6 +425,19 @@ export default async function Page({
               nama_poin: t.master_poin?.nama_poin ?? null,
             }))}
           />
+        </CardContent>
+      </Card>
+
+      {/* Kehadiran (Absensi Santri) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarCheck className="size-4 text-primary" />
+            Kehadiran
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <KehadiranList items={kehadiran} />
         </CardContent>
       </Card>
 
