@@ -5,7 +5,7 @@ import { requireRekapAbsensiSantriAkses } from "@/lib/auth/dal";
 import { getStr, type SearchParams } from "@/lib/list-params";
 import { todayJakarta } from "@/lib/absensi-status";
 import { PageHeader } from "@/components/shared/page-header";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DateFilter } from "@/app/(admin)/rekap-absensi/date-filter";
 import { CheckpointDialog } from "./checkpoint-dialog";
@@ -37,7 +37,7 @@ export default async function Page({
     .eq("is_aktif", true)
     .maybeSingle();
 
-  const [{ data: checkpointData }, { data: kelasRows }] = await Promise.all([
+  const [{ data: checkpointData }, { data: gkData }] = await Promise.all([
     supabase
       .from("absensi_santri_checkpoint")
       .select("id, shift, jam, urutan")
@@ -46,15 +46,34 @@ export default async function Page({
     ta?.id
       ? supabase
           .from("guru_kelas")
-          .select("kelas:kelas!inner(id, nama_kelas, tahun_ajaran_id)")
+          .select(
+            "pegawai:pegawai(shift), kelas:kelas!inner(id, nama_kelas, tahun_ajaran_id)",
+          )
           .eq("kelas.tahun_ajaran_id", ta.id)
-      : Promise.resolve({ data: [] as { kelas: Kelas | null }[] }),
+      : Promise.resolve({
+          data: [] as { pegawai: { shift: number | null } | null; kelas: Kelas | null }[],
+        }),
   ]);
 
   const checkpoints = (checkpointData ?? []) as Checkpoint[];
+
+  // Kelas + shift mana saja yang benar-benar punya musyrif ditugaskan —
+  // checkpoint dari shift yang TIDAK ditugaskan ke kelas itu tidak mungkin
+  // pernah diisi siapapun (RLS mensyaratkan guru_kelas + shift cocok), jadi
+  // dikecualikan dari rekap supaya tidak jadi baris "Belum Diisi" abadi.
   const kelasMap = new Map<string, Kelas>();
-  for (const r of (kelasRows ?? []) as unknown as { kelas: Kelas | null }[]) {
-    if (r.kelas) kelasMap.set(r.kelas.id, r.kelas);
+  const coveredShiftsByKelas = new Map<string, Set<number>>();
+  for (const r of (gkData ?? []) as unknown as {
+    pegawai: { shift: number | null } | null;
+    kelas: Kelas | null;
+  }[]) {
+    if (!r.kelas) continue;
+    kelasMap.set(r.kelas.id, r.kelas);
+    if (r.pegawai?.shift) {
+      const set = coveredShiftsByKelas.get(r.kelas.id) ?? new Set<number>();
+      set.add(r.pegawai.shift);
+      coveredShiftsByKelas.set(r.kelas.id, set);
+    }
   }
   const kelasList = [...kelasMap.values()].sort((a, b) =>
     a.nama_kelas.localeCompare(b.nama_kelas),
@@ -126,30 +145,34 @@ export default async function Page({
     exceptionMap.set(key, list);
   }
 
-  const rows = kelasList.flatMap((k) =>
-    checkpoints.map((c) => {
-      const key = `${k.id}:${c.id}`;
-      const submission = submissionMap.get(key);
-      const exceptions = exceptionMap.get(key) ?? [];
+  const groups = kelasList
+    .map((k) => {
+      const covered = coveredShiftsByKelas.get(k.id) ?? new Set<number>();
+      const kelasCheckpoints = checkpoints.filter((c) => covered.has(c.shift));
       const total = totalSantriByKelas.get(k.id) ?? 0;
-      const izin = exceptions.filter((e) => e.status === "izin").length;
-      const sakit = exceptions.filter((e) => e.status === "sakit").length;
-      const alpa = exceptions.filter((e) => e.status === "alpa").length;
-      const hadir = Math.max(0, total - izin - sakit - alpa);
-      return {
-        key,
-        kelas: k,
-        checkpoint: c,
-        submitted: Boolean(submission),
-        dicatatOleh: submission?.dicatatOleh ?? null,
-        hadir,
-        izin,
-        sakit,
-        alpa,
-        exceptions,
-      };
-    }),
-  );
+      const rows = kelasCheckpoints.map((c) => {
+        const key = `${k.id}:${c.id}`;
+        const submission = submissionMap.get(key);
+        const exceptions = exceptionMap.get(key) ?? [];
+        const izin = exceptions.filter((e) => e.status === "izin").length;
+        const sakit = exceptions.filter((e) => e.status === "sakit").length;
+        const alpa = exceptions.filter((e) => e.status === "alpa").length;
+        const hadir = Math.max(0, total - izin - sakit - alpa);
+        return {
+          key,
+          checkpoint: c,
+          submitted: Boolean(submission),
+          dicatatOleh: submission?.dicatatOleh ?? null,
+          hadir,
+          izin,
+          sakit,
+          alpa,
+          exceptions,
+        };
+      });
+      return { kelas: k, rows };
+    })
+    .filter((g) => g.rows.length > 0);
 
   return (
     <div className="animate-enter space-y-6 p-6 md:p-8">
@@ -165,49 +188,65 @@ export default async function Page({
         <DateFilter value={tanggal} />
       </div>
 
-      {rows.length === 0 ? (
+      {groups.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             Belum ada kelas dengan musyrif yang ditugaskan tahun ajaran ini.
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {rows.map((r) => (
-            <Card key={r.key}>
-              <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">
-                    {r.kelas.nama_kelas}{" "}
-                    <span className="font-mono text-xs text-muted-foreground">
-                      · Shift {r.checkpoint.shift} · {r.checkpoint.jam.slice(0, 5)}
-                    </span>
-                  </p>
-                  {r.submitted && (
-                    <p className="text-xs text-muted-foreground">
-                      Dicatat oleh {r.dicatatOleh}
-                    </p>
-                  )}
-                </div>
-                {!r.submitted ? (
-                  <Badge variant="outline">Belum Diisi</Badge>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Badge variant="positive">{r.hadir} hadir</Badge>
-                    {r.izin > 0 && <Badge variant="warning">{r.izin} izin</Badge>}
-                    {r.sakit > 0 && <Badge variant="primary">{r.sakit} sakit</Badge>}
-                    {r.alpa > 0 && <Badge variant="negative">{r.alpa} alpa</Badge>}
-                    {r.exceptions.length > 0 && (
-                      <RekapDetailDialog
-                        title={`${r.kelas.nama_kelas} · ${r.checkpoint.jam.slice(0, 5)}`}
-                        exceptions={r.exceptions}
-                      />
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+        <div className="space-y-3">
+          {groups.map((g) => {
+            const filledCount = g.rows.filter((r) => r.submitted).length;
+            return (
+              <Card key={g.kelas.id} className="overflow-hidden">
+                <CardHeader className="flex-row items-center justify-between gap-3 border-b border-border/50 bg-muted/30 py-3.5">
+                  <CardTitle>{g.kelas.nama_kelas}</CardTitle>
+                  <span className="text-xs text-muted-foreground">
+                    {filledCount}/{g.rows.length} checkpoint terisi
+                  </span>
+                </CardHeader>
+                <CardContent className="px-0 py-0">
+                  {g.rows.map((r) => (
+                    <div
+                      key={r.key}
+                      className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 px-5 py-2.5 last:border-b-0"
+                    >
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {r.checkpoint.jam.slice(0, 5)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          Shift {r.checkpoint.shift}
+                        </span>
+                        {r.submitted && r.dicatatOleh && (
+                          <span className="hidden text-xs text-muted-foreground sm:inline">
+                            · {r.dicatatOleh}
+                          </span>
+                        )}
+                      </div>
+                      {!r.submitted ? (
+                        <Badge variant="outline">Belum Diisi</Badge>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="positive">{r.hadir} hadir</Badge>
+                          {r.izin > 0 && <Badge variant="warning">{r.izin} izin</Badge>}
+                          {r.sakit > 0 && <Badge variant="primary">{r.sakit} sakit</Badge>}
+                          {r.alpa > 0 && <Badge variant="negative">{r.alpa} alpa</Badge>}
+                          {r.exceptions.length > 0 && (
+                            <RekapDetailDialog
+                              title={`${g.kelas.nama_kelas} · ${r.checkpoint.jam.slice(0, 5)}`}
+                              exceptions={r.exceptions}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
