@@ -7,16 +7,21 @@ export type KehadiranItem = {
   id: string;
   tanggal: string;
   jam: string;
-  status: "izin" | "sakit" | "alpa";
+  status: "hadir" | "izin" | "sakit" | "alpa";
   catatan: string | null;
 };
 
 const STATUS_LABEL: Record<KehadiranItem["status"], string> = {
+  hadir: "Hadir",
   izin: "Izin",
   sakit: "Sakit",
   alpa: "Alpa",
 };
-const STATUS_VARIANT: Record<KehadiranItem["status"], "warning" | "primary" | "negative"> = {
+const STATUS_VARIANT: Record<
+  KehadiranItem["status"],
+  "positive" | "warning" | "primary" | "negative"
+> = {
+  hadir: "positive",
   izin: "warning",
   sakit: "primary",
   alpa: "negative",
@@ -26,7 +31,7 @@ export function KehadiranList({ items }: { items: KehadiranItem[] }) {
   if (items.length === 0) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
-        Alhamdulillah, tidak ada catatan izin/sakit/alpa tahun ini.
+        Belum ada catatan kehadiran tahun ini.
       </p>
     );
   }

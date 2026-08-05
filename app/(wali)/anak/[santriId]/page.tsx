@@ -93,16 +93,21 @@ export default async function Page({
   if (!santri) notFound();
 
   let kelasNama: string | null = null;
+  let kelasId: string | null = null;
   if (ta?.id) {
     const { data: sk } = await supabase
       .from("santri_kelas")
-      .select("kelas:kelas!inner(nama_kelas, tahun_ajaran_id)")
+      .select("kelas:kelas!inner(id, nama_kelas, tahun_ajaran_id)")
       .eq("santri_id", santriId)
       .eq("kelas.tahun_ajaran_id", ta.id)
       .maybeSingle();
-    kelasNama =
-      (sk as unknown as { kelas: { nama_kelas: string } | null } | null)?.kelas
-        ?.nama_kelas ?? null;
+    const kelasEmbed = (
+      sk as unknown as {
+        kelas: { id: string; nama_kelas: string } | null;
+      } | null
+    )?.kelas;
+    kelasNama = kelasEmbed?.nama_kelas ?? null;
+    kelasId = kelasEmbed?.id ?? null;
   }
 
   let txQuery = supabase
@@ -133,28 +138,64 @@ export default async function Page({
     catatan: string | null;
   }[];
 
-  // Absensi Santri: pengecualian (izin/sakit/alpa) saja — hadir tidak
-  // pernah tersimpan sebagai baris (RLS membatasi: wali hanya anaknya).
-  const { data: kehadiranData } = await supabase
-    .from("absensi_santri")
-    .select("id, tanggal, status, catatan, checkpoint:absensi_santri_checkpoint(jam)")
-    .eq("santri_id", santriId)
-    .order("tanggal", { ascending: false });
-  const kehadiran = (
-    (kehadiranData ?? []) as unknown as {
-      id: string;
+  // Absensi Santri: gabungkan log submission checkpoint kelas (checkpoint
+  // mana saja yang sudah diisi musyrif) dengan pengecualian milik santri
+  // ini — supaya wali lihat riwayat LENGKAP mirip format Riwayat Poin
+  // (termasuk Hadir), bukan cuma baris izin/sakit/alpa yang tersimpan.
+  let kehadiran: {
+    id: string;
+    tanggal: string;
+    jam: string;
+    status: "hadir" | "izin" | "sakit" | "alpa";
+    catatan: string | null;
+  }[] = [];
+  if (kelasId) {
+    const [{ data: submisiData }, { data: exceptionData }] = await Promise.all([
+      supabase
+        .from("absensi_santri_submission")
+        .select("checkpoint_id, tanggal, checkpoint:absensi_santri_checkpoint(jam)")
+        .eq("kelas_id", kelasId)
+        .order("tanggal", { ascending: false }),
+      supabase
+        .from("absensi_santri")
+        .select("checkpoint_id, tanggal, status, catatan")
+        .eq("santri_id", santriId)
+        .eq("kelas_id", kelasId),
+    ]);
+
+    const exceptionMap = new Map<
+      string,
+      { status: "izin" | "sakit" | "alpa"; catatan: string | null }
+    >();
+    for (const e of (exceptionData ?? []) as {
+      checkpoint_id: string;
       tanggal: string;
       status: "izin" | "sakit" | "alpa";
       catatan: string | null;
-      checkpoint: { jam: string } | null;
-    }[]
-  ).map((k) => ({
-    id: k.id,
-    tanggal: k.tanggal,
-    jam: k.checkpoint?.jam ?? "00:00:00",
-    status: k.status,
-    catatan: k.catatan,
-  }));
+    }[]) {
+      exceptionMap.set(`${e.checkpoint_id}:${e.tanggal}`, {
+        status: e.status,
+        catatan: e.catatan,
+      });
+    }
+
+    kehadiran = (
+      (submisiData ?? []) as unknown as {
+        checkpoint_id: string;
+        tanggal: string;
+        checkpoint: { jam: string } | null;
+      }[]
+    ).map((s) => {
+      const exc = exceptionMap.get(`${s.checkpoint_id}:${s.tanggal}`);
+      return {
+        id: `${s.checkpoint_id}:${s.tanggal}`,
+        tanggal: s.tanggal,
+        jam: s.checkpoint?.jam ?? "00:00:00",
+        status: exc?.status ?? "hadir",
+        catatan: exc?.catatan ?? null,
+      };
+    });
+  }
 
   const pos = tx
     .filter((t) => t.tipe === "POSITIF")
