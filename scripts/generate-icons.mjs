@@ -44,6 +44,16 @@ try {
       .toFile(`public/icons/icon-${size}-maskable.png`);
     console.log(`Generated icon-${size}-maskable.png`);
   }
+
+  // Favicon tab browser (app/icon.png, konvensi Next.js App Router) — latar
+  // transparan (bukan putih seperti ikon PWA di atas) supaya menyatu dengan
+  // tab bar terang/gelap, bukan kotak putih.
+  const faviconSize = 64;
+  await sharp('public/logo.png')
+    .resize(faviconSize, faviconSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toFile('app/icon.png');
+  console.log('Generated app/icon.png');
 } catch (error) {
   console.error('Error generating icons:', error.message);
   process.exit(1);
