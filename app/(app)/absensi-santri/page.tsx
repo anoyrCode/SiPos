@@ -121,9 +121,15 @@ export default async function Page({
     hour12: false,
   }).format(new Date());
   const checkpointParam = getStr(sp.checkpoint);
+  const autoCheckpointId = mostRecentCheckpointId(checkpoints, nowHHMM);
   const selectedCheckpoint =
     checkpoints.find((c) => c.id === checkpointParam) ??
-    checkpoints.find((c) => c.id === mostRecentCheckpointId(checkpoints, nowHHMM))!;
+    checkpoints.find((c) => c.id === autoCheckpointId)!;
+  // `?checkpoint=` di URL nempel terus lintas refresh (state ada di URL,
+  // bukan di memori) — kalau musyrif sempat pindah ke jam lain lalu lupa,
+  // halaman ini bisa kelihatan "nyangkut" di jam lama. Kasih jalan keluar
+  // eksplisit, cuma muncul kalau memang lagi menyimpang dari jam sekarang.
+  const isManualOverride = checkpointParam !== "" && selectedCheckpoint.id !== autoCheckpointId;
 
   // Musyrif shift 3 (jaga malam) sering menampung SEMUA kelas sekaligus —
   // supaya tidak harus pindah halaman per kelas satu-satu, semua kelas
@@ -243,6 +249,15 @@ export default async function Page({
           </Link>
         ))}
       </div>
+
+      {isManualOverride && (
+        <Link
+          href="/absensi-santri"
+          className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary underline underline-offset-2"
+        >
+          Kembali ke jam saat ini
+        </Link>
+      )}
 
       <AbsensiSantriForm checkpointId={selectedCheckpoint.id} tanggal={tanggal} groups={groups} />
     </div>
