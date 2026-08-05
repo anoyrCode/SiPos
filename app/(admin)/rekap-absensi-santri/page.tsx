@@ -1,11 +1,11 @@
-import { CalendarCheck } from "lucide-react";
+import { CalendarCheck, ChevronRight } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { requireRekapAbsensiSantriAkses } from "@/lib/auth/dal";
 import { getStr, type SearchParams } from "@/lib/list-params";
 import { todayJakarta } from "@/lib/absensi-status";
 import { PageHeader } from "@/components/shared/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DateFilter } from "@/app/(admin)/rekap-absensi/date-filter";
 import { CheckpointDialog } from "./checkpoint-dialog";
@@ -75,8 +75,10 @@ export default async function Page({
       coveredShiftsByKelas.set(r.kelas.id, set);
     }
   }
+  // `numeric: true` supaya "Kelas 7A" tampil sebelum "Kelas 10A" (urutan
+  // alami angka), bukan diurutkan leksikografis per-karakter ("1" < "7").
   const kelasList = [...kelasMap.values()].sort((a, b) =>
-    a.nama_kelas.localeCompare(b.nama_kelas),
+    a.nama_kelas.localeCompare(b.nama_kelas, undefined, { numeric: true }),
   );
   const kelasIds = kelasList.map((k) => k.id);
 
@@ -198,15 +200,31 @@ export default async function Page({
         <div className="space-y-3">
           {groups.map((g) => {
             const filledCount = g.rows.filter((r) => r.submitted).length;
+            const totalIzin = g.rows.reduce((s, r) => s + r.izin, 0);
+            const totalSakit = g.rows.reduce((s, r) => s + r.sakit, 0);
+            const totalAlpa = g.rows.reduce((s, r) => s + r.alpa, 0);
             return (
-              <Card key={g.kelas.id} className="overflow-hidden">
-                <CardHeader className="flex-row items-center justify-between gap-3 border-b border-border/50 bg-muted/30 py-3.5">
-                  <CardTitle>{g.kelas.nama_kelas}</CardTitle>
-                  <span className="text-xs text-muted-foreground">
-                    {filledCount}/{g.rows.length} checkpoint terisi
+              <details
+                key={g.kelas.id}
+                className="group overflow-hidden rounded-card border border-border/70 bg-card shadow-sm"
+              >
+                <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 bg-muted/30 px-5 py-3.5 [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-2">
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-90" />
+                    <span className="font-heading text-base font-semibold">
+                      {g.kelas.nama_kelas}
+                    </span>
                   </span>
-                </CardHeader>
-                <CardContent className="px-0 py-0">
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">
+                      {filledCount}/{g.rows.length} terisi
+                    </span>
+                    {totalIzin > 0 && <Badge variant="warning">{totalIzin} izin</Badge>}
+                    {totalSakit > 0 && <Badge variant="primary">{totalSakit} sakit</Badge>}
+                    {totalAlpa > 0 && <Badge variant="negative">{totalAlpa} alpa</Badge>}
+                  </span>
+                </summary>
+                <div className="border-t border-border/50">
                   {g.rows.map((r) => (
                     <div
                       key={r.key}
@@ -243,8 +261,8 @@ export default async function Page({
                       )}
                     </div>
                   ))}
-                </CardContent>
-              </Card>
+                </div>
+              </details>
             );
           })}
         </div>
