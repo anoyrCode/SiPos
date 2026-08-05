@@ -150,17 +150,27 @@ export default async function Page({
     catatan: string | null;
   }[] = [];
   if (kelasId) {
+    // Dibatasi 30 hari terakhir. Tanpa batas, query ini menumpuk ~20 baris
+    // per hari per kelas dan diam-diam terpotong di 1000 baris (batas default
+    // PostgREST) — pola bug yang pernah kejadian di Laporan/Dashboard.
+    const sejakDate = new Date();
+    sejakDate.setDate(sejakDate.getDate() - 30);
+    const sejak = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(
+      sejakDate,
+    );
     const [{ data: submisiData }, { data: exceptionData }] = await Promise.all([
       supabase
         .from("absensi_santri_submission")
         .select("checkpoint_id, tanggal, checkpoint:absensi_santri_checkpoint(jam)")
         .eq("kelas_id", kelasId)
+        .gte("tanggal", sejak)
         .order("tanggal", { ascending: false }),
       supabase
         .from("absensi_santri")
         .select("checkpoint_id, tanggal, status, catatan")
         .eq("santri_id", santriId)
-        .eq("kelas_id", kelasId),
+        .eq("kelas_id", kelasId)
+        .gte("tanggal", sejak),
     ]);
 
     const exceptionMap = new Map<
@@ -475,6 +485,9 @@ export default async function Page({
           <CardTitle className="flex items-center gap-2">
             <CalendarCheck className="size-4 text-primary" />
             Kehadiran
+            <span className="text-xs font-normal text-muted-foreground">
+              · 30 hari terakhir
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent>

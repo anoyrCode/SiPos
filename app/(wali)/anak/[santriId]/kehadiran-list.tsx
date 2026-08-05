@@ -31,7 +31,7 @@ export function KehadiranList({ items }: { items: KehadiranItem[] }) {
   if (items.length === 0) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
-        Belum ada catatan kehadiran tahun ini.
+        Belum ada catatan kehadiran 30 hari terakhir.
       </p>
     );
   }
