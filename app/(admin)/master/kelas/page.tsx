@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KelasForm } from "./kelas-form";
 import { deleteKelas } from "./actions";
-import type { KelasRow, Option } from "./schema";
+import { KELAS_JK_LABEL, type KelasRow, type Option } from "./schema";
 
 export default async function Page({
   searchParams,
@@ -30,6 +30,7 @@ export default async function Page({
   const sp = await searchParams;
   const { page, perPage, q, from, to } = parseListParams(sp);
   const taFilter = getStr(sp.ta);
+  const jkFilter = getStr(sp.jk);
 
   const supabase = await createClient();
 
@@ -57,12 +58,15 @@ export default async function Page({
   let query = supabase
     .from("kelas")
     .select(
-      "id, nama_kelas, level_pendidikan_id, tahun_ajaran_id, wali_id, level:level_pendidikan(nama), tahun:tahun_ajaran(tahun), wali:pegawai(nama)",
+      "id, nama_kelas, level_pendidikan_id, tahun_ajaran_id, wali_id, jenis_kelamin, level:level_pendidikan(nama), tahun:tahun_ajaran(tahun), wali:pegawai(nama)",
       { count: "exact" },
     )
     .order("nama_kelas", { ascending: true });
   if (q) query = query.ilike("nama_kelas", `%${q}%`);
   if (taFilter) query = query.eq("tahun_ajaran_id", taFilter);
+  if (jkFilter === "kosong") query = query.is("jenis_kelamin", null);
+  else if (jkFilter === "L" || jkFilter === "P")
+    query = query.eq("jenis_kelamin", jkFilter);
   const { data, count } = await query.range(from, to);
   const rows = (data ?? []) as unknown as KelasRow[];
 
@@ -78,6 +82,18 @@ export default async function Page({
       cell: (r) =>
         r.level?.nama ? (
           <Badge variant="outline">{r.level.nama}</Badge>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      key: "jenis_kelamin",
+      header: "Gender",
+      cell: (r) =>
+        r.jenis_kelamin ? (
+          <Badge variant={r.jenis_kelamin === "L" ? "primary" : "warning"}>
+            {KELAS_JK_LABEL[r.jenis_kelamin]}
+          </Badge>
         ) : (
           <span className="text-muted-foreground">—</span>
         ),
@@ -136,6 +152,16 @@ export default async function Page({
           allLabel="Semua tahun ajaran"
           options={tahunAjaran}
         />
+        <FilterSelect
+          param="jk"
+          placeholder="Jenis kelamin"
+          allLabel="Semua jenis kelamin"
+          options={[
+            { value: "L", label: "Putra" },
+            { value: "P", label: "Putri" },
+            { value: "kosong", label: "Belum diisi" },
+          ]}
+        />
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <KelasForm levels={levels} tahunAjaran={tahunAjaran} pegawai={pegawai} />
         </div>
@@ -144,7 +170,7 @@ export default async function Page({
         columns={columns}
         rows={rows}
         getRowId={(r) => r.id}
-        isFiltered={!!q || !!taFilter}
+        isFiltered={!!q || !!taFilter || !!jkFilter}
         empty="Belum ada data kelas."
         emptyHint="Tambah kelas dengan tombol di atas."
       />
