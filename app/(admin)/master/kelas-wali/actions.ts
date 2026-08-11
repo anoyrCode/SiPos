@@ -8,6 +8,9 @@ import { dbErrorMessage, type FormResult } from "@/lib/forms";
 
 const PATH = "/master/kelas-wali";
 
+/** Jumlah id maksimal per permintaan `.in(...)` — lihat catatan di addSantriToKelas. */
+const SANTRI_CHUNK_SIZE = 150;
+
 export async function setWaliKelas(
   kelasId: string,
   waliId: string | null,
@@ -38,20 +41,42 @@ export async function addSantriToKelas(
   // dengan gender berbeda ditolak SEMUA (tidak ada yang tersimpan sebagian).
   // Santri yang gendernya kosong di database dibiarkan lolos — sistem tidak
   // bisa membuktikan dia tidak cocok.
-  const { data: kelas } = await supabase
+  const { data: kelas, error: kelasError } = await supabase
     .from("kelas")
     .select("nama_kelas, jenis_kelamin")
     .eq("id", kelasId)
     .single();
+  // Gagal membaca kelas = tolak. Kalau errornya diabaikan, `kelas` jadi null
+  // dan pemeriksaan gender di bawah dilewati diam-diam.
+  if (kelasError || !kelas) {
+    return { ok: false, error: "Gagal membaca data kelas. Coba lagi sebentar." };
+  }
 
-  if (kelas?.jenis_kelamin) {
+  if (kelas.jenis_kelamin) {
     const lawan = kelas.jenis_kelamin === "L" ? "P" : "L";
-    const { data: mismatch } = await supabase
-      .from("santri")
-      .select("nama")
-      .in("id", santriIds)
-      .eq("jenis_kelamin", lawan);
-    if (mismatch && mismatch.length > 0) {
+    // `.in(...)` menaruh seluruh id di URL — ratusan UUID sekaligus melewati
+    // batas panjang URL server dan permintaannya ditolak diam-diam (masalah
+    // yang sama pernah bikin nama santri di Laporan jatuh ke "?"). Dipotong.
+    const chunks = await Promise.all(
+      Array.from(
+        { length: Math.ceil(santriIds.length / SANTRI_CHUNK_SIZE) },
+        (_, i) =>
+          supabase
+            .from("santri")
+            .select("nama")
+            .in(
+              "id",
+              santriIds.slice(i * SANTRI_CHUNK_SIZE, (i + 1) * SANTRI_CHUNK_SIZE),
+            )
+            .eq("jenis_kelamin", lawan),
+      ),
+    );
+    const gagal = chunks.find((c) => c.error);
+    if (gagal?.error) {
+      return { ok: false, error: "Gagal memeriksa data santri. Coba lagi sebentar." };
+    }
+    const mismatch = chunks.flatMap((c) => c.data ?? []);
+    if (mismatch.length > 0) {
       const label = kelas.jenis_kelamin === "L" ? "Putra" : "Putri";
       const nama = mismatch.map((s) => s.nama).join(", ");
       return {

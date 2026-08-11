@@ -299,8 +299,8 @@ export default async function Page({
                   <AddSantri
                     kelasId={selectedKelas.id}
                     available={available}
-                    kelasJk={kelasDetail?.jenis_kelamin ?? null}
-                    kelasNama={kelasDetail?.nama_kelas ?? ""}
+                    kelasJk={selectedKelas.jenis_kelamin}
+                    kelasNama={selectedKelas.nama_kelas}
                   />
                 </CardHeader>
                 <CardContent className="space-y-3">

@@ -45,14 +45,39 @@ export async function updateKelas(
   // Menandai gender kelas yang sudah berisi santri gender lain akan
   // meninggalkan data tidak konsisten yang tidak akan dibereskan siapa pun —
   // tolak dulu, minta santrinya dipindahkan.
+  //
+  // Hanya diperiksa saat gendernya benar-benar BERUBAH. Kalau ikut memeriksa
+  // di setiap penyimpanan, admin yang cuma mengganti nama/wali kelas ikut
+  // terblokir oleh ketidakcocokan lama (mis. gender santri diedit belakangan)
+  // — dengan pesan yang menyesatkan pula, karena dia tidak sedang menandai
+  // gender apa pun.
   const jk = parsed.data.jenis_kelamin;
-  if (jk === "L" || jk === "P") {
+  const { data: kelasLama, error: kelasLamaError } = await supabase
+    .from("kelas")
+    .select("jenis_kelamin")
+    .eq("id", id)
+    .single();
+  if (kelasLamaError || !kelasLama) {
+    return { ok: false, error: "Gagal membaca data kelas. Coba lagi sebentar." };
+  }
+  const gantiGender = (kelasLama.jenis_kelamin ?? "") !== (jk ?? "");
+
+  if (gantiGender && (jk === "L" || jk === "P")) {
     const lawan = jk === "L" ? "P" : "L";
-    const { count } = await supabase
+    const { count, error: cekError } = await supabase
       .from("santri_kelas")
       .select("santri!inner(id)", { count: "exact", head: true })
       .eq("kelas_id", id)
       .eq("santri.jenis_kelamin", lawan);
+    // Gagal memeriksa = tolak, jangan diteruskan. Kalau errornya diabaikan,
+    // `count` jadi null dan gerbang ini lolos diam-diam — persis kebalikan
+    // dari tujuannya.
+    if (cekError) {
+      return {
+        ok: false,
+        error: "Gagal memeriksa isi kelas. Coba lagi sebentar.",
+      };
+    }
     if ((count ?? 0) > 0) {
       const labelLawan = lawan === "L" ? "Laki-laki" : "Perempuan";
       return {
