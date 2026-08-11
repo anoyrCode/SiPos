@@ -50,6 +50,7 @@ export function KelasForm({
     level_pendidikan_id: initial?.level_pendidikan_id ?? "",
     tahun_ajaran_id: initial?.tahun_ajaran_id ?? "",
     wali_id: initial?.wali_id ?? "",
+    jenis_kelamin: initial?.jenis_kelamin ?? "",
   };
 
   const form = useForm<KelasInput>({
@@ -188,6 +189,31 @@ export function KelasForm({
                         {o.label}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </Field>
+          <Field
+            label="Jenis Kelamin Kelas"
+            hint="Opsional. Kalau diisi, hanya santri dengan gender yang sama bisa masuk kelas ini."
+            error={form.formState.errors.jenis_kelamin?.message}
+          >
+            <Controller
+              control={form.control}
+              name="jenis_kelamin"
+              render={({ field }) => (
+                <Select
+                  value={field.value || NONE}
+                  onValueChange={(v) => field.onChange(v === NONE ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih jenis kelamin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>— Belum diisi —</SelectItem>
+                    <SelectItem value="L">Putra</SelectItem>
+                    <SelectItem value="P">Putri</SelectItem>
                   </SelectContent>
                 </Select>
               )}

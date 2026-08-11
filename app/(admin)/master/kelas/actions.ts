@@ -15,6 +15,7 @@ function payload(input: KelasInput) {
     level_pendidikan_id: input.level_pendidikan_id,
     tahun_ajaran_id: input.tahun_ajaran_id,
     wali_id: input.wali_id || null,
+    jenis_kelamin: input.jenis_kelamin || null,
   };
 }
 
