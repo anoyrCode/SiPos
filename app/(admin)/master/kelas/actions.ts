@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { canMaster } from "@/lib/auth/dal";
 import { dbErrorMessage, type FormResult } from "@/lib/forms";
-import { kelasSchema, type KelasInput } from "./schema";
+import { KELAS_JK_LABEL, kelasSchema, type KelasInput } from "./schema";
 
 const PATH = "/master/kelas";
 
@@ -41,6 +41,27 @@ export async function updateKelas(
   if (!parsed.success) return { ok: false, error: "Data tidak valid." };
 
   const supabase = await createClient();
+
+  // Menandai gender kelas yang sudah berisi santri gender lain akan
+  // meninggalkan data tidak konsisten yang tidak akan dibereskan siapa pun —
+  // tolak dulu, minta santrinya dipindahkan.
+  const jk = parsed.data.jenis_kelamin;
+  if (jk === "L" || jk === "P") {
+    const lawan = jk === "L" ? "P" : "L";
+    const { count } = await supabase
+      .from("santri_kelas")
+      .select("santri!inner(id)", { count: "exact", head: true })
+      .eq("kelas_id", id)
+      .eq("santri.jenis_kelamin", lawan);
+    if ((count ?? 0) > 0) {
+      const labelLawan = lawan === "L" ? "Laki-laki" : "Perempuan";
+      return {
+        ok: false,
+        error: `Kelas ini masih berisi ${count} santri ${labelLawan}. Pindahkan atau keluarkan dulu sebelum menandai kelas ini ${KELAS_JK_LABEL[jk]}.`,
+      };
+    }
+  }
+
   const { error } = await supabase
     .from("kelas")
     .update(payload(parsed.data))
