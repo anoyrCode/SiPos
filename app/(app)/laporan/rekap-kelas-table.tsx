@@ -9,6 +9,13 @@ import { Pagination } from "@/components/shared/pagination";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { downloadExcel } from "@/lib/export";
 import { downloadPdfRekapKelas } from "@/lib/pdf";
 import { parseClientPageParams, paginateArray } from "@/lib/list-params";
@@ -32,12 +39,24 @@ export function RekapKelasTable({
 }) {
   const searchParams = useSearchParams();
   const [q, setQ] = useState("");
+  const [jkFilter, setJkFilter] = useState("semua");
   const [loadingPdf, setLoadingPdf] = useState(false);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return t ? rows.filter((r) => r.nama.toLowerCase().includes(t)) : rows;
-  }, [q, rows]);
+    return rows.filter((r) => {
+      const matchNama = t ? r.nama.toLowerCase().includes(t) : true;
+      // Baris "Tanpa Kelas" (jk null, key "none") disembunyikan saat filter
+      // gender aktif — tidak ada kelas yang bisa dinilai gendernya.
+      const matchJk =
+        jkFilter === "semua"
+          ? true
+          : jkFilter === "kosong"
+            ? r.jk === null && r.key !== "none"
+            : r.jk === jkFilter;
+      return matchNama && matchJk;
+    });
+  }, [q, jkFilter, rows]);
 
   const { page, perPage } = parseClientPageParams(searchParams);
   const paged = paginateArray(filtered, page, perPage);
@@ -98,12 +117,25 @@ export function RekapKelasTable({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative w-full sm:w-64">
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Cari kelas…"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:w-64">
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Cari kelas…"
+            />
+          </div>
+          <Select value={jkFilter} onValueChange={setJkFilter}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Jenis kelamin" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua jenis kelamin</SelectItem>
+              <SelectItem value="L">Putra</SelectItem>
+              <SelectItem value="P">Putri</SelectItem>
+              <SelectItem value="kosong">Belum diisi</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex items-center gap-1.5">
           <Button variant="secondary" size="sm" onClick={handleExcelExport} disabled={filtered.length === 0}>
@@ -120,7 +152,7 @@ export function RekapKelasTable({
         columns={columns}
         rows={paged.rows}
         getRowId={(r) => r.key}
-        isFiltered={q.trim().length > 0}
+        isFiltered={q.trim().length > 0 || jkFilter !== "semua"}
         empty="Belum ada data."
       />
       <Pagination

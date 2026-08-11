@@ -43,6 +43,7 @@ export function RekapSantriTable({
   const searchParams = useSearchParams();
   const [q, setQ] = useState("");
   const [kelasFilter, setKelasFilter] = useState("semua");
+  const [jkFilter, setJkFilter] = useState("semua");
   const [loadingPdf, setLoadingPdf] = useState(false);
 
   const kelasOptions = useMemo(
@@ -58,9 +59,19 @@ export function RekapSantriTable({
     return rows.filter((r) => {
       const matchNama = t ? r.nama.toLowerCase().includes(t) : true;
       const matchKelas = kelasFilter === "semua" ? true : r.kelas === kelasFilter;
-      return matchNama && matchKelas;
+      // Santri tanpa kelas disembunyikan saat filter gender aktif — tidak ada
+      // kelas yang bisa dinilai gendernya.
+      const matchJk =
+        jkFilter === "semua"
+          ? true
+          : !r.punyaKelas
+            ? false
+            : jkFilter === "kosong"
+              ? r.jk === null
+              : r.jk === jkFilter;
+      return matchNama && matchKelas && matchJk;
     });
-  }, [q, kelasFilter, rows]);
+  }, [q, kelasFilter, jkFilter, rows]);
 
   const { page, perPage } = parseClientPageParams(searchParams);
   const paged = paginateArray(filtered, page, perPage);
@@ -154,6 +165,17 @@ export function RekapSantriTable({
               ))}
             </SelectContent>
           </Select>
+          <Select value={jkFilter} onValueChange={setJkFilter}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Jenis kelamin" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua jenis kelamin</SelectItem>
+              <SelectItem value="L">Putra</SelectItem>
+              <SelectItem value="P">Putri</SelectItem>
+              <SelectItem value="kosong">Belum diisi</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex items-center gap-1.5">
           <Button variant="secondary" size="sm" onClick={handleExcelExport} disabled={filtered.length === 0}>
@@ -170,7 +192,9 @@ export function RekapSantriTable({
         columns={columns}
         rows={paged.rows}
         getRowId={(r) => r.id}
-        isFiltered={q.trim().length > 0 || kelasFilter !== "semua"}
+        isFiltered={
+          q.trim().length > 0 || kelasFilter !== "semua" || jkFilter !== "semua"
+        }
         empty="Belum ada data poin pada tahun ajaran ini."
       />
       <Pagination
