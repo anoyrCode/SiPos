@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { Pagination } from "@/components/shared/pagination";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { FilterSelect } from "@/components/shared/filter-select";
 import {
   Card,
   CardContent,
@@ -42,6 +43,7 @@ type KelasDetail = {
   id: string;
   nama_kelas: string;
   wali_id: string | null;
+  jenis_kelamin: "L" | "P" | null;
   wali: { nama: string } | null;
 };
 
@@ -62,16 +64,24 @@ export default async function Page({
   const activeTa = taList.find((t) => t.is_aktif);
   const taId = getStr(sp.ta) || activeTa?.id || taList[0]?.id || "";
 
-  const { data: kelasData } = taId
-    ? await supabase
+  const jkFilter = getStr(sp.jk);
+  let kelasQuery = taId
+    ? supabase
         .from("kelas")
-        .select("id, nama_kelas, level:level_pendidikan(nama)")
+        .select("id, nama_kelas, jenis_kelamin, level:level_pendidikan(nama)")
         .eq("tahun_ajaran_id", taId)
         .order("nama_kelas")
-    : { data: [] };
+    : null;
+  if (kelasQuery) {
+    if (jkFilter === "kosong") kelasQuery = kelasQuery.is("jenis_kelamin", null);
+    else if (jkFilter === "L" || jkFilter === "P")
+      kelasQuery = kelasQuery.eq("jenis_kelamin", jkFilter);
+  }
+  const { data: kelasData } = kelasQuery ? await kelasQuery : { data: [] };
   const kelasList = (kelasData ?? []) as unknown as {
     id: string;
     nama_kelas: string;
+    jenis_kelamin: "L" | "P" | null;
     level: { nama: string } | null;
   }[];
 
@@ -97,7 +107,7 @@ export default async function Page({
     const [kdRes, pegRes, angRes, placedRes, activeRes] = await Promise.all([
       supabase
         .from("kelas")
-        .select("id, nama_kelas, wali_id, wali:pegawai(nama)")
+        .select("id, nama_kelas, wali_id, jenis_kelamin, wali:pegawai(nama)")
         .eq("id", selectedKelas.id)
         .single(),
       supabase.from("pegawai").select("id, nama").order("nama"),
@@ -111,7 +121,7 @@ export default async function Page({
         .eq("kelas.tahun_ajaran_id", taId),
       supabase
         .from("santri")
-        .select("id, nis, nama")
+        .select("id, nis, nama, jenis_kelamin")
         .eq("status", "aktif")
         .order("nama"),
     ]);
@@ -129,7 +139,14 @@ export default async function Page({
         (p) => p.santri_id,
       ),
     );
-    available = (activeRes.data ?? []).filter((s) => !placedIds.has(s.id));
+    // Kelas bergender hanya menampilkan santri dengan gender sama. Santri
+    // yang gendernya kosong sengaja tidak ditampilkan supaya tidak salah
+    // masuk tanpa sengaja — server tetap mengizinkan kalau memang dikirim.
+    const kelasJk = selectedKelas.jenis_kelamin;
+    available = (activeRes.data ?? [])
+      .filter((s) => !placedIds.has(s.id))
+      .filter((s) => (kelasJk ? s.jenis_kelamin === kelasJk : true))
+      .map((s) => ({ id: s.id, nis: s.nis, nama: s.nama }));
   }
 
   const pagedAnggota = paginateArray(anggota, page, perPage);
@@ -187,6 +204,19 @@ export default async function Page({
         </Card>
       ) : (
         <>
+          <div className="mb-4 sm:max-w-xs">
+            <FilterSelect
+              param="jk"
+              placeholder="Jenis kelamin"
+              allLabel="Semua jenis kelamin"
+              options={[
+                { value: "L", label: "Putra" },
+                { value: "P", label: "Putri" },
+                { value: "kosong", label: "Belum diisi" },
+              ]}
+            />
+          </div>
+
           <DistribusiSelectors
             tahunAjaran={taOptions}
             kelas={kelasOptions}
@@ -255,7 +285,12 @@ export default async function Page({
                         : "Semua santri aktif sudah punya kelas."}
                     </CardDescription>
                   </div>
-                  <AddSantri kelasId={selectedKelas.id} available={available} />
+                  <AddSantri
+                    kelasId={selectedKelas.id}
+                    available={available}
+                    kelasJk={kelasDetail?.jenis_kelamin ?? null}
+                    kelasNama={kelasDetail?.nama_kelas ?? ""}
+                  />
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <DataTable

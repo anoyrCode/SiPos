@@ -33,6 +33,34 @@ export async function addSantriToKelas(
   if (santriIds.length === 0) return { ok: false, error: "Pilih minimal satu santri." };
 
   const supabase = await createClient();
+
+  // Kelas tanpa gender tidak divalidasi. Kalau kelasnya bergender, santri
+  // dengan gender berbeda ditolak SEMUA (tidak ada yang tersimpan sebagian).
+  // Santri yang gendernya kosong di database dibiarkan lolos — sistem tidak
+  // bisa membuktikan dia tidak cocok.
+  const { data: kelas } = await supabase
+    .from("kelas")
+    .select("nama_kelas, jenis_kelamin")
+    .eq("id", kelasId)
+    .single();
+
+  if (kelas?.jenis_kelamin) {
+    const lawan = kelas.jenis_kelamin === "L" ? "P" : "L";
+    const { data: mismatch } = await supabase
+      .from("santri")
+      .select("nama")
+      .in("id", santriIds)
+      .eq("jenis_kelamin", lawan);
+    if (mismatch && mismatch.length > 0) {
+      const label = kelas.jenis_kelamin === "L" ? "Putra" : "Putri";
+      const nama = mismatch.map((s) => s.nama).join(", ");
+      return {
+        ok: false,
+        error: `${nama} tidak bisa masuk kelas ${kelas.nama_kelas} karena kelas ini ditandai ${label}.`,
+      };
+    }
+  }
+
   const rows = santriIds.map((santri_id) => ({ santri_id, kelas_id: kelasId }));
   const { error } = await supabase.from("santri_kelas").insert(rows);
   if (error) return { ok: false, error: dbErrorMessage(error) };

@@ -22,9 +22,13 @@ type SantriOpt = { id: string; nis: string | null; nama: string };
 export function AddSantri({
   kelasId,
   available,
+  kelasJk,
+  kelasNama,
 }: {
   kelasId: string;
   available: SantriOpt[];
+  kelasJk: "L" | "P" | null;
+  kelasNama: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -92,6 +96,9 @@ export function AddSantri({
           <DialogTitle>Tambah Santri ke Kelas</DialogTitle>
           <DialogDescription>
             Hanya santri aktif yang belum punya kelas di tahun ajaran ini.
+            {kelasJk
+              ? ` Menampilkan santri ${kelasJk === "L" ? "Putra" : "Putri"} saja — kelas ${kelasNama} ditandai ${kelasJk === "L" ? "Putra" : "Putri"}.`
+              : ""}
           </DialogDescription>
         </DialogHeader>
 
