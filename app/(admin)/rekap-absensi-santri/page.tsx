@@ -11,6 +11,7 @@ import { FilterSelect } from "@/components/shared/filter-select";
 import { DateFilter } from "@/app/(admin)/rekap-absensi/date-filter";
 import { CheckpointDialog } from "./checkpoint-dialog";
 import { RekapDetailDialog } from "./rekap-detail-dialog";
+import { RekapSantriExportDialog } from "./rekap-santri-export-dialog";
 
 type Kelas = { id: string; nama_kelas: string; jenis_kelamin: "L" | "P" | null };
 type Checkpoint = { id: string; shift: number; jam: string; urutan: number };
@@ -30,6 +31,11 @@ export default async function Page({
   const tanggalParam = getStr(sp.tanggal);
   const tanggal = tanggalParam || todayJakarta();
   const jkFilter = getStr(sp.jk);
+  // Dihitung di server (WIB) lalu dikirim sebagai prop — kalau dihitung di
+  // komponen client, zona waktu perangkat pengguna bisa berbeda dari server
+  // dan memicu hydration mismatch.
+  const hariIni = todayJakarta();
+  const awalBulan = `${hariIni.slice(0, 7)}-01`;
 
   const supabase = await createClient();
 
@@ -206,6 +212,13 @@ export default async function Page({
             { value: "kosong", label: "Belum diisi" },
           ]}
         />
+        <div className="w-full sm:ml-auto sm:w-auto">
+          <RekapSantriExportDialog
+            jk={jkFilter}
+            defaultDari={awalBulan}
+            defaultSampai={hariIni}
+          />
+        </div>
       </div>
 
       {groups.length === 0 ? (
