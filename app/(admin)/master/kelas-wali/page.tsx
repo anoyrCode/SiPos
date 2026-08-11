@@ -257,7 +257,16 @@ export default async function Page({
               <Card className="lg:col-span-1">
                 <CardHeader>
                   <CardTitle>Wali Kelas</CardTitle>
-                  <CardDescription>{kelasDetail?.nama_kelas}</CardDescription>
+                  <CardDescription className="flex flex-wrap items-center gap-2">
+                    {kelasDetail?.nama_kelas}
+                    {kelasDetail?.jenis_kelamin && (
+                      <Badge
+                        variant={kelasDetail.jenis_kelamin === "L" ? "primary" : "warning"}
+                      >
+                        {kelasDetail.jenis_kelamin === "L" ? "Putra" : "Putri"}
+                      </Badge>
+                    )}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <WaliKelasSelect
@@ -282,7 +291,9 @@ export default async function Page({
                     <CardDescription>
                       {available.length > 0
                         ? `${available.length} santri aktif belum punya kelas — bisa ditambahkan.`
-                        : "Semua santri aktif sudah punya kelas."}
+                        : selectedKelas.jenis_kelamin
+                          ? `Semua santri ${selectedKelas.jenis_kelamin === "L" ? "Putra" : "Putri"} yang aktif sudah punya kelas.`
+                          : "Semua santri aktif sudah punya kelas."}
                     </CardDescription>
                   </div>
                   <AddSantri
