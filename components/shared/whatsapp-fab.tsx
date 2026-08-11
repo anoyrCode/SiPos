@@ -19,7 +19,7 @@ export function WhatsappFab({ name }: { name: string }) {
   }, []);
 
   const message = encodeURIComponent(
-    `Halo, saya ${name}, ada kendala terkait akun SIPOS.`,
+    `Assalamu'alaikum warahmatullahi wabarakatuh, saya ${name}, ada kendala terkait akun SIPOS.`,
   );
 
   return (
