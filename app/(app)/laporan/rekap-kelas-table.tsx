@@ -16,6 +16,7 @@ import { parseClientPageParams, paginateArray } from "@/lib/list-params";
 export type RekapKelasRow = {
   key: string;
   nama: string;
+  jk: "L" | "P" | null;
   count: number;
   pos: number;
   neg: number;

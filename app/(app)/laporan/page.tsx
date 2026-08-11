@@ -14,6 +14,7 @@ import { RekapKelasTable } from "./rekap-kelas-table";
 type KelasRekap = {
   key: string;
   nama: string;
+  jk: "L" | "P" | null;
   count: number;
   pos: number;
   neg: number;
@@ -126,7 +127,9 @@ export default async function Page({
   if (taId) {
     let placeQuery = supabase
       .from("santri_kelas")
-      .select("santri_id, kelas:kelas!inner(id, nama_kelas, tahun_ajaran_id)")
+      .select(
+        "santri_id, kelas:kelas!inner(id, nama_kelas, jenis_kelamin, tahun_ajaran_id)",
+      )
       .eq("kelas.tahun_ajaran_id", taId);
     if (scopedKelasIds) {
       placeQuery = placeQuery.in(
@@ -139,7 +142,7 @@ export default async function Page({
     const { data: placeData } = await placeQuery;
     const placements = (placeData ?? []) as unknown as {
       santri_id: string;
-      kelas: { id: string; nama_kelas: string } | null;
+      kelas: { id: string; nama_kelas: string; jenis_kelamin: "L" | "P" | null } | null;
     }[];
 
     // Kalau ter-scope, transaksi juga dibatasi ke santri hasil placeQuery di
@@ -175,17 +178,25 @@ export default async function Page({
       }));
     }
 
-    const santriToKelas = new Map<string, { id: string; nama: string }>();
+    const santriToKelas = new Map<
+      string,
+      { id: string; nama: string; jk: "L" | "P" | null }
+    >();
     const kelasAgg = new Map<
       string,
-      { nama: string; count: number; pos: number; neg: number }
+      { nama: string; jk: "L" | "P" | null; count: number; pos: number; neg: number }
     >();
     for (const p of placements) {
       if (!p.kelas) continue;
-      santriToKelas.set(p.santri_id, { id: p.kelas.id, nama: p.kelas.nama_kelas });
+      santriToKelas.set(p.santri_id, {
+        id: p.kelas.id,
+        nama: p.kelas.nama_kelas,
+        jk: p.kelas.jenis_kelamin,
+      });
       const e =
         kelasAgg.get(p.kelas.id) ?? {
           nama: p.kelas.nama_kelas,
+          jk: p.kelas.jenis_kelamin,
           count: 0,
           pos: 0,
           neg: 0,
@@ -220,6 +231,7 @@ export default async function Page({
       .map(([key, v]) => ({
         key,
         nama: v.nama,
+        jk: v.jk,
         count: v.count,
         pos: v.pos,
         neg: v.neg,
@@ -230,6 +242,7 @@ export default async function Page({
       kelasRekap.push({
         key: "none",
         nama: "Tanpa Kelas",
+        jk: null,
         count: noneSantri.size,
         pos: nonePos,
         neg: noneNeg,
@@ -260,10 +273,13 @@ export default async function Page({
       santriRekap = ids
         .map((id) => {
           const v = santriAgg.get(id)!;
+          const k = santriToKelas.get(id);
           return {
             id,
             nama: nameMap.get(id) ?? "?",
-            kelas: santriToKelas.get(id)?.nama ?? null,
+            kelas: k?.nama ?? null,
+            jk: k?.jk ?? null,
+            punyaKelas: Boolean(k),
             pos: v.pos,
             neg: v.neg,
             net: v.pos - v.neg,

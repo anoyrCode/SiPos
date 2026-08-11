@@ -25,6 +25,9 @@ export type RekapSantriRow = {
   id: string;
   nama: string;
   kelas: string | null;
+  jk: "L" | "P" | null;
+  /** false = santri tidak punya kelas sama sekali (bucket "Tanpa Kelas"). */
+  punyaKelas: boolean;
   pos: number;
   neg: number;
   net: number;
