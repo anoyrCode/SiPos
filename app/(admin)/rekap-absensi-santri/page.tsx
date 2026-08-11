@@ -194,7 +194,7 @@ export default async function Page({
         <CheckpointDialog checkpoints={checkpoints} />
       </PageHeader>
 
-      <div className="flex flex-wrap items-center gap-2.5 rounded-card border border-border/70 bg-card p-3 shadow-sm">
+      <div className="flex flex-wrap items-end gap-3 rounded-card border border-border/70 bg-card p-3 shadow-sm">
         <DateFilter value={tanggal} />
         <FilterSelect
           param="jk"
