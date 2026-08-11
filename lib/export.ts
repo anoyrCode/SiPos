@@ -24,12 +24,26 @@ export async function downloadExcelMultiSheet(
     sheetName: string;
     rows: Record<string, unknown>[];
     colWidths?: number[];
+    /**
+     * Baris keterangan di atas tabel (tiap elemen = satu baris, tiap
+     * sub-elemen = satu sel). Kalau diisi, tabel `rows` ditulis di bawahnya
+     * lengkap dengan header kolomnya.
+     */
+    infoRows?: (string | number)[][];
   }[],
 ) {
   const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
   for (const sheet of sheets) {
-    const ws = XLSX.utils.json_to_sheet(sheet.rows);
+    let ws;
+    if (sheet.infoRows?.length) {
+      ws = XLSX.utils.aoa_to_sheet(sheet.infoRows);
+      // `origin: -1` menaruh tabel mulai baris setelah isi terakhir, dan
+      // tetap menulis header kolom (skipHeader default false).
+      XLSX.utils.sheet_add_json(ws, sheet.rows, { origin: -1 });
+    } else {
+      ws = XLSX.utils.json_to_sheet(sheet.rows);
+    }
     if (sheet.colWidths?.length) {
       ws["!cols"] = sheet.colWidths.map((wch) => ({ wch }));
     }
