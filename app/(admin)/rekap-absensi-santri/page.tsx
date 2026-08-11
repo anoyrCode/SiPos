@@ -7,11 +7,12 @@ import { todayJakarta } from "@/lib/absensi-status";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { FilterSelect } from "@/components/shared/filter-select";
 import { DateFilter } from "@/app/(admin)/rekap-absensi/date-filter";
 import { CheckpointDialog } from "./checkpoint-dialog";
 import { RekapDetailDialog } from "./rekap-detail-dialog";
 
-type Kelas = { id: string; nama_kelas: string };
+type Kelas = { id: string; nama_kelas: string; jenis_kelamin: "L" | "P" | null };
 type Checkpoint = { id: string; shift: number; jam: string; urutan: number };
 type Exception = {
   status: "izin" | "sakit" | "alpa";
@@ -28,6 +29,7 @@ export default async function Page({
   const sp = await searchParams;
   const tanggalParam = getStr(sp.tanggal);
   const tanggal = tanggalParam || todayJakarta();
+  const jkFilter = getStr(sp.jk);
 
   const supabase = await createClient();
 
@@ -47,7 +49,7 @@ export default async function Page({
       ? supabase
           .from("guru_kelas")
           .select(
-            "pegawai:pegawai(shift), kelas:kelas!inner(id, nama_kelas, tahun_ajaran_id)",
+            "pegawai:pegawai(shift), kelas:kelas!inner(id, nama_kelas, jenis_kelamin, tahun_ajaran_id)",
           )
           .eq("kelas.tahun_ajaran_id", ta.id)
       : Promise.resolve({
@@ -77,9 +79,15 @@ export default async function Page({
   }
   // `numeric: true` supaya "Kelas 7A" tampil sebelum "Kelas 10A" (urutan
   // alami angka), bukan diurutkan leksikografis per-karakter ("1" < "7").
-  const kelasList = [...kelasMap.values()].sort((a, b) =>
-    a.nama_kelas.localeCompare(b.nama_kelas, undefined, { numeric: true }),
-  );
+  const kelasList = [...kelasMap.values()]
+    .filter((k) => {
+      if (jkFilter === "kosong") return k.jenis_kelamin === null;
+      if (jkFilter === "L" || jkFilter === "P") return k.jenis_kelamin === jkFilter;
+      return true;
+    })
+    .sort((a, b) =>
+      a.nama_kelas.localeCompare(b.nama_kelas, undefined, { numeric: true }),
+    );
   const kelasIds = kelasList.map((k) => k.id);
 
   const [{ data: submissionData }, { data: exceptionData }, { data: santriCountData }] =
@@ -186,14 +194,26 @@ export default async function Page({
         <CheckpointDialog checkpoints={checkpoints} />
       </PageHeader>
 
-      <div className="rounded-card border border-border/70 bg-card p-3 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2.5 rounded-card border border-border/70 bg-card p-3 shadow-sm">
         <DateFilter value={tanggal} />
+        <FilterSelect
+          param="jk"
+          placeholder="Jenis kelamin"
+          allLabel="Semua jenis kelamin"
+          options={[
+            { value: "L", label: "Putra" },
+            { value: "P", label: "Putri" },
+            { value: "kosong", label: "Belum diisi" },
+          ]}
+        />
       </div>
 
       {groups.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            Belum ada kelas dengan musyrif yang ditugaskan tahun ajaran ini.
+            {jkFilter
+              ? "Tidak ada kelas yang cocok dengan filter jenis kelamin."
+              : "Belum ada kelas dengan musyrif yang ditugaskan tahun ajaran ini."}
           </CardContent>
         </Card>
       ) : (
