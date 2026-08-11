@@ -6,7 +6,9 @@ import { MessageCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-const CS_WHATSAPP_NUMBER = "62895329572147";
+// Format internasional tanpa "+" dan tanpa "0" di depan (wa.me mensyaratkan
+// ini) — 0858-5606-2239 ditulis sebagai 62 + 85856062239.
+const CS_WHATSAPP_NUMBER = "6285856062239";
 /** Lama tampil dalam bentuk lebar (ikon + teks) sebelum menciut jadi ikon saja. */
 const EXPANDED_MS = 4000;
 
