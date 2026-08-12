@@ -372,7 +372,9 @@ export async function requireStaff(): Promise<Profile> {
     p.dashboard ||
     p.approve_absensi ||
     p.rekap_absensi ||
-    p.tindak_lanjut_sp;
+    p.tindak_lanjut_sp ||
+    p.absensi_santri ||
+    p.rekap_absensi_santri;
   if (profile.role === "wali" || !hasAny) {
     redirect(homePathForProfile(profile));
   }

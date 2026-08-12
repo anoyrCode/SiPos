@@ -66,6 +66,8 @@ export function homePathForProfile({ role, perms }: ProfileLike): string {
   if (perms.akun_wali) return "/master/akun-wali";
   if (perms.approve_absensi || perms.rekap_absensi) return "/rekap-absensi";
   if (perms.absensi) return "/absensi";
+  if (perms.rekap_absensi_santri) return "/rekap-absensi-santri";
+  if (perms.absensi_santri) return "/absensi-santri";
   return "/tanpa-akses"; // tidak ada hak akses sama sekali — di luar layout (app), cegah redirect loop
 }
 
