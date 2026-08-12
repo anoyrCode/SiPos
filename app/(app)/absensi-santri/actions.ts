@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { canAbsensiSantri, getProfile } from "@/lib/auth/dal";
+import { todayJakarta, nowHHMMJakarta } from "@/lib/absensi-status";
+import { tanggalShift } from "@/lib/absensi-santri";
 import { dbErrorMessage, type FormResult } from "@/lib/forms";
 
 type Pengecualian = {
@@ -28,6 +30,36 @@ export async function submitAbsensiSantri(
 
   const supabase = await createClient();
 
+  // `tanggal` dikirim dari klien, dan action ini bisa dipanggil langsung
+  // tanpa lewat UI (server action biasa, bukan cuma dari form) — hitung
+  // ulang tanggal yang SEHARUSNYA berlaku untuk checkpoint ini (rumus sama
+  // seperti tanggalShift() yang dipakai halaman) dan tolak kalau tidak
+  // cocok, supaya klien tidak bisa menimpa/menghapus riwayat tanggal
+  // sembarang (mis. tanggal jauh di masa lalu).
+  const { data: checkpointRow } = await supabase
+    .from("absensi_santri_checkpoint")
+    .select("shift")
+    .eq("id", checkpointId)
+    .maybeSingle();
+  if (!checkpointRow) {
+    return { ok: false, error: "Checkpoint tidak ditemukan." };
+  }
+  const { data: shiftCheckpoints } = await supabase
+    .from("absensi_santri_checkpoint")
+    .select("jam")
+    .eq("shift", checkpointRow.shift)
+    .order("urutan");
+  if (!shiftCheckpoints || shiftCheckpoints.length === 0) {
+    return { ok: false, error: "Jadwal checkpoint tidak ditemukan." };
+  }
+  const expectedTanggal = tanggalShift(shiftCheckpoints, nowHHMMJakarta(), todayJakarta());
+  if (tanggal !== expectedTanggal) {
+    return {
+      ok: false,
+      error: "Tanggal tidak sesuai jam saat ini. Muat ulang halaman dan coba lagi.",
+    };
+  }
+
   // RLS `absensi_santri_insert` hanya memvalidasi kelas + checkpoint, TIDAK
   // memeriksa apakah santri_id-nya memang anggota kelas tsb — tanpa cek ini
   // request yang dimodifikasi bisa menyelipkan santri dari kelas lain ke
@@ -43,41 +75,19 @@ export async function submitAbsensiSantri(
     }
   }
 
-  const { error: subError } = await supabase
-    .from("absensi_santri_submission")
-    .upsert(
-      {
-        checkpoint_id: checkpointId,
-        kelas_id: kelasId,
-        tanggal,
-        dicatat_oleh: profile.pegawai_id,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "checkpoint_id,kelas_id,tanggal" },
-    );
-  if (subError) return { ok: false, error: dbErrorMessage(subError) };
-
-  const { error: delError } = await supabase
-    .from("absensi_santri")
-    .delete()
-    .eq("checkpoint_id", checkpointId)
-    .eq("kelas_id", kelasId)
-    .eq("tanggal", tanggal);
-  if (delError) return { ok: false, error: dbErrorMessage(delError) };
-
-  if (pengecualian.length > 0) {
-    const { error: insError } = await supabase.from("absensi_santri").insert(
-      pengecualian.map((p) => ({
-        santri_id: p.santri_id,
-        checkpoint_id: checkpointId,
-        kelas_id: kelasId,
-        tanggal,
-        status: p.status,
-        catatan: p.catatan,
-      })),
-    );
-    if (insError) return { ok: false, error: dbErrorMessage(insError) };
-  }
+  // Tandai submission + hapus catatan lama + tulis catatan baru dalam SATU
+  // transaksi lewat RPC (bukan 3 pernyataan terpisah seperti sebelumnya) —
+  // kalau langkah terakhir gagal di tengah (RLS/jaringan/timeout/tabrakan
+  // unique), sebelumnya checkpoint tetap tertandai "sudah diisi" padahal
+  // catatan lamanya sudah kehapus duluan (rekap jadi melaporkan semua
+  // hadir). Lihat migrasi 0045 untuk detail fungsinya.
+  const { error } = await supabase.rpc("submit_absensi_santri", {
+    p_kelas_id: kelasId,
+    p_checkpoint_id: checkpointId,
+    p_tanggal: tanggal,
+    p_pengecualian: pengecualian,
+  });
+  if (error) return { ok: false, error: dbErrorMessage(error) };
 
   revalidatePath("/absensi-santri");
   revalidatePath("/rekap-absensi-santri");
