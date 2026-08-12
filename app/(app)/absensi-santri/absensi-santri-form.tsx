@@ -42,10 +42,17 @@ export function AbsensiSantriForm({
   checkpointId,
   tanggal,
   groups,
+  // Jam checkpoint ini masih terlalu jauh di depan untuk disimpan. Alasannya
+  // sudah dijelaskan spanduk di atas form, jadi di sini cukup mematikan
+  // tombolnya. Ini semata kenyamanan — gerbang yang sebenarnya ada di
+  // submitAbsensiSantri(), karena server action bisa dipanggil langsung
+  // tanpa lewat tombol ini.
+  terkunci = false,
 }: {
   checkpointId: string;
   tanggal: string;
   groups: KelasGroup[];
+  terkunci?: boolean;
 }) {
   const router = useRouter();
   const single = groups.length <= 1;
@@ -127,7 +134,22 @@ export function AbsensiSantriForm({
             id={`kelas-${g.kelasId}`}
             className="scroll-mt-24 overflow-hidden rounded-card border border-border/70 bg-card shadow-sm"
           >
-            {!single && (
+            {/* Header selalu dirender — sebelumnya dilewati saat musyrif cuma
+                punya 1 kelas, sehingga penanda "Sudah diisi" tidak pernah
+                muncul untuk mereka dan tidak ada cara tahu jam ini sudah
+                dikerjakan atau belum. Yang berbeda hanya bisa/tidaknya
+                dilipat, bukan ada/tidaknya informasi. */}
+            {single ? (
+              <div className="flex items-center justify-between gap-2 bg-muted/30 px-4 py-3">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-sm font-semibold">{g.kelasNama}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    ({g.roster.length})
+                  </span>
+                </span>
+                {g.submitted && <Badge variant="positive">Sudah diisi</Badge>}
+              </div>
+            ) : (
               <button
                 type="button"
                 onClick={() => toggleExpanded(g.kelasId)}
@@ -150,7 +172,7 @@ export function AbsensiSantriForm({
               </button>
             )}
             {isOpen && (
-              <div className={cn(!single && "border-t border-border/50")}>
+              <div className="border-t border-border/50">
                 {g.roster.length === 0 ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">
                     Belum ada santri di kelas ini.
@@ -196,10 +218,16 @@ export function AbsensiSantriForm({
                     <div className="border-t border-border/50 p-3">
                       <Button
                         onClick={() => onSubmitKelas(g)}
-                        disabled={submittingId !== null}
+                        disabled={terkunci || submittingId !== null}
                         className="h-11 w-full"
                       >
-                        {isSubmitting ? "Menyimpan…" : "Simpan Absensi"}
+                        {terkunci
+                          ? "Belum bisa disimpan"
+                          : isSubmitting
+                            ? "Menyimpan…"
+                            : g.submitted
+                              ? "Perbarui Absensi"
+                              : "Simpan Absensi"}
                       </Button>
                     </div>
                   </>

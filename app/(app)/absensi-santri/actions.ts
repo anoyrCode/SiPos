@@ -5,7 +5,11 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { canAbsensiSantri, getProfile } from "@/lib/auth/dal";
 import { todayJakarta, nowHHMMJakarta } from "@/lib/absensi-status";
-import { tanggalShift } from "@/lib/absensi-santri";
+import {
+  isCheckpointTerlaluAwal,
+  jamMulaiBolehSimpan,
+  tanggalShift,
+} from "@/lib/absensi-santri";
 import { dbErrorMessage, type FormResult } from "@/lib/forms";
 
 type Pengecualian = {
@@ -38,7 +42,7 @@ export async function submitAbsensiSantri(
   // sembarang (mis. tanggal jauh di masa lalu).
   const { data: checkpointRow } = await supabase
     .from("absensi_santri_checkpoint")
-    .select("shift")
+    .select("shift, jam")
     .eq("id", checkpointId)
     .maybeSingle();
   if (!checkpointRow) {
@@ -70,6 +74,26 @@ export async function submitAbsensiSantri(
     return {
       ok: false,
       error: "Tanggal tidak sesuai jam saat ini. Muat ulang halaman dan coba lagi.",
+    };
+  }
+
+  // Tolak penyimpanan yang jauh sebelum jam checkpoint-nya tiba. Tanpa ini,
+  // seluruh jadwal sehari bisa diisi sekaligus dini hari — sudah pernah
+  // terjadi, dan hasilnya rekap admin menampilkan jam-jam yang sebenarnya
+  // belum berlangsung. Dicek terhadap `expectedTanggal` (hitungan server),
+  // bukan `tanggal` kiriman klien.
+  if (
+    isCheckpointTerlaluAwal(
+      checkpointRow.jam,
+      nowHHMMJakarta(),
+      expectedTanggal,
+      todayJakarta(),
+    )
+  ) {
+    const jam = checkpointRow.jam.slice(0, 5);
+    return {
+      ok: false,
+      error: `Jam ${jam} belum tiba. Absensi jam ini baru bisa disimpan mulai ${jamMulaiBolehSimpan(checkpointRow.jam)}.`,
     };
   }
 

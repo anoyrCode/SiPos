@@ -1,11 +1,17 @@
 import Link from "next/link";
-import { CalendarCheck } from "lucide-react";
+import { CalendarCheck, Check, TriangleAlert } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { requireAbsensiSantri } from "@/lib/auth/dal";
 import { getStr, type SearchParams } from "@/lib/list-params";
 import { todayJakarta, nowHHMMJakarta } from "@/lib/absensi-status";
-import { mostRecentCheckpointId, tanggalShift } from "@/lib/absensi-santri";
+import {
+  isCheckpointBelumTerjadi,
+  isCheckpointTerlaluAwal,
+  jamMulaiBolehSimpan,
+  mostRecentCheckpointId,
+  tanggalShift,
+} from "@/lib/absensi-santri";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -126,6 +132,19 @@ export default async function Page({
   // halaman ini bisa kelihatan "nyangkut" di jam lama. Kasih jalan keluar
   // eksplisit, cuma muncul kalau memang lagi menyimpang dari jam sekarang.
   const isManualOverride = checkpointParam !== "" && selectedCheckpoint.id !== autoCheckpointId;
+  const hariIni = todayJakarta();
+  const belumTerjadi = isCheckpointBelumTerjadi(
+    selectedCheckpoint.jam,
+    nowHHMM,
+    tanggal,
+    hariIni,
+  );
+  const terlaluAwal = isCheckpointTerlaluAwal(
+    selectedCheckpoint.jam,
+    nowHHMM,
+    tanggal,
+    hariIni,
+  );
 
   // Musyrif shift 3 (jaga malam) sering menampung SEMUA kelas sekaligus —
   // supaya tidak harus pindah halaman per kelas satu-satu, semua kelas
@@ -179,10 +198,18 @@ export default async function Page({
   }
 
   const submissionsByKelas = new Map<string, SubmissionRow[]>();
+  // Berapa kelas milik musyrif ini yang sudah terisi di TIAP jam — dipakai
+  // untuk menandai deretan jam di atas. Tanpa ini musyrif tidak punya cara
+  // tahu jam mana yang sudah dia kerjakan selain membukanya satu per satu.
+  const terisiPerCheckpoint = new Map<string, number>();
   for (const s of (allSubmissionsData ?? []) as SubmissionRow[]) {
     const list = submissionsByKelas.get(s.kelas_id) ?? [];
     list.push(s);
     submissionsByKelas.set(s.kelas_id, list);
+    terisiPerCheckpoint.set(
+      s.checkpoint_id,
+      (terisiPerCheckpoint.get(s.checkpoint_id) ?? 0) + 1,
+    );
   }
 
   const groups: KelasGroup[] = kelasOptions.map((k) => {
@@ -233,21 +260,48 @@ export default async function Page({
         description={`${kelasOptions.length} kelas · Shift ${profile.shift}`}
       />
 
-      <div className="flex flex-wrap gap-2">
-        {checkpoints.map((c) => (
-          <Link
-            key={c.id}
-            href={`/absensi-santri?checkpoint=${c.id}`}
-            className={cn(
-              "rounded-full border px-3 py-1.5 font-mono text-sm font-medium transition-colors",
-              c.id === selectedCheckpoint.id
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border/70 text-muted-foreground hover:bg-accent/60",
-            )}
-          >
-            {c.jam.slice(0, 5)}
-          </Link>
-        ))}
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          {checkpoints.map((c) => {
+            const terisi = terisiPerCheckpoint.get(c.id) ?? 0;
+            const lengkap = terisi >= kelasOptions.length;
+            const dipilih = c.id === selectedCheckpoint.id;
+            return (
+              <Link
+                key={c.id}
+                href={`/absensi-santri?checkpoint=${c.id}`}
+                title={
+                  lengkap
+                    ? "Semua kelas Anda sudah diisi di jam ini"
+                    : terisi > 0
+                      ? `${terisi} dari ${kelasOptions.length} kelas sudah diisi di jam ini`
+                      : "Belum ada kelas yang diisi di jam ini"
+                }
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-mono text-sm font-medium transition-colors",
+                  dipilih
+                    ? "border-primary bg-primary/10 text-primary"
+                    : lengkap
+                      ? "border-positive/40 bg-positive-soft text-positive"
+                      : "border-border/70 text-muted-foreground hover:bg-accent/60",
+                )}
+              >
+                {c.jam.slice(0, 5)}
+                {lengkap ? (
+                  <Check className="size-3.5 shrink-0" />
+                ) : terisi > 0 ? (
+                  <span className="font-sans text-[0.7rem] tabular-nums">
+                    {terisi}/{kelasOptions.length}
+                  </span>
+                ) : null}
+              </Link>
+            );
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Sekarang {nowHHMM} WIB · tanda <Check className="inline size-3 align-[-1px]" /> berarti
+          semua kelas Anda sudah diisi di jam itu.
+        </p>
       </div>
 
       {isManualOverride && (
@@ -257,6 +311,48 @@ export default async function Page({
         >
           Kembali ke jam saat ini
         </Link>
+      )}
+
+      {/* Jam terpilih belum tiba — terjadi kalau halaman dibuka sebelum shift
+          dimulai, atau musyrif sengaja mengklik jam yang belum datang. Kalau
+          disimpan, di rekap admin akan muncul sebagai "jam itu sudah diisi"
+          padahal jamnya belum terjadi — persis kebingungan yang dilaporkan.
+          Selisih kecil (mengisi menjelang jamnya) cuma diperingatkan; yang
+          jauh sebelum waktunya ditolak, sejalan dengan gerbang di server. */}
+      {belumTerjadi && (
+        <div
+          className={cn(
+            "flex items-start gap-2.5 rounded-card border px-4 py-3 text-sm",
+            terlaluAwal
+              ? "border-negative/40 bg-negative-soft text-negative"
+              : "border-warning/40 bg-warning-soft text-warning",
+          )}
+        >
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+          {terlaluAwal ? (
+            <p>
+              Jam{" "}
+              <span className="font-mono font-semibold">
+                {selectedCheckpoint.jam.slice(0, 5)}
+              </span>{" "}
+              belum tiba (sekarang {nowHHMM} WIB), jadi belum bisa disimpan. Absensi jam ini
+              terbuka mulai{" "}
+              <span className="font-mono font-semibold">
+                {jamMulaiBolehSimpan(selectedCheckpoint.jam)}
+              </span>
+              . Untuk mengisi jam yang sudah lewat, pilih jamnya di atas.
+            </p>
+          ) : (
+            <p>
+              Jam{" "}
+              <span className="font-mono font-semibold">
+                {selectedCheckpoint.jam.slice(0, 5)}
+              </span>{" "}
+              belum terjadi (sekarang {nowHHMM} WIB). Kalau disimpan sekarang, di rekap akan
+              tercatat sebagai absensi jam {selectedCheckpoint.jam.slice(0, 5)}.
+            </p>
+          )}
+        </div>
       )}
 
       {/* `key` WAJIB: pindah checkpoint itu soft-navigation (searchParams
@@ -269,6 +365,7 @@ export default async function Page({
         checkpointId={selectedCheckpoint.id}
         tanggal={tanggal}
         groups={groups}
+        terkunci={terlaluAwal}
       />
     </div>
   );
