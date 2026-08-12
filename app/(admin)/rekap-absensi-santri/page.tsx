@@ -21,6 +21,33 @@ type Exception = {
   santri: { nama: string } | null;
 };
 
+const PAGE_SIZE = 1000;
+
+/**
+ * Ambil SEMUA baris lewat paginasi. PostgREST membatasi 1000 baris per
+ * permintaan secara diam-diam — jumlah santri di pondok ini (~780) sudah
+ * dekat batas itu untuk query santri_kelas lintas semua kelas. Tanpa ini,
+ * jumlah hadir bisa dihitung dari total keanggotaan yang terpotong, salah
+ * tanpa pesan error.
+ */
+async function ambilSemua<T>(
+  run: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data } = await run(from, from + PAGE_SIZE - 1);
+    const batch = (data ?? []) as unknown as T[];
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return rows;
+}
+
 export default async function Page({
   searchParams,
 }: {
@@ -96,7 +123,7 @@ export default async function Page({
     );
   const kelasIds = kelasList.map((k) => k.id);
 
-  const [{ data: submissionData }, { data: exceptionData }, { data: santriCountData }] =
+  const [{ data: submissionData }, exceptionRows, santriCountRows] =
     kelasIds.length > 0
       ? await Promise.all([
           supabase
@@ -104,12 +131,29 @@ export default async function Page({
             .select("kelas_id, checkpoint_id, pegawai:pegawai(nama)")
             .in("kelas_id", kelasIds)
             .eq("tanggal", tanggal),
-          supabase
-            .from("absensi_santri")
-            .select("kelas_id, checkpoint_id, status, catatan, santri:santri(nama)")
-            .in("kelas_id", kelasIds)
-            .eq("tanggal", tanggal),
-          supabase.from("santri_kelas").select("kelas_id").in("kelas_id", kelasIds),
+          ambilSemua<{
+            kelas_id: string;
+            checkpoint_id: string;
+            status: "izin" | "sakit" | "alpa";
+            catatan: string | null;
+            santri: { nama: string } | null;
+          }>((from, to) =>
+            supabase
+              .from("absensi_santri")
+              .select("kelas_id, checkpoint_id, status, catatan, santri:santri(nama)")
+              .in("kelas_id", kelasIds)
+              .eq("tanggal", tanggal)
+              .order("id")
+              .range(from, to),
+          ),
+          ambilSemua<{ kelas_id: string }>((from, to) =>
+            supabase
+              .from("santri_kelas")
+              .select("kelas_id")
+              .in("kelas_id", kelasIds)
+              .order("id")
+              .range(from, to),
+          ),
         ])
       : [
           {
@@ -119,20 +163,18 @@ export default async function Page({
               pegawai: { nama: string } | null;
             }[],
           },
-          {
-            data: [] as {
-              kelas_id: string;
-              checkpoint_id: string;
-              status: "izin" | "sakit" | "alpa";
-              catatan: string | null;
-              santri: { nama: string } | null;
-            }[],
-          },
-          { data: [] as { kelas_id: string }[] },
+          [] as {
+            kelas_id: string;
+            checkpoint_id: string;
+            status: "izin" | "sakit" | "alpa";
+            catatan: string | null;
+            santri: { nama: string } | null;
+          }[],
+          [] as { kelas_id: string }[],
         ];
 
   const totalSantriByKelas = new Map<string, number>();
-  for (const r of (santriCountData ?? []) as { kelas_id: string }[]) {
+  for (const r of santriCountRows) {
     totalSantriByKelas.set(r.kelas_id, (totalSantriByKelas.get(r.kelas_id) ?? 0) + 1);
   }
 
@@ -148,13 +190,7 @@ export default async function Page({
   }
 
   const exceptionMap = new Map<string, Exception[]>();
-  for (const r of (exceptionData ?? []) as unknown as {
-    kelas_id: string;
-    checkpoint_id: string;
-    status: "izin" | "sakit" | "alpa";
-    catatan: string | null;
-    santri: { nama: string } | null;
-  }[]) {
+  for (const r of exceptionRows) {
     const key = `${r.kelas_id}:${r.checkpoint_id}`;
     const list = exceptionMap.get(key) ?? [];
     list.push({ status: r.status, catatan: r.catatan, santri: r.santri });
