@@ -34,6 +34,33 @@ function minutesOfDay(hhmmss: string): number {
 // terjadi — yang benar tetap 09:00 (checkpoint yg baru saja lewat).
 // `elapsed` dihitung melingkar (mod 1440) supaya shift 3 yg lewat tengah
 // malam (21:00 → 04:50) tetap benar.
+// Tanggal MULAI malam jaga, bukan tanggal kalender saat menekan tombol.
+// Shift 3 melewati tengah malam (21:00 → 04:50): tanpa penyesuaian ini,
+// absen jam 01:00 tersimpan sebagai tanggal besoknya — satu malam terbelah
+// jadi dua tanggal, carry-forward pengecualian putus tepat di tengah malam,
+// dan rekap harian mencampur ekor malam kemarin dengan kepala malam ini.
+//
+// Patokannya JAM SEKARANG, bukan checkpoint yang sedang dipilih: musyrif
+// bisa membuka kembali checkpoint 23:30 pada jam 01:15 untuk mengoreksi, dan
+// itu tetap milik malam yang sama. Shift yang tidak melewati tengah malam
+// (shift 1 & 2) tidak terpengaruh sama sekali.
+function tanggalShift(
+  checkpoints: Checkpoint[],
+  nowHHMM: string,
+  todayISO: string,
+): string {
+  // `checkpoints` sudah terurut `urutan` dari query — elemen pertama adalah
+  // awal shift. Kolom `urutan` memang ada justru karena mengurutkan dari
+  // kolom `jam` mentah salah untuk shift lintas tengah malam.
+  const mulai = minutesOfDay(checkpoints[0].jam);
+  const lintasTengahMalam = checkpoints.some((c) => minutesOfDay(c.jam) < mulai);
+  if (!lintasTengahMalam || minutesOfDay(nowHHMM) >= mulai) return todayISO;
+
+  const d = new Date(`${todayISO}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 function mostRecentCheckpointId(checkpoints: Checkpoint[], nowHHMM: string): string {
   const now = minutesOfDay(nowHHMM);
   let bestId = checkpoints[0].id;
@@ -57,7 +84,6 @@ export default async function Page({
   const profile = await requireAbsensiSantri();
   const sp = await searchParams;
   const supabase = await createClient();
-  const tanggal = todayJakarta();
 
   const { data: ta } = await supabase
     .from("tahun_ajaran")
@@ -120,6 +146,7 @@ export default async function Page({
     minute: "2-digit",
     hour12: false,
   }).format(new Date());
+  const tanggal = tanggalShift(checkpoints, nowHHMM, todayJakarta());
   const checkpointParam = getStr(sp.checkpoint);
   const autoCheckpointId = mostRecentCheckpointId(checkpoints, nowHHMM);
   const selectedCheckpoint =
