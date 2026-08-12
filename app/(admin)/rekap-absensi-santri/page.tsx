@@ -30,6 +30,21 @@ const PAGE_SIZE = 1000;
  * jumlah hadir bisa dihitung dari total keanggotaan yang terpotong, salah
  * tanpa pesan error.
  */
+/**
+ * Jam (HH:MM) penyimpanan dalam WIB. Ditampilkan berdampingan dengan jam
+ * checkpoint supaya selisih yang janggal — mis. checkpoint 12:00 tapi
+ * disimpan 04:30 — langsung kelihatan oleh admin, bukan hanya bisa
+ * ditemukan lewat query manual ke database.
+ */
+function jamWib(iso: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(iso));
+}
+
 async function ambilSemua<T>(
   run: (
     from: number,
@@ -128,7 +143,7 @@ export default async function Page({
       ? await Promise.all([
           supabase
             .from("absensi_santri_submission")
-            .select("kelas_id, checkpoint_id, pegawai:pegawai(nama)")
+            .select("kelas_id, checkpoint_id, created_at, pegawai:pegawai(nama)")
             .in("kelas_id", kelasIds)
             .eq("tanggal", tanggal),
           ambilSemua<{
@@ -160,6 +175,7 @@ export default async function Page({
             data: [] as {
               kelas_id: string;
               checkpoint_id: string;
+              created_at: string;
               pegawai: { nama: string } | null;
             }[],
           },
@@ -178,14 +194,16 @@ export default async function Page({
     totalSantriByKelas.set(r.kelas_id, (totalSantriByKelas.get(r.kelas_id) ?? 0) + 1);
   }
 
-  const submissionMap = new Map<string, { dicatatOleh: string }>();
+  const submissionMap = new Map<string, { dicatatOleh: string; jamDiisi: string }>();
   for (const r of (submissionData ?? []) as unknown as {
     kelas_id: string;
     checkpoint_id: string;
+    created_at: string;
     pegawai: { nama: string } | null;
   }[]) {
     submissionMap.set(`${r.kelas_id}:${r.checkpoint_id}`, {
       dicatatOleh: r.pegawai?.nama ?? "—",
+      jamDiisi: jamWib(r.created_at),
     });
   }
 
@@ -215,6 +233,7 @@ export default async function Page({
           checkpoint: c,
           submitted: Boolean(submission),
           dicatatOleh: submission?.dicatatOleh ?? null,
+          jamDiisi: submission?.jamDiisi ?? null,
           hadir,
           izin,
           sakit,
@@ -299,7 +318,11 @@ export default async function Page({
                       key={r.key}
                       className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 px-5 py-2.5 last:border-b-0"
                     >
-                      <div className="flex items-center gap-2 text-sm">
+                      {/* Nama pencatat & jam penyimpanan TIDAK lagi
+                          disembunyikan di layar kecil — justru itu keterangan
+                          yang dibutuhkan admin saat sebuah baris terlihat
+                          janggal, dan admin sering membuka rekap dari HP. */}
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-sm">
                         <span className="font-mono text-xs text-muted-foreground">
                           {r.checkpoint.jam.slice(0, 5)}
                         </span>
@@ -307,8 +330,14 @@ export default async function Page({
                           Shift {r.checkpoint.shift}
                         </span>
                         {r.submitted && r.dicatatOleh && (
-                          <span className="hidden text-xs text-muted-foreground sm:inline">
+                          <span className="min-w-0 text-xs text-muted-foreground">
                             · {r.dicatatOleh}
+                            {r.jamDiisi && (
+                              <>
+                                {" "}
+                                <span className="font-mono">(diisi {r.jamDiisi})</span>
+                              </>
+                            )}
                           </span>
                         )}
                       </div>
