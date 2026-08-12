@@ -74,6 +74,16 @@ export function todayJakarta(): string {
   }).format(new Date());
 }
 
+/** Jam:menit sekarang di zona waktu Jakarta (WIB), format HH:MM (24 jam). */
+export function nowHHMMJakarta(): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date());
+}
+
 /**
  * Gabungkan tanggal mulai absensi GLOBAL (`absensi_pengaturan.tanggal_mulai`)
  * dengan tanggal mulai KHUSUS 1 pegawai (`pegawai.tanggal_mulai_absensi`,

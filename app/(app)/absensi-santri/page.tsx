@@ -4,7 +4,8 @@ import { CalendarCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireAbsensiSantri } from "@/lib/auth/dal";
 import { getStr, type SearchParams } from "@/lib/list-params";
-import { todayJakarta } from "@/lib/absensi-status";
+import { todayJakarta, nowHHMMJakarta } from "@/lib/absensi-status";
+import { mostRecentCheckpointId, tanggalShift } from "@/lib/absensi-santri";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -21,11 +22,6 @@ type ExceptionRow = {
   catatan: string | null;
 };
 type SubmissionRow = { kelas_id: string; checkpoint_id: string; updated_at: string };
-
-function minutesOfDay(hhmmss: string): number {
-  const [h, m] = hhmmss.split(":").map(Number);
-  return h * 60 + m;
-}
 
 const PAGE_SIZE = 1000;
 
@@ -52,55 +48,6 @@ async function ambilSemua<T>(
     from += PAGE_SIZE;
   }
   return rows;
-}
-
-// Checkpoint yang PALING BARU TERLEWATI, bukan sekadar yang jaraknya
-// paling dekat — musyrif ngisi absen SESUDAH checkpoint terjadi, bukan
-// sebelumnya. Mis. jam 10:17 dgn checkpoint 09:00 & 11:20: nearest-by-
-// distance akan pilih 11:20 (63 menit vs 77 menit) padahal 11:20 belum
-// terjadi — yang benar tetap 09:00 (checkpoint yg baru saja lewat).
-// `elapsed` dihitung melingkar (mod 1440) supaya shift 3 yg lewat tengah
-// malam (21:00 → 04:50) tetap benar.
-// Tanggal MULAI malam jaga, bukan tanggal kalender saat menekan tombol.
-// Shift 3 melewati tengah malam (21:00 → 04:50): tanpa penyesuaian ini,
-// absen jam 01:00 tersimpan sebagai tanggal besoknya — satu malam terbelah
-// jadi dua tanggal, carry-forward pengecualian putus tepat di tengah malam,
-// dan rekap harian mencampur ekor malam kemarin dengan kepala malam ini.
-//
-// Patokannya JAM SEKARANG, bukan checkpoint yang sedang dipilih: musyrif
-// bisa membuka kembali checkpoint 23:30 pada jam 01:15 untuk mengoreksi, dan
-// itu tetap milik malam yang sama. Shift yang tidak melewati tengah malam
-// (shift 1 & 2) tidak terpengaruh sama sekali.
-function tanggalShift(
-  checkpoints: Checkpoint[],
-  nowHHMM: string,
-  todayISO: string,
-): string {
-  // `checkpoints` sudah terurut `urutan` dari query — elemen pertama adalah
-  // awal shift. Kolom `urutan` memang ada justru karena mengurutkan dari
-  // kolom `jam` mentah salah untuk shift lintas tengah malam.
-  const mulai = minutesOfDay(checkpoints[0].jam);
-  const lintasTengahMalam = checkpoints.some((c) => minutesOfDay(c.jam) < mulai);
-  if (!lintasTengahMalam || minutesOfDay(nowHHMM) >= mulai) return todayISO;
-
-  const d = new Date(`${todayISO}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
-}
-
-function mostRecentCheckpointId(checkpoints: Checkpoint[], nowHHMM: string): string {
-  const now = minutesOfDay(nowHHMM);
-  let bestId = checkpoints[0].id;
-  let bestElapsed = Infinity;
-  for (const c of checkpoints) {
-    const cm = minutesOfDay(c.jam);
-    const elapsed = (((now - cm) % 1440) + 1440) % 1440;
-    if (elapsed < bestElapsed) {
-      bestElapsed = elapsed;
-      bestId = c.id;
-    }
-  }
-  return bestId;
 }
 
 export default async function Page({
@@ -167,12 +114,7 @@ export default async function Page({
     );
   }
 
-  const nowHHMM = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Jakarta",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date());
+  const nowHHMM = nowHHMMJakarta();
   const tanggal = tanggalShift(checkpoints, nowHHMM, todayJakarta());
   const checkpointParam = getStr(sp.checkpoint);
   const autoCheckpointId = mostRecentCheckpointId(checkpoints, nowHHMM);
