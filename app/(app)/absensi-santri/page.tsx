@@ -27,6 +27,33 @@ function minutesOfDay(hhmmss: string): number {
   return h * 60 + m;
 }
 
+const PAGE_SIZE = 1000;
+
+/**
+ * Ambil SEMUA baris lewat paginasi. PostgREST membatasi 1000 baris per
+ * permintaan secara diam-diam — musyrif shift 3 sering ditugaskan ke SEMUA
+ * kelas (~780 santri di pondok ini), sudah dekat batas itu. Tanpa ini,
+ * kelas yang terurut belakangan bisa kehilangan sebagian/semua roster-nya
+ * tanpa pesan error, dan santrinya otomatis terhitung hadir di rekap.
+ */
+async function ambilSemua<T>(
+  run: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data } = await run(from, from + PAGE_SIZE - 1);
+    const batch = (data ?? []) as unknown as T[];
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return rows;
+}
+
 // Checkpoint yang PALING BARU TERLEWATI, bukan sekadar yang jaraknya
 // paling dekat — musyrif ngisi absen SESUDAH checkpoint terjadi, bukan
 // sebelumnya. Mis. jam 10:17 dgn checkpoint 09:00 & 11:20: nearest-by-
@@ -164,30 +191,34 @@ export default async function Page({
   // jadi 3 query total (bukan N query per kelas).
   const kelasIds = kelasOptions.map((k) => k.id);
 
-  const [{ data: rosterData }, { data: allExceptionsData }, { data: allSubmissionsData }] =
-    await Promise.all([
+  const [rosterRows, exceptionRows, { data: allSubmissionsData }] = await Promise.all([
+    ambilSemua<{ kelas_id: string; santri: Santri | null }>((from, to) =>
       supabase
         .from("santri_kelas")
         .select("kelas_id, santri:santri(id, nis, nama)")
-        .in("kelas_id", kelasIds),
+        .in("kelas_id", kelasIds)
+        .order("id")
+        .range(from, to),
+    ),
+    ambilSemua<ExceptionRow>((from, to) =>
       supabase
         .from("absensi_santri")
         .select("santri_id, kelas_id, checkpoint_id, status, catatan")
         .in("kelas_id", kelasIds)
-        .eq("tanggal", tanggal),
-      supabase
-        .from("absensi_santri_submission")
-        .select("kelas_id, checkpoint_id, updated_at")
-        .in("kelas_id", kelasIds)
         .eq("tanggal", tanggal)
-        .order("updated_at", { ascending: false }),
-    ]);
+        .order("id")
+        .range(from, to),
+    ),
+    supabase
+      .from("absensi_santri_submission")
+      .select("kelas_id, checkpoint_id, updated_at")
+      .in("kelas_id", kelasIds)
+      .eq("tanggal", tanggal)
+      .order("updated_at", { ascending: false }),
+  ]);
 
   const rosterByKelas = new Map<string, Santri[]>();
-  for (const r of (rosterData ?? []) as unknown as {
-    kelas_id: string;
-    santri: Santri | null;
-  }[]) {
+  for (const r of rosterRows) {
     if (!r.santri) continue;
     const list = rosterByKelas.get(r.kelas_id) ?? [];
     list.push(r.santri);
@@ -198,7 +229,7 @@ export default async function Page({
   }
 
   const exceptionsByKelasCheckpoint = new Map<string, ExceptionRow[]>();
-  for (const e of (allExceptionsData ?? []) as ExceptionRow[]) {
+  for (const e of exceptionRows) {
     const key = `${e.kelas_id}:${e.checkpoint_id}`;
     const list = exceptionsByKelasCheckpoint.get(key) ?? [];
     list.push(e);
