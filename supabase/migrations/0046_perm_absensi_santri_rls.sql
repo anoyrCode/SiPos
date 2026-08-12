@@ -57,11 +57,15 @@ alter policy "santri_kelas_select_staff" on public.santri_kelas
     or (select public.can_absensi_santri()) or (select public.can_rekap_absensi_santri())
   );
 
+-- Basis policy ini BUKAN dari 0035 — 0036 sudah menambahkan
+-- can_dashboard() setelahnya (perbaikan gap "Total Santri Aktif = 0" utk
+-- peran dashboard-only). ALTER di sini harus mempertahankan itu, kalau
+-- tidak celah yang sama muncul lagi.
 alter policy "santri_select_staff" on public.santri
   using (
     (select public.can_santri()) or (select public.can_input_poin())
     or (select public.can_laporan()) or (select public.can_kesehatan())
-    or (select public.can_akun_wali())
+    or (select public.can_akun_wali()) or (select public.can_dashboard())
     or (select public.can_absensi_santri()) or (select public.can_rekap_absensi_santri())
   );
 
