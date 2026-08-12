@@ -53,7 +53,20 @@ export async function submitAbsensiSantri(
     return { ok: false, error: "Jadwal checkpoint tidak ditemukan." };
   }
   const expectedTanggal = tanggalShift(shiftCheckpoints, nowHHMMJakarta(), todayJakarta());
-  if (tanggal !== expectedTanggal) {
+  // Toleransi 1 hari, bukan cocok persis — `tanggal` yang dikirim klien
+  // dihitung SAAT HALAMAN DIMUAT, sedangkan `expectedTanggal` dihitung
+  // ulang SAAT SUBMIT. Kalau musyrif membuka halaman beberapa menit sebelum
+  // jam mulai shift (mis. 20:55 utk shift 3) lalu baru submit setelah jam
+  // 21:00 lewat, kedua momen itu jatuh di sisi berlawanan dari batas
+  // shift — bukan penyalahgunaan, cuma jeda wajar mengisi form. Toleransi
+  // ini tetap menolak tanggal yang jauh (mis. berminggu-minggu lalu), yang
+  // itu skenario yang sebenarnya ingin dicegah.
+  const bedaHari = Math.round(
+    Math.abs(
+      Date.parse(`${tanggal}T00:00:00Z`) - Date.parse(`${expectedTanggal}T00:00:00Z`),
+    ) / 86_400_000,
+  );
+  if (Number.isNaN(bedaHari) || bedaHari > 1) {
     return {
       ok: false,
       error: "Tanggal tidak sesuai jam saat ini. Muat ulang halaman dan coba lagi.",
