@@ -12,6 +12,7 @@ import {
   mostRecentCheckpointId,
   tanggalShift,
 } from "@/lib/absensi-santri";
+import { formatDateID } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -233,11 +234,26 @@ export default async function Page({
     catatanByKelas.set(c.kelas_id, list);
   }
 
+  // Submission difilter ke checkpoint milik SHIFT INI saja — query submission
+  // di atas hanya menyaring kelas + tanggal, jadi baris dari musyrif shift
+  // lain untuk kelas yang sama ikut terbawa dan akan salah dihitung sebagai
+  // kelengkapan shift ini.
+  const checkpointIdSet = new Set(checkpoints.map((c) => c.id));
+
   const groups: KelasGroup[] = kelasOptions.map((k) => {
     const roster = rosterByKelas.get(k.id) ?? [];
     // `submissionsByKelas` sudah terurut desc updated_at (dari query di atas).
     const kelasSubmissions = submissionsByKelas.get(k.id) ?? [];
     const submitted = kelasSubmissions.some((s) => s.checkpoint_id === selectedCheckpoint.id);
+
+    const terisiShiftIni = new Set(
+      kelasSubmissions
+        .filter((s) => checkpointIdSet.has(s.checkpoint_id))
+        .map((s) => s.checkpoint_id),
+    );
+    const jamBelumDiisi = checkpoints
+      .filter((c) => !terisiShiftIni.has(c.id))
+      .map((c) => c.jam.slice(0, 5));
 
     const initialExceptions: Record<
       string,
@@ -271,6 +287,7 @@ export default async function Page({
       roster,
       initialExceptions,
       catatan: catatanByKelas.get(k.id) ?? [],
+      jamBelumDiisi,
     };
   });
 
@@ -389,6 +406,9 @@ export default async function Page({
         groups={groups}
         terkunci={terlaluAwal}
         jamSekarang={nowHHMM}
+        shift={profile.shift}
+        tanggalLabel={formatDateID(tanggal)}
+        musyrif={profile.name}
       />
     </div>
   );

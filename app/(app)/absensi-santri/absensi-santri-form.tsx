@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { submitAbsensiSantri } from "./actions";
 import { CatatanDialog, type CatatanItem } from "./catatan-dialog";
+import { BapDialog } from "./bap-dialog";
 
 type Status = "hadir" | "izin" | "sakit" | "alpa";
 const CYCLE: Status[] = ["hadir", "izin", "sakit", "alpa"];
@@ -38,6 +39,7 @@ export type KelasGroup = {
   roster: Santri[];
   initialExceptions: Record<string, Exception>;
   catatan: CatatanItem[];
+  jamBelumDiisi: string[];
 };
 
 export function AbsensiSantriForm({
@@ -51,6 +53,9 @@ export function AbsensiSantriForm({
   // tanpa lewat tombol ini.
   terkunci = false,
   jamSekarang,
+  shift,
+  tanggalLabel,
+  musyrif,
 }: {
   checkpointId: string;
   tanggal: string;
@@ -58,6 +63,9 @@ export function AbsensiSantriForm({
   terkunci?: boolean;
   /** Jam WIB "HH:MM" dari server — nilai awal form catatan. */
   jamSekarang: string;
+  shift: number;
+  tanggalLabel: string;
+  musyrif: string;
 }) {
   const router = useRouter();
   const single = groups.length <= 1;
@@ -244,6 +252,15 @@ export function AbsensiSantriForm({
                           kelasNama={g.kelasNama}
                           jamSekarang={jamSekarang}
                           catatan={g.catatan}
+                        />
+                        <BapDialog
+                          kelasId={g.kelasId}
+                          kelasNama={g.kelasNama}
+                          shift={shift}
+                          tanggal={tanggal}
+                          tanggalLabel={tanggalLabel}
+                          musyrif={musyrif}
+                          jamBelumDiisi={g.jamBelumDiisi}
                         />
                       </div>
                     </div>
