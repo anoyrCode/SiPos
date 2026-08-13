@@ -339,6 +339,7 @@ export default async function Page({
                           // seluruh checkpoint-nya terisi. Gerbang sebenarnya
                           // tetap dijalankan ulang di getBapData().
                           jamBelumDiisi={[]}
+                          label={`BAP Shift ${s}`}
                         />
                       ))}
                     </div>

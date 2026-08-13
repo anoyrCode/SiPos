@@ -37,6 +37,7 @@ export function BapDialog({
   tanggalLabel,
   musyrif,
   jamBelumDiisi,
+  label = "Buat BAP",
 }: {
   kelasId: string;
   kelasNama: string;
@@ -46,6 +47,13 @@ export function BapDialog({
   musyrif: string;
   /** Jam pengecekan yang belum diisi. Kosong = BAP boleh dibuat. */
   jamBelumDiisi: string[];
+  /**
+   * Teks tombol. Musyrif hanya punya satu shift, jadi "Buat BAP" sudah jelas.
+   * Di rekap admin satu kelas bisa punya beberapa shift lengkap sekaligus —
+   * tanpa nomor shift di tombolnya, dua tombol berdampingan jadi identik dan
+   * tidak bisa dibedakan.
+   */
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [hasil, setHasil] = useState<BapResult | null>(null);
@@ -105,7 +113,7 @@ export function BapDialog({
         title={`Belum bisa: ${jamBelumDiisi.join(", ")} belum diisi`}
       >
         <FileText className="size-4" />
-        Buat BAP
+        {label}
       </Button>
     );
   }
