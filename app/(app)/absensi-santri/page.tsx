@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { AbsensiSantriForm, type KelasGroup } from "./absensi-santri-form";
+import type { CatatanItem } from "./catatan-dialog";
 
 type Checkpoint = { id: string; jam: string; urutan: number };
 type Kelas = { id: string; nama_kelas: string };
@@ -152,7 +153,8 @@ export default async function Page({
   // jadi 3 query total (bukan N query per kelas).
   const kelasIds = kelasOptions.map((k) => k.id);
 
-  const [rosterRows, exceptionRows, { data: allSubmissionsData }] = await Promise.all([
+  const [rosterRows, exceptionRows, { data: allSubmissionsData }, { data: catatanData }] =
+    await Promise.all([
     ambilSemua<{ kelas_id: string; santri: Santri | null }>((from, to) =>
       supabase
         .from("santri_kelas")
@@ -176,7 +178,14 @@ export default async function Page({
       .in("kelas_id", kelasIds)
       .eq("tanggal", tanggal)
       .order("updated_at", { ascending: false }),
-  ]);
+    supabase
+      .from("absensi_santri_catatan")
+      .select("id, kelas_id, jam, isi")
+      .in("kelas_id", kelasIds)
+      .eq("tanggal", tanggal)
+      .eq("shift", profile.shift)
+      .order("jam"),
+    ]);
 
   const rosterByKelas = new Map<string, Santri[]>();
   for (const r of rosterRows) {
@@ -210,6 +219,18 @@ export default async function Page({
       s.checkpoint_id,
       (terisiPerCheckpoint.get(s.checkpoint_id) ?? 0) + 1,
     );
+  }
+
+  const catatanByKelas = new Map<string, CatatanItem[]>();
+  for (const c of (catatanData ?? []) as {
+    id: string;
+    kelas_id: string;
+    jam: string;
+    isi: string;
+  }[]) {
+    const list = catatanByKelas.get(c.kelas_id) ?? [];
+    list.push({ id: c.id, jam: c.jam, isi: c.isi });
+    catatanByKelas.set(c.kelas_id, list);
   }
 
   const groups: KelasGroup[] = kelasOptions.map((k) => {
@@ -249,6 +270,7 @@ export default async function Page({
       submitted,
       roster,
       initialExceptions,
+      catatan: catatanByKelas.get(k.id) ?? [],
     };
   });
 
@@ -366,6 +388,7 @@ export default async function Page({
         tanggal={tanggal}
         groups={groups}
         terkunci={terlaluAwal}
+        jamSekarang={nowHHMM}
       />
     </div>
   );

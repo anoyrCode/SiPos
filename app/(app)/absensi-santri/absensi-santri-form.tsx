@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { submitAbsensiSantri } from "./actions";
+import { CatatanDialog, type CatatanItem } from "./catatan-dialog";
 
 type Status = "hadir" | "izin" | "sakit" | "alpa";
 const CYCLE: Status[] = ["hadir", "izin", "sakit", "alpa"];
@@ -36,6 +37,7 @@ export type KelasGroup = {
   submitted: boolean;
   roster: Santri[];
   initialExceptions: Record<string, Exception>;
+  catatan: CatatanItem[];
 };
 
 export function AbsensiSantriForm({
@@ -48,11 +50,14 @@ export function AbsensiSantriForm({
   // submitAbsensiSantri(), karena server action bisa dipanggil langsung
   // tanpa lewat tombol ini.
   terkunci = false,
+  jamSekarang,
 }: {
   checkpointId: string;
   tanggal: string;
   groups: KelasGroup[];
   terkunci?: boolean;
+  /** Jam WIB "HH:MM" dari server — nilai awal form catatan. */
+  jamSekarang: string;
 }) {
   const router = useRouter();
   const single = groups.length <= 1;
@@ -215,7 +220,7 @@ export function AbsensiSantriForm({
                         );
                       })}
                     </div>
-                    <div className="border-t border-border/50 p-3">
+                    <div className="space-y-2 border-t border-border/50 p-3">
                       <Button
                         onClick={() => onSubmitKelas(g)}
                         disabled={terkunci || submittingId !== null}
@@ -229,6 +234,18 @@ export function AbsensiSantriForm({
                               ? "Perbarui Absensi"
                               : "Simpan Absensi"}
                       </Button>
+                      {/* Tombol-tombol ini WAJIB di badan kartu, bukan di header:
+                          header kartu untuk musyrif multi-kelas itu sendiri sebuah
+                          <button>, dan menyarangkan <button> di dalam <button>
+                          adalah HTML tidak valid. */}
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <CatatanDialog
+                          kelasId={g.kelasId}
+                          kelasNama={g.kelasNama}
+                          jamSekarang={jamSekarang}
+                          catatan={g.catatan}
+                        />
+                      </div>
                     </div>
                   </>
                 )}
