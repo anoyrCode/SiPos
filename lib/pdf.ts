@@ -1,3 +1,5 @@
+import type { BapData } from "@/lib/bap-absensi-santri";
+
 const BRAND = [0, 146, 183] as const;        // #0092B7
 const POSITIVE = [22, 163, 74] as const;      // #16A34A
 const NEGATIVE = [225, 29, 72] as const;      // #E11D48
@@ -317,4 +319,120 @@ export async function downloadPdfRekapSantri(rows: SantriRekapRow[], taLabel: st
   });
 
   doc.save(`rekap-santri-${taLabel}.pdf`);
+}
+
+const STATUS_BAP: Record<"izin" | "sakit" | "alpa", string> = {
+  izin: "Izin",
+  sakit: "Sakit",
+  alpa: "Alpa",
+};
+
+export async function downloadBapAbsensiSantri(params: {
+  kelas: string;
+  shift: number;
+  tanggalLabel: string;
+  musyrif: string;
+  jamPengecekan: string[];
+  data: BapData;
+  catatan: { jam: string; isi: string }[];
+}) {
+  const { kelas, shift, tanggalLabel, musyrif, jamPengecekan, data, catatan } = params;
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const W = doc.internal.pageSize.width;
+
+  let y = await drawHeader(doc, "Berita Acara Pengawasan", [`Tanggal: ${tanggalLabel}`]);
+
+  doc.setFontSize(9.5);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...FG);
+
+  const info: [string, string][] = [
+    ["Kelas", kelas],
+    ["Shift", String(shift)],
+    ["Tanggal", tanggalLabel],
+    ["Musyrif Pengawas", musyrif],
+  ];
+  for (const [k, v] of info) {
+    doc.text(k, 14, y);
+    doc.text(`: ${v}`, 46, y);
+    y += 5.5;
+  }
+  y += 4;
+
+  // Blok empat angka BAP.
+  const yakniTeks =
+    data.yakni.length === 0
+      ? "-"
+      : data.yakni
+          .map((s) => `${s.nama} (${STATUS_BAP[s.status]}, ${s.jamList.join("/")})`)
+          .join("; ");
+
+  const angka: [string, string][] = [
+    ["Jumlah santri", String(data.jumlahSantri)],
+    ["Seharusnya", String(data.seharusnya)],
+    ["Tidak Hadir", data.tidakHadir === 0 ? "-" : String(data.tidakHadir)],
+  ];
+  for (const [k, v] of angka) {
+    doc.text(k, 14, y);
+    doc.text(`: ${v}`, 46, y);
+    y += 5.5;
+  }
+  doc.text("Yakni", 14, y);
+  const yakniLines = doc.splitTextToSize(`: ${yakniTeks}`, W - 60);
+  doc.text(yakniLines, 46, y);
+  y += yakniLines.length * 5 + 4;
+
+  // Bukti cakupan pengawasan.
+  doc.setFontSize(8.5);
+  doc.setTextColor(...MUTED);
+  const jamLines = doc.splitTextToSize(
+    `Jam pengecekan: ${jamPengecekan.join(", ")}`,
+    W - 28,
+  );
+  doc.text(jamLines, 14, y);
+  y += jamLines.length * 4.5 + 5;
+
+  doc.setFontSize(9.5);
+  doc.setTextColor(...FG);
+  doc.setFont("helvetica", "bold");
+  doc.text("Catatan selama pengawasan", 14, y);
+  y += 3;
+  doc.setFont("helvetica", "normal");
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Jam", "Catatan"]],
+    body:
+      catatan.length === 0
+        ? [["-", "Tidak ada catatan."]]
+        : catatan.map((c) => [c.jam.slice(0, 5), c.isi]),
+    headStyles: { fillColor: [...BRAND], textColor: 255, fontStyle: "bold", fontSize: 8.5 },
+    alternateRowStyles: { fillColor: [...ZEBRA] },
+    styles: { fontSize: 8.5, cellPadding: 3, textColor: [...FG] },
+    columnStyles: { 0: { cellWidth: 20, halign: "center" } },
+    didDrawPage: (data2) => {
+      pageFooter(
+        doc,
+        data2.pageNumber,
+        (doc as unknown as { internal: { pages: unknown[] } }).internal.pages.length - 1 || 1,
+      );
+    },
+  });
+
+  const finalY =
+    (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 16;
+  const sigY = Math.min(finalY, doc.internal.pageSize.height - 38);
+
+  doc.setFontSize(9.5);
+  doc.setTextColor(...FG);
+  doc.text("Musyrif Pengawas,", 14, sigY);
+  doc.text("Kesantrian,", W - 70, sigY);
+  doc.text("(_______________________)", 14, sigY + 22);
+  doc.text("(_______________________)", W - 70, sigY + 22);
+
+  const namaBerkas = `bap-${kelas.trim().replace(/\s+/g, "-").toLowerCase()}-shift${shift}`;
+  doc.save(`${namaBerkas}.pdf`);
 }
