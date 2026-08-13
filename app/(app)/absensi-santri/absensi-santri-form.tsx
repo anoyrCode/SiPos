@@ -228,7 +228,7 @@ export function AbsensiSantriForm({
                         );
                       })}
                     </div>
-                    <div className="space-y-2 border-t border-border/50 p-3">
+                    <div className="border-t border-border/50 p-3">
                       <Button
                         onClick={() => onSubmitKelas(g)}
                         disabled={terkunci || submittingId !== null}
@@ -242,10 +242,17 @@ export function AbsensiSantriForm({
                               ? "Perbarui Absensi"
                               : "Simpan Absensi"}
                       </Button>
-                      {/* Tombol-tombol ini WAJIB di badan kartu, bukan di header:
-                          header kartu untuk musyrif multi-kelas itu sendiri sebuah
-                          <button>, dan menyarangkan <button> di dalam <button>
-                          adalah HTML tidak valid. */}
+                    </div>
+                    {/* Alat bantu pelaporan dipisah ke strip sendiri dengan
+                        latar redup — supaya aksi utama (menyimpan absensi)
+                        tetap menonjol dan tidak jadi satu dari tiga batang
+                        bertumpuk yang berbobot sama.
+
+                        Tombol-tombol ini WAJIB di badan kartu, bukan di header:
+                        header kartu untuk musyrif multi-kelas itu sendiri sebuah
+                        <button>, dan menyarangkan <button> di dalam <button>
+                        adalah HTML tidak valid. */}
+                    <div className="space-y-2 border-t border-border/40 bg-muted/25 px-3 py-2.5">
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <CatatanDialog
                           kelasId={g.kelasId}
@@ -263,6 +270,12 @@ export function AbsensiSantriForm({
                           jamBelumDiisi={g.jamBelumDiisi}
                         />
                       </div>
+                      {g.jamBelumDiisi.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          BAP bisa dibuat setelah semua jam terisi. Belum:{" "}
+                          <span className="font-mono">{g.jamBelumDiisi.join(", ")}</span>
+                        </p>
+                      )}
                     </div>
                   </>
                 )}

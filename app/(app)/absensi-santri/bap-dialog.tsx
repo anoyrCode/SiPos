@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Copy, FileText } from "lucide-react";
+import { CheckCircle2, Clock, Copy, FileText, NotebookPen } from "lucide-react";
 
 import {
   Dialog,
@@ -93,10 +93,19 @@ export function BapDialog({
   }
 
   if (terkunci) {
+    // Label tetap menyebut aksinya, bukan penolakannya — alasannya ditulis
+    // sebagai keterangan di bawah tombol oleh pemanggil, supaya tombol tidak
+    // berubah bentuk hanya karena daftar jamnya panjang.
     return (
-      <Button type="button" variant="outline" className="flex-1" disabled>
+      <Button
+        type="button"
+        variant="outline"
+        className="flex-1"
+        disabled
+        title={`Belum bisa: ${jamBelumDiisi.join(", ")} belum diisi`}
+      >
         <FileText className="size-4" />
-        Belum bisa — {jamBelumDiisi.join(", ")} belum diisi
+        Buat BAP
       </Button>
     );
   }
@@ -133,67 +142,118 @@ export function BapDialog({
         )}
 
         {!pending && hasil?.ok && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-2">
-              {(
-                [
-                  ["Jumlah santri", hasil.data.jumlahSantri],
-                  ["Seharusnya", hasil.data.seharusnya],
-                  ["Tidak Hadir", hasil.data.tidakHadir],
-                ] as [string, number][]
-              ).map(([label, nilai]) => (
+          <div className="space-y-5">
+            {/* Yang dibaca lebih dulu oleh pembaca berita acara adalah
+                PROPORSI kehadiran, bukan tiga bilangan terpisah — karena itu
+                satu panel dengan perbandingan dan bilah, bukan tiga kotak
+                angka berbobot sama. Warna semantik yang membawa maknanya:
+                hijau hadir, merah tidak hadir. */}
+            <div className="rounded-card border border-border/70 bg-muted/30 p-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-mono text-3xl font-bold tabular-nums text-positive">
+                    {hasil.data.jumlahSantri}
+                  </span>{" "}
+                  dari{" "}
+                  <span className="font-mono text-lg font-semibold tabular-nums text-foreground">
+                    {hasil.data.seharusnya}
+                  </span>{" "}
+                  santri hadir
+                </p>
+                {hasil.data.tidakHadir > 0 && (
+                  <Badge variant="negative">
+                    {hasil.data.tidakHadir} tidak hadir
+                  </Badge>
+                )}
+              </div>
+              <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-negative-soft">
                 <div
-                  key={label}
-                  className="rounded-lg border border-border/70 p-2.5 text-center"
-                >
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className="text-2xl font-bold tabular-nums">{nilai}</p>
-                </div>
-              ))}
+                  className="bg-positive transition-[width] duration-500"
+                  style={{
+                    width:
+                      hasil.data.seharusnya > 0
+                        ? `${(hasil.data.jumlahSantri / hasil.data.seharusnya) * 100}%`
+                        : "0%",
+                  }}
+                />
+              </div>
             </div>
 
-            <div>
-              <p className="text-sm font-semibold">Yakni</p>
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold">Yakni</h3>
               {hasil.data.yakni.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Tidak ada santri yang tidak hadir.
+                <p className="flex items-center gap-2 text-sm text-positive">
+                  <CheckCircle2 className="size-4 shrink-0" />
+                  Seluruh santri hadir di semua jam pengecekan.
                 </p>
               ) : (
-                <ul className="mt-1 space-y-1">
+                <ul className="space-y-1.5">
                   {hasil.data.yakni.map((s) => (
-                    <li key={s.santriId} className="flex items-center gap-2 text-sm">
-                      <Badge variant={STATUS_VARIANT[s.status]}>
+                    <li
+                      key={s.santriId}
+                      className="flex items-start justify-between gap-2 rounded-lg border border-border/70 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{s.nama}</p>
+                        <p className="font-mono text-xs text-muted-foreground">
+                          {s.jamList.join(" · ")}
+                        </p>
+                        {s.catatan && (
+                          <p className="mt-0.5 text-xs italic text-muted-foreground">
+                            {s.catatan}
+                          </p>
+                        )}
+                      </div>
+                      <Badge variant={STATUS_VARIANT[s.status]} className="shrink-0">
                         {STATUS_LABEL[s.status]}
                       </Badge>
-                      <span className="min-w-0 truncate">{s.nama}</span>
-                      <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                        {s.jamList.join(", ")}
-                      </span>
                     </li>
                   ))}
                 </ul>
               )}
-            </div>
+            </section>
 
-            <div>
-              <p className="text-sm font-semibold">Catatan selama pengawasan</p>
+            <section className="space-y-2 border-t border-border/50 pt-4">
+              <h3 className="text-sm font-semibold">Catatan selama pengawasan</h3>
               {hasil.catatan.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Tidak ada catatan.</p>
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <NotebookPen className="size-4 shrink-0" />
+                  Belum ada catatan kejadian.
+                </p>
               ) : (
-                <ul className="mt-1 space-y-1">
+                <ul className="space-y-1.5">
                   {hasil.catatan.map((c, i) => (
-                    <li key={i} className="text-sm">
-                      <span className="font-mono text-xs text-muted-foreground">
+                    <li key={i} className="flex gap-2.5 text-sm">
+                      <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
                         {c.jam.slice(0, 5)}
-                      </span>{" "}
-                      {c.isi}
+                      </span>
+                      <span className="min-w-0">{c.isi}</span>
                     </li>
                   ))}
                 </ul>
               )}
-            </div>
+            </section>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
+            {/* Cakupan pengawasan — ikut tercetak di PDF, jadi ditampilkan di
+                pratinjau supaya isinya tidak mengejutkan saat diunduh. */}
+            <section className="space-y-2 border-t border-border/50 pt-4">
+              <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+                <Clock className="size-3.5 text-muted-foreground" />
+                Jam pengecekan
+              </h3>
+              <div className="flex flex-wrap gap-1.5">
+                {hasil.jamPengecekan.map((j) => (
+                  <span
+                    key={j}
+                    className="rounded-full border border-border/70 px-2 py-0.5 font-mono text-xs text-muted-foreground"
+                  >
+                    {j}
+                  </span>
+                ))}
+              </div>
+            </section>
+
+            <div className="flex flex-col gap-2 border-t border-border/50 pt-4 sm:flex-row">
               <Button type="button" onClick={onUnduhPdf} className="flex-1">
                 <FileText className="size-4" />
                 Unduh PDF
