@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FilterSelect } from "@/components/shared/filter-select";
 import { DateFilter } from "@/app/(admin)/rekap-absensi/date-filter";
+import { BapDialog } from "@/app/(app)/absensi-santri/bap-dialog";
+import { formatDateID } from "@/lib/format";
 import { CheckpointDialog } from "./checkpoint-dialog";
 import { RekapDetailDialog } from "./rekap-detail-dialog";
 import { RekapSantriExportDialog } from "./rekap-santri-export-dialog";
@@ -291,6 +293,12 @@ export default async function Page({
             const totalIzin = g.rows.reduce((s, r) => s + r.izin, 0);
             const totalSakit = g.rows.reduce((s, r) => s + r.sakit, 0);
             const totalAlpa = g.rows.reduce((s, r) => s + r.alpa, 0);
+            // Hanya shift yang SELURUH checkpoint-nya sudah terisi yang boleh
+            // dibuatkan BAP — syarat yang sama seperti di halaman musyrif.
+            const shiftList = [...new Set(g.rows.map((r) => r.checkpoint.shift))].sort();
+            const shiftLengkap = shiftList.filter((s) =>
+              g.rows.every((r) => r.checkpoint.shift !== s || r.submitted),
+            );
             return (
               <details
                 key={g.kelas.id}
@@ -313,6 +321,28 @@ export default async function Page({
                   </span>
                 </summary>
                 <div className="border-t border-border/50">
+                  {shiftLengkap.length > 0 && (
+                    <div className="flex flex-wrap gap-2 border-b border-border/40 px-5 py-3">
+                      {shiftLengkap.map((s) => (
+                        <BapDialog
+                          key={s}
+                          kelasId={g.kelas.id}
+                          kelasNama={g.kelas.nama_kelas}
+                          shift={s}
+                          tanggal={tanggal}
+                          tanggalLabel={formatDateID(tanggal)}
+                          musyrif={
+                            g.rows.find((r) => r.checkpoint.shift === s && r.dicatatOleh)
+                              ?.dicatatOleh ?? "—"
+                          }
+                          // Aman: shiftLengkap sudah hanya memuat shift yang
+                          // seluruh checkpoint-nya terisi. Gerbang sebenarnya
+                          // tetap dijalankan ulang di getBapData().
+                          jamBelumDiisi={[]}
+                        />
+                      ))}
+                    </div>
+                  )}
                   {g.rows.map((r) => (
                     <div
                       key={r.key}
