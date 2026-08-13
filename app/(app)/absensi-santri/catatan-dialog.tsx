@@ -93,7 +93,7 @@ export function CatatanDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" className="h-10 flex-1">
+        <Button type="button" variant="outline" className="h-11 flex-1">
           <NotebookPen className="size-4" />
           Catatan ({catatan.length})
         </Button>
@@ -182,8 +182,13 @@ export function CatatanDialog({
               className="min-h-20 text-sm"
             />
           </Field>
-          <Button type="button" onClick={onSimpan} disabled={pending} className="w-full">
-            {pending ? "Menyimpan…" : editId ? "Simpan Perubahan" : "Tambah"}
+          <Button
+            type="button"
+            onClick={onSimpan}
+            disabled={pending}
+            className="h-11 w-full"
+          >
+            {pending ? "Menyimpan…" : editId ? "Simpan Perubahan" : "Tambah Catatan"}
           </Button>
         </div>
       </DialogContent>

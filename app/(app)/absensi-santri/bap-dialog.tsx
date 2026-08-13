@@ -100,7 +100,7 @@ export function BapDialog({
       <Button
         type="button"
         variant="outline"
-        className="h-10 flex-1"
+        className="h-11 flex-1"
         disabled
         title={`Belum bisa: ${jamBelumDiisi.join(", ")} belum diisi`}
       >
@@ -120,7 +120,7 @@ export function BapDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" className="h-10 flex-1">
+        <Button type="button" variant="outline" className="h-11 flex-1">
           <FileText className="size-4" />
           Buat BAP
         </Button>
@@ -179,8 +179,14 @@ export function BapDialog({
               </div>
             </div>
 
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold">Yakni</h3>
+            {/* Judul bagian dibuat kecil, kapital, dan redup — bukan `text-sm
+                font-semibold` seperti sub-bagian form. Di sini isinya yang
+                harus menonjol; judul seukuran teks isi membuat judul dan isi
+                saling berebut dan bagian-bagiannya terbaca menyatu. */}
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Yakni
+              </h3>
               {hasil.data.yakni.length === 0 ? (
                 <p className="flex items-center gap-2 text-sm text-positive">
                   <CheckCircle2 className="size-4 shrink-0" />
@@ -191,30 +197,35 @@ export function BapDialog({
                   {hasil.data.yakni.map((s) => (
                     <li
                       key={s.santriId}
-                      className="flex items-start justify-between gap-2 rounded-lg border border-border/70 px-3 py-2"
+                      className="rounded-lg border border-border/70 px-3 py-2.5"
                     >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{s.nama}</p>
-                        <p className="font-mono text-xs text-muted-foreground">
-                          {s.jamList.join(" · ")}
+                      <div className="flex items-start justify-between gap-2">
+                        {/* Nama santri di sini panjang-panjang; dibiarkan
+                            membungkus, bukan dipotong, supaya tidak ada nama
+                            yang tidak terbaca utuh di berita acara. */}
+                        <p className="min-w-0 text-sm font-medium leading-snug">
+                          {s.nama}
                         </p>
-                        {s.catatan && (
-                          <p className="mt-0.5 text-xs italic text-muted-foreground">
-                            {s.catatan}
-                          </p>
-                        )}
+                        <Badge variant={STATUS_VARIANT[s.status]} className="shrink-0">
+                          {STATUS_LABEL[s.status]}
+                        </Badge>
                       </div>
-                      <Badge variant={STATUS_VARIANT[s.status]} className="shrink-0">
-                        {STATUS_LABEL[s.status]}
-                      </Badge>
+                      <p className="mt-1 font-mono text-xs text-muted-foreground">
+                        {s.jamList.join(" · ")}
+                      </p>
+                      {s.catatan && (
+                        <p className="mt-1 text-xs text-muted-foreground">{s.catatan}</p>
+                      )}
                     </li>
                   ))}
                 </ul>
               )}
             </section>
 
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold">Catatan selama pengawasan</h3>
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Catatan selama pengawasan
+              </h3>
               {hasil.catatan.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Belum ada catatan kejadian.</p>
               ) : (
@@ -236,13 +247,18 @@ export function BapDialog({
                 catatan kaki, bukan section tersendiri. Sebagai deretan chip,
                 tujuh jam pengecekan memakan dua baris dan terbaca lebih
                 penting daripada Yakni di atasnya. */}
-            <p className="text-xs leading-relaxed text-muted-foreground">
+            <p className="border-t border-border/50 pt-3 text-xs leading-relaxed text-muted-foreground">
               Jam pengecekan:{" "}
               <span className="font-mono">{hasil.jamPengecekan.join(", ")}</span>
             </p>
 
-            <div className="flex flex-col gap-2 border-t border-border/50 pt-4 sm:flex-row">
-              <Button type="button" onClick={onUnduhPdf} className="h-11 flex-1">
+            {/* Dua kolom, tidak pernah bertumpuk. Tombol selebar dialog dengan
+                tinggi berapa pun tetap terbaca sebagai batang tipis — yang
+                memperbaiki proporsinya adalah lebarnya, bukan tingginya.
+                Label "Salin ke WA" sengaja pendek supaya muat berdampingan di
+                layar HP tanpa terpotong. */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <Button type="button" onClick={onUnduhPdf} className="h-11">
                 <FileText className="size-4" />
                 Unduh PDF
               </Button>
@@ -250,10 +266,10 @@ export function BapDialog({
                 type="button"
                 variant="outline"
                 onClick={onSalin}
-                className="h-11 flex-1"
+                className="h-11"
               >
                 <Copy className="size-4" />
-                Salin untuk WhatsApp
+                Salin ke WA
               </Button>
             </div>
           </div>
