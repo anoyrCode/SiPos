@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, Clock, Copy, FileText, NotebookPen } from "lucide-react";
+import { CheckCircle2, Copy, FileText } from "lucide-react";
 
 import {
   Dialog,
@@ -100,7 +100,7 @@ export function BapDialog({
       <Button
         type="button"
         variant="outline"
-        className="flex-1"
+        className="h-10 flex-1"
         disabled
         title={`Belum bisa: ${jamBelumDiisi.join(", ")} belum diisi`}
       >
@@ -120,7 +120,7 @@ export function BapDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" className="flex-1">
+        <Button type="button" variant="outline" className="h-10 flex-1">
           <FileText className="size-4" />
           Buat BAP
         </Button>
@@ -142,7 +142,7 @@ export function BapDialog({
         )}
 
         {!pending && hasil?.ok && (
-          <div className="space-y-5">
+          <div className="space-y-4">
             {/* Yang dibaca lebih dulu oleh pembaca berita acara adalah
                 PROPORSI kehadiran, bukan tiga bilangan terpisah — karena itu
                 satu panel dengan perbandingan dan bilah, bukan tiga kotak
@@ -213,13 +213,10 @@ export function BapDialog({
               )}
             </section>
 
-            <section className="space-y-2 border-t border-border/50 pt-4">
+            <section className="space-y-2">
               <h3 className="text-sm font-semibold">Catatan selama pengawasan</h3>
               {hasil.catatan.length === 0 ? (
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <NotebookPen className="size-4 shrink-0" />
-                  Belum ada catatan kejadian.
-                </p>
+                <p className="text-sm text-muted-foreground">Belum ada catatan kejadian.</p>
               ) : (
                 <ul className="space-y-1.5">
                   {hasil.catatan.map((c, i) => (
@@ -234,27 +231,18 @@ export function BapDialog({
               )}
             </section>
 
-            {/* Cakupan pengawasan — ikut tercetak di PDF, jadi ditampilkan di
-                pratinjau supaya isinya tidak mengejutkan saat diunduh. */}
-            <section className="space-y-2 border-t border-border/50 pt-4">
-              <h3 className="flex items-center gap-1.5 text-sm font-semibold">
-                <Clock className="size-3.5 text-muted-foreground" />
-                Jam pengecekan
-              </h3>
-              <div className="flex flex-wrap gap-1.5">
-                {hasil.jamPengecekan.map((j) => (
-                  <span
-                    key={j}
-                    className="rounded-full border border-border/70 px-2 py-0.5 font-mono text-xs text-muted-foreground"
-                  >
-                    {j}
-                  </span>
-                ))}
-              </div>
-            </section>
+            {/* Cakupan pengawasan ikut tercetak di PDF, jadi tetap ditampilkan
+                supaya isinya tidak mengejutkan saat diunduh — tapi sebagai
+                catatan kaki, bukan section tersendiri. Sebagai deretan chip,
+                tujuh jam pengecekan memakan dua baris dan terbaca lebih
+                penting daripada Yakni di atasnya. */}
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Jam pengecekan:{" "}
+              <span className="font-mono">{hasil.jamPengecekan.join(", ")}</span>
+            </p>
 
             <div className="flex flex-col gap-2 border-t border-border/50 pt-4 sm:flex-row">
-              <Button type="button" onClick={onUnduhPdf} className="flex-1">
+              <Button type="button" onClick={onUnduhPdf} className="h-11 flex-1">
                 <FileText className="size-4" />
                 Unduh PDF
               </Button>
@@ -262,7 +250,7 @@ export function BapDialog({
                 type="button"
                 variant="outline"
                 onClick={onSalin}
-                className="flex-1"
+                className="h-11 flex-1"
               >
                 <Copy className="size-4" />
                 Salin untuk WhatsApp

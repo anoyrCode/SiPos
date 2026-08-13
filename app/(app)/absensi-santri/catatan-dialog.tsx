@@ -93,9 +93,9 @@ export function CatatanDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" className="flex-1">
+        <Button type="button" variant="outline" className="h-10 flex-1">
           <NotebookPen className="size-4" />
-          Catatan Pengawasan ({catatan.length})
+          Catatan ({catatan.length})
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
