@@ -76,15 +76,22 @@ export function BapDialog({
 
   async function onUnduhPdf() {
     if (!hasil?.ok) return;
-    await downloadBapAbsensiSantri({
-      kelas: kelasNama,
-      shift,
-      tanggalLabel,
-      musyrif,
-      jamPengecekan: hasil.jamPengecekan,
-      data: hasil.data,
-      catatan: hasil.catatan,
-    });
+    try {
+      await downloadBapAbsensiSantri({
+        kelas: kelasNama,
+        shift,
+        tanggalLabel,
+        musyrif,
+        jamPengecekan: hasil.jamPengecekan,
+        data: hasil.data,
+        catatan: hasil.catatan,
+      });
+    } catch {
+      // jsPDF dimuat dinamis saat tombol diklik dan menyusun berkas di
+      // memori — bisa gagal di jaringan buruk atau HP lawas. Tanpa ini,
+      // tombolnya diklik dan tidak terjadi apa-apa tanpa penjelasan.
+      toast.error("Gagal membuat PDF. Coba lagi.");
+    }
   }
 
   async function onSalin() {
