@@ -20,6 +20,7 @@ export type Perms = {
   tindak_lanjut_sp: boolean; // tandai/batalkan status tindak lanjut Surat Panggilan
   absensi_santri: boolean; // input kehadiran santri kelas yang diampu
   rekap_absensi_santri: boolean; // lihat rekap kehadiran santri semua kelas
+  catatan_harian: boolean; // tulis kabar harian santri kelas yang diampu
 };
 
 export const EMPTY_PERMS: Perms = {
@@ -41,6 +42,7 @@ export const EMPTY_PERMS: Perms = {
   tindak_lanjut_sp: false,
   absensi_santri: false,
   rekap_absensi_santri: false,
+  catatan_harian: false,
 };
 
 export type NavItem = {
@@ -68,6 +70,7 @@ export function homePathForProfile({ role, perms }: ProfileLike): string {
   if (perms.absensi) return "/absensi";
   if (perms.rekap_absensi_santri) return "/rekap-absensi-santri";
   if (perms.absensi_santri) return "/absensi-santri";
+  if (perms.catatan_harian) return "/catatan-harian";
   return "/tanpa-akses"; // tidak ada hak akses sama sekali — di luar layout (app), cegah redirect loop
 }
 
@@ -107,6 +110,8 @@ export function navForProfile(
   if (perms.absensi) transaksi.push({ href: "/absensi", label: "Absensi" });
   if (perms.absensi_santri)
     transaksi.push({ href: "/absensi-santri", label: "Absensi Santri" });
+  if (perms.catatan_harian)
+    transaksi.push({ href: "/catatan-harian", label: "Catatan Harian" });
   if (perms.master || perms.approve_absensi || perms.rekap_absensi)
     transaksi.push({
       href: "/rekap-absensi",
