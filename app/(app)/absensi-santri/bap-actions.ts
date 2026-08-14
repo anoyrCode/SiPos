@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { canAbsensiSantri, canRekapAbsensiSantri } from "@/lib/auth/dal";
+import { canAbsensiSantri, canRekapAbsensiSantri, getProfile } from "@/lib/auth/dal";
 import {
   hitungBap,
   type BapData,
@@ -29,6 +29,27 @@ export async function getBapData(
   if (!bolehInput && !bolehRekap) return { ok: false, error: "Tidak diizinkan." };
 
   const supabase = await createClient();
+
+  // `canAbsensiSantri()` hanya memeriksa FLAG izin, bukan penugasan. Ketiga
+  // parameter di atas datang dari klien, jadi tanpa pemeriksaan ini seorang
+  // musyrif bisa meminta BAP kelas atau shift mana pun. Selama ini yang
+  // menahannya cuma RLS + gerbang kelengkapan (submission kelas asing
+  // terbaca kosong sehingga gerbangnya menolak) — perlindungan yang benar,
+  // tapi tidak disengaja: begitu gerbang kelengkapan dilonggarkan,
+  // lubangnya langsung terbuka. Karena itu penugasan diperiksa eksplisit.
+  if (!bolehRekap) {
+    const profile = await getProfile();
+    if (!profile?.pegawai_id || profile.shift !== shift) {
+      return { ok: false, error: "Tidak diizinkan." };
+    }
+    const { data: penugasan } = await supabase
+      .from("guru_kelas")
+      .select("kelas_id")
+      .eq("pegawai_id", profile.pegawai_id)
+      .eq("kelas_id", kelasId)
+      .maybeSingle();
+    if (!penugasan) return { ok: false, error: "Tidak diizinkan." };
+  }
 
   const { data: cpData } = await supabase
     .from("absensi_santri_checkpoint")
