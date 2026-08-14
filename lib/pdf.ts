@@ -327,7 +327,7 @@ const STATUS_BAP: Record<"izin" | "sakit" | "alpa", string> = {
   alpa: "Alpa",
 };
 
-export async function downloadBapAbsensiSantri(params: {
+export type BapPdfParams = {
   kelas: string;
   shift: number;
   tanggalLabel: string;
@@ -335,12 +335,22 @@ export async function downloadBapAbsensiSantri(params: {
   jamPengecekan: string[];
   data: BapData;
   catatan: { jam: string; isi: string }[];
-}) {
-  const { kelas, shift, tanggalLabel, musyrif, jamPengecekan, data, catatan } = params;
-  const { default: jsPDF } = await import("jspdf");
-  const { default: autoTable } = await import("jspdf-autotable");
+};
 
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+/**
+ * Gambar SATU berita acara pada halaman yang sedang aktif.
+ *
+ * Dipisah dari `downloadBapAbsensiSantri` supaya bisa dipanggil berulang
+ * untuk membuat satu berkas berisi banyak kelas (`downloadBapBatch`) tanpa
+ * menduplikasi tata letaknya — kalau tata letaknya disalin, versi satuan dan
+ * versi borongan pasti lambat laun berbeda.
+ */
+async function drawBapPage(
+  doc: import("jspdf").jsPDF,
+  autoTable: typeof import("jspdf-autotable").default,
+  params: BapPdfParams,
+) {
+  const { kelas, shift, tanggalLabel, musyrif, jamPengecekan, data, catatan } = params;
   const W = doc.internal.pageSize.width;
 
   let y = await drawHeader(doc, "Berita Acara Pengawasan", [`Tanggal: ${tanggalLabel}`]);
@@ -438,7 +448,40 @@ export async function downloadBapAbsensiSantri(params: {
   doc.text("Kesantrian,", W - 70, sigY);
   doc.text("(_______________________)", 14, sigY + 22);
   doc.text("(_______________________)", W - 70, sigY + 22);
+}
 
-  const namaBerkas = `bap-${kelas.trim().replace(/\s+/g, "-").toLowerCase()}-shift${shift}`;
+export async function downloadBapAbsensiSantri(params: BapPdfParams) {
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  await drawBapPage(doc, autoTable, params);
+
+  const namaBerkas = `bap-${params.kelas.trim().replace(/\s+/g, "-").toLowerCase()}-shift${params.shift}`;
+  doc.save(`${namaBerkas}.pdf`);
+}
+
+/**
+ * Banyak berita acara dalam SATU berkas, satu kelas per halaman.
+ *
+ * Sengaja satu berkas, bukan banyak berkas terpisah: mengunduh beberapa
+ * berkas beruntun umumnya diblokir browser, dan project ini tidak punya
+ * pustaka ZIP.
+ */
+export async function downloadBapBatch(
+  daftar: BapPdfParams[],
+  namaBerkas: string,
+) {
+  if (daftar.length === 0) return;
+
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  for (const [i, params] of daftar.entries()) {
+    if (i > 0) doc.addPage();
+    await drawBapPage(doc, autoTable, params);
+  }
+
   doc.save(`${namaBerkas}.pdf`);
 }
