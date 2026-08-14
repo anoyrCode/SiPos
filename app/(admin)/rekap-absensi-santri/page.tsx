@@ -14,6 +14,7 @@ import { formatDateID } from "@/lib/format";
 import { CheckpointDialog } from "./checkpoint-dialog";
 import { RekapDetailDialog } from "./rekap-detail-dialog";
 import { RekapSantriExportDialog } from "./rekap-santri-export-dialog";
+import { RekapBapDialog } from "./rekap-bap-dialog";
 
 type Kelas = { id: string; nama_kelas: string; jenis_kelamin: "L" | "P" | null };
 type Checkpoint = { id: string; shift: number; jam: string; urutan: number };
@@ -269,7 +270,8 @@ export default async function Page({
             { value: "kosong", label: "Belum diisi" },
           ]}
         />
-        <div className="w-full sm:ml-auto sm:w-auto">
+        <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row">
+          <RekapBapDialog defaultDari={awalBulan} defaultSampai={hariIni} />
           <RekapSantriExportDialog
             jk={jkFilter}
             defaultDari={awalBulan}
