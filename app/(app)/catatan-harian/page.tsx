@@ -20,6 +20,37 @@ import { CatatanDialog, type CatatanItem } from "./catatan-dialog";
 
 type Kelas = { id: string; nama_kelas: string };
 type Santri = { id: string; nis: string | null; nama: string };
+type CatatanRow = {
+  id: string;
+  santri_id: string;
+  tanggal: string;
+  jenis: JenisCatatan;
+  isi: string;
+  dicatat_oleh: string | null;
+};
+
+const PAGE_SIZE = 1000;
+
+/** Ambil SEMUA baris lewat paginasi — PostgREST membatasi 1000 baris per
+ *  permintaan secara diam-diam, tanpa error. Pola sama seperti halaman
+ *  Absensi Santri dan Rekap Absensi Santri. */
+async function ambilSemua<T>(
+  run: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data } = await run(from, from + PAGE_SIZE - 1);
+    const batch = (data ?? []) as unknown as T[];
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return rows;
+}
 
 export default async function Page({
   searchParams,
@@ -82,19 +113,28 @@ export default async function Page({
   const kelasTerpilih =
     kelasOptions.find((k) => k.id === kelasParam) ?? kelasOptions[0];
 
-  const [{ data: rosterData }, { data: catatanData }] = await Promise.all([
+  const [{ data: rosterData }, catatanRows] = await Promise.all([
     supabase
       .from("santri_kelas")
       .select("santri:santri(id, nis, nama)")
       .eq("kelas_id", kelasTerpilih.id),
-    // Dibatasi satu kelas — untuk satu tahun ajaran volumenya jauh di bawah
-    // batas 1000 baris PostgREST, jadi tidak perlu paginasi.
-    supabase
-      .from("catatan_harian")
-      .select("id, santri_id, tanggal, jenis, isi, dicatat_oleh, pegawai:pegawai(nama)")
-      .eq("kelas_id", kelasTerpilih.id)
-      .order("tanggal", { ascending: false })
-      .order("created_at", { ascending: false }),
+    // Diambil lewat paginasi. Satu kelas aktif selama setahun ajaran bisa
+    // menembus batas diam-diam 1000 baris PostgREST (mis. 40 santri x 2
+    // catatan/bulan x 12 bulan), dan yang terpotong tidak menimbulkan error
+    // apa pun — catatan lama sekadar lenyap dari dialog.
+    //
+    // Tanpa embed `pegawai`: peran sempit hanya boleh membaca baris pegawai
+    // miliknya sendiri, jadi nama musyrif lain akan selalu null. Nama penulis
+    // memang tidak ditampilkan di mana pun pada halaman ini.
+    ambilSemua<CatatanRow>((from, to) =>
+      supabase
+        .from("catatan_harian")
+        .select("id, santri_id, tanggal, jenis, isi, dicatat_oleh")
+        .eq("kelas_id", kelasTerpilih.id)
+        .order("tanggal", { ascending: false })
+        .order("created_at", { ascending: false })
+        .range(from, to),
+    ),
   ]);
 
   const roster = ((rosterData ?? []) as unknown as { santri: Santri | null }[])
@@ -103,22 +143,13 @@ export default async function Page({
     .sort((a, b) => a.nama.localeCompare(b.nama));
 
   const catatanBySantri = new Map<string, CatatanItem[]>();
-  for (const c of (catatanData ?? []) as unknown as {
-    id: string;
-    santri_id: string;
-    tanggal: string;
-    jenis: JenisCatatan;
-    isi: string;
-    dicatat_oleh: string | null;
-    pegawai: { nama: string } | null;
-  }[]) {
+  for (const c of catatanRows) {
     const list = catatanBySantri.get(c.santri_id) ?? [];
     list.push({
       id: c.id,
       tanggal: c.tanggal,
       jenis: c.jenis,
       isi: c.isi,
-      dicatatOleh: c.pegawai?.nama ?? null,
       milikSaya: c.dicatat_oleh === profile.pegawai_id,
     });
     catatanBySantri.set(c.santri_id, list);

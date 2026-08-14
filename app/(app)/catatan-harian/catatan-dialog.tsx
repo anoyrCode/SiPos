@@ -37,7 +37,6 @@ export type CatatanItem = {
   tanggal: string;
   jenis: JenisCatatan;
   isi: string;
-  dicatatOleh: string | null;
   /** Ditulis oleh pengguna yang sedang login — penentu boleh/tidaknya diubah. */
   milikSaya: boolean;
 };
