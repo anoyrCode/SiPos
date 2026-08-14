@@ -150,9 +150,12 @@ export default async function Page({
     timeZone: "Asia/Jakarta",
   }).format(sejakKabarDate);
 
+  // Tanpa embed `pegawai` — wali tidak punya (dan tidak boleh punya) akses
+  // baca ke tabel pegawai. Embed-nya hanya akan mengembalikan null diam-diam,
+  // dan membuka aksesnya berarti membocorkan alamat & telepon staf.
   const { data: kabarData } = await supabase
     .from("catatan_harian")
-    .select("id, tanggal, jenis, isi, pegawai:pegawai(nama)")
+    .select("id, tanggal, jenis, isi")
     .eq("santri_id", santriId)
     .gte("tanggal", sejakKabar)
     .order("tanggal", { ascending: false })
@@ -164,14 +167,12 @@ export default async function Page({
       tanggal: string;
       jenis: JenisCatatan;
       isi: string;
-      pegawai: { nama: string } | null;
     }[]
   ).map((k) => ({
     id: k.id,
     tanggal: k.tanggal,
     jenis: k.jenis,
     isi: k.isi,
-    penulis: k.pegawai?.nama ?? null,
   }));
 
   // Absensi Santri: gabungkan log submission checkpoint kelas (checkpoint

@@ -7,12 +7,15 @@ import { Button } from "@/components/ui/button";
 import { formatDateID } from "@/lib/format";
 import { JENIS_LABEL, JENIS_VARIANT, type JenisCatatan } from "@/lib/catatan-harian";
 
+// Nama penulis sengaja TIDAK disertakan. Menampilkannya menuntut wali bisa
+// membaca tabel `pegawai`, dan RLS itu per-baris bukan per-kolom — jadi
+// memberi akses namanya berarti membuka juga alamat, telepon, email, dan
+// tanggal lahir seluruh pegawai ke ratusan wali lewat API.
 export type KabarItem = {
   id: string;
   tanggal: string;
   jenis: JenisCatatan;
   isi: string;
-  penulis: string | null;
 };
 
 const PER_PAGE = 5;
@@ -48,9 +51,6 @@ export function CatatanHarianList({ items }: { items: KabarItem[] }) {
               </span>
             </div>
             <p className="mt-1.5 text-sm">{k.isi}</p>
-            {k.penulis && (
-              <p className="mt-1 text-xs text-muted-foreground">— {k.penulis}</p>
-            )}
           </div>
         ))}
       </div>
