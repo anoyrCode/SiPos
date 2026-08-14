@@ -334,8 +334,17 @@ export default async function Page({
                 </summary>
                 <div className="border-t border-border/50">
                   {bapPerShift.length > 0 && (
-                    <div className="space-y-1.5 border-b border-border/40 px-5 py-3">
-                      <div className="flex flex-wrap gap-2">
+                    <div className="space-y-2 border-b border-border/40 px-5 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Berita Acara Pengawasan
+                      </p>
+                      {/* Satu baris, lebar terbagi rata (`flex-1` tanpa
+                          flex-wrap). Sebelumnya lebar alami + flex-wrap:
+                          di layar sempit tiga tombol melipat jadi 2+1 dan
+                          tepinya tidak sejajar. Judul kecil di atas membuat
+                          label tombol cukup "Shift 1" saja, sehingga ketiganya
+                          muat sebaris di HP. */}
+                      <div className="flex gap-2">
                         {bapPerShift.map((b) => (
                           <BapDialog
                             key={b.shift}
@@ -346,11 +355,8 @@ export default async function Page({
                             tanggalLabel={formatDateID(tanggal)}
                             musyrif={b.musyrif}
                             jamBelumDiisi={b.jamBelumDiisi}
-                            label={`BAP Shift ${b.shift}`}
-                            // Lebar alami, bukan `flex-1` — di wadah
-                            // flex-wrap, flex-1 membuat tiap tombol melar
-                            // memenuhi lebar kartu.
-                            className="h-10"
+                            label={`Shift ${b.shift}`}
+                            className="h-10 flex-1"
                           />
                         ))}
                       </div>
@@ -366,46 +372,58 @@ export default async function Page({
                   {g.rows.map((r) => (
                     <div
                       key={r.key}
-                      className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 px-5 py-2.5 last:border-b-0"
+                      className="border-b border-border/40 px-5 py-3 last:border-b-0"
                     >
-                      {/* Nama pencatat & jam penyimpanan TIDAK lagi
-                          disembunyikan di layar kecil — justru itu keterangan
-                          yang dibutuhkan admin saat sebuah baris terlihat
-                          janggal, dan admin sering membuka rekap dari HP. */}
-                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-sm">
-                        <span className="font-mono text-xs text-muted-foreground">
-                          {r.checkpoint.jam.slice(0, 5)}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          Shift {r.checkpoint.shift}
-                        </span>
-                        {r.submitted && r.dicatatOleh && (
-                          <span className="min-w-0 text-xs text-muted-foreground">
-                            · {r.dicatatOleh}
-                            {r.jamDiisi && (
-                              <>
-                                {" "}
-                                <span className="font-mono">(diisi {r.jamDiisi})</span>
-                              </>
-                            )}
+                      {/* Jam + status dijaga tetap sebaris dan tidak boleh
+                          melipat. Sebelumnya nama pencatat ikut di baris ini,
+                          dan di layar sempit nama panjang mendorong badge ke
+                          baris berikutnya — badge kehilangan rata-kanannya dan
+                          menumpuk di kiri. Nama pencatat sekarang turun ke
+                          barisnya sendiri, jadi tidak bisa mengganggu. */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-baseline gap-2">
+                          <span className="font-mono text-sm font-medium">
+                            {r.checkpoint.jam.slice(0, 5)}
                           </span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            Shift {r.checkpoint.shift}
+                          </span>
+                        </div>
+                        {!r.submitted ? (
+                          <Badge variant="outline" className="shrink-0">
+                            Belum Diisi
+                          </Badge>
+                        ) : (
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            <Badge variant="positive">{r.hadir} hadir</Badge>
+                            {r.izin > 0 && <Badge variant="warning">{r.izin} izin</Badge>}
+                            {r.sakit > 0 && (
+                              <Badge variant="primary">{r.sakit} sakit</Badge>
+                            )}
+                            {r.alpa > 0 && <Badge variant="negative">{r.alpa} alpa</Badge>}
+                            {r.exceptions.length > 0 && (
+                              <RekapDetailDialog
+                                title={`${g.kelas.nama_kelas} · ${r.checkpoint.jam.slice(0, 5)}`}
+                                exceptions={r.exceptions}
+                              />
+                            )}
+                          </div>
                         )}
                       </div>
-                      {!r.submitted ? (
-                        <Badge variant="outline">Belum Diisi</Badge>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <Badge variant="positive">{r.hadir} hadir</Badge>
-                          {r.izin > 0 && <Badge variant="warning">{r.izin} izin</Badge>}
-                          {r.sakit > 0 && <Badge variant="primary">{r.sakit} sakit</Badge>}
-                          {r.alpa > 0 && <Badge variant="negative">{r.alpa} alpa</Badge>}
-                          {r.exceptions.length > 0 && (
-                            <RekapDetailDialog
-                              title={`${g.kelas.nama_kelas} · ${r.checkpoint.jam.slice(0, 5)}`}
-                              exceptions={r.exceptions}
-                            />
+                      {/* Nama pencatat & jam penyimpanan tetap ditampilkan di
+                          layar kecil — justru itu keterangan yang dibutuhkan
+                          admin saat sebuah baris terlihat janggal, dan admin
+                          sering membuka rekap dari HP. */}
+                      {r.submitted && r.dicatatOleh && (
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {r.dicatatOleh}
+                          {r.jamDiisi && (
+                            <>
+                              {" · diisi "}
+                              <span className="font-mono">{r.jamDiisi}</span>
+                            </>
                           )}
-                        </div>
+                        </p>
                       )}
                     </div>
                   ))}
