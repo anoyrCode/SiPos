@@ -137,7 +137,7 @@ export function BapDialog({
       <DialogTrigger asChild>
         <Button type="button" variant="outline" className={className}>
           <FileText className="size-4" />
-          Buat BAP
+          {label}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
