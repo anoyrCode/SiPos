@@ -119,13 +119,6 @@ export function formatBapWhatsApp(params: {
 }): string {
   const { kelas, shift, tanggalLabel, musyrif, data, catatan } = params;
 
-  const yakniTeks =
-    data.yakni.length === 0
-      ? "-"
-      : data.yakni
-          .map((y) => `${y.nama} (${STATUS_TEKS[y.status]}, ${y.jamList.join("/")})`)
-          .join(", ");
-
   const baris: string[] = [
     "BERITA ACARA PENGAWASAN",
     `${kelas} - Shift ${shift}`,
@@ -134,10 +127,22 @@ export function formatBapWhatsApp(params: {
     `Jumlah santri : ${data.jumlahSantri}`,
     `Seharusnya    : ${data.seharusnya}`,
     `Tidak Hadir   : ${data.tidakHadir}`,
-    `Yakni         : ${yakniTeks}`,
-    "",
-    "Catatan selama pengawasan:",
   ];
+
+  // Daftar bernomor baris, bukan satu baris dipisah koma: keterangan tiap
+  // santri ("mengundurkan diri dari pondok") membuat versi satu baris jadi
+  // paragraf panjang yang sulit dibaca di WhatsApp.
+  if (data.yakni.length === 0) {
+    baris.push("Yakni         : -");
+  } else {
+    baris.push("Yakni         :");
+    for (const y of data.yakni) {
+      const inti = `${y.nama} (${STATUS_TEKS[y.status]}, ${y.jamList.join("/")})`;
+      baris.push(`- ${inti}${y.catatan ? ` - ${y.catatan}` : ""}`);
+    }
+  }
+
+  baris.push("", "Catatan selama pengawasan:");
 
   if (catatan.length === 0) {
     baris.push("- (tidak ada)");

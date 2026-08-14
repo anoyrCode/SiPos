@@ -363,11 +363,17 @@ export async function downloadBapAbsensiSantri(params: {
   y += 4;
 
   // Blok empat angka BAP.
+  // Keterangan tiap santri ikut dicetak. Tanpa ini, "Alpa" di berita acara
+  // berdiri tanpa alasan padahal musyrif sudah menuliskannya, dan pratinjau
+  // di layar menampilkan keterangan yang lalu hilang begitu diunduh.
   const yakniTeks =
     data.yakni.length === 0
       ? "-"
       : data.yakni
-          .map((s) => `${s.nama} (${STATUS_BAP[s.status]}, ${s.jamList.join("/")})`)
+          .map((s) => {
+            const inti = `${s.nama} (${STATUS_BAP[s.status]}, ${s.jamList.join("/")})`;
+            return s.catatan ? `${inti} - ${s.catatan}` : inti;
+          })
           .join("; ");
 
   const angka: [string, string][] = [
