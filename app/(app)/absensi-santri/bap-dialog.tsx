@@ -38,6 +38,7 @@ export function BapDialog({
   musyrif,
   jamBelumDiisi,
   label = "Buat BAP",
+  className = "h-11 flex-1",
 }: {
   kelasId: string;
   kelasNama: string;
@@ -54,6 +55,12 @@ export function BapDialog({
    * tidak bisa dibedakan.
    */
   label?: string;
+  /**
+   * `flex-1` cocok di kartu musyrif (dua tombol berbagi satu baris), tapi di
+   * rekap admin tombolnya ada di wadah `flex-wrap` — di sana `flex-1` membuat
+   * tiap tombol melar memenuhi lebar kartu.
+   */
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [hasil, setHasil] = useState<BapResult | null>(null);
@@ -108,7 +115,7 @@ export function BapDialog({
       <Button
         type="button"
         variant="outline"
-        className="h-11 flex-1"
+        className={className}
         disabled
         title={`Belum bisa: ${jamBelumDiisi.join(", ")} belum diisi`}
       >
@@ -128,7 +135,7 @@ export function BapDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" className="h-11 flex-1">
+        <Button type="button" variant="outline" className={className}>
           <FileText className="size-4" />
           Buat BAP
         </Button>

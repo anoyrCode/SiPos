@@ -293,11 +293,23 @@ export default async function Page({
             const totalIzin = g.rows.reduce((s, r) => s + r.izin, 0);
             const totalSakit = g.rows.reduce((s, r) => s + r.sakit, 0);
             const totalAlpa = g.rows.reduce((s, r) => s + r.alpa, 0);
-            // Hanya shift yang SELURUH checkpoint-nya sudah terisi yang boleh
-            // dibuatkan BAP — syarat yang sama seperti di halaman musyrif.
-            const shiftList = [...new Set(g.rows.map((r) => r.checkpoint.shift))].sort();
-            const shiftLengkap = shiftList.filter((s) =>
-              g.rows.every((r) => r.checkpoint.shift !== s || r.submitted),
+            // Setiap shift yang diampu di kelas ini ditampilkan, lengkap
+            // maupun belum. Sebelumnya shift yang belum lengkap dihilangkan
+            // sama sekali, sehingga admin tidak punya cara tahu shift itu ada
+            // tapi belum bisa dibuatkan BAP — hilang tanpa keterangan.
+            const bapPerShift = [...new Set(g.rows.map((r) => r.checkpoint.shift))]
+              .sort()
+              .map((s) => ({
+                shift: s,
+                jamBelumDiisi: g.rows
+                  .filter((r) => r.checkpoint.shift === s && !r.submitted)
+                  .map((r) => r.checkpoint.jam.slice(0, 5)),
+                musyrif:
+                  g.rows.find((r) => r.checkpoint.shift === s && r.dicatatOleh)
+                    ?.dicatatOleh ?? "—",
+              }));
+            const shiftBelumLengkap = bapPerShift.filter(
+              (b) => b.jamBelumDiisi.length > 0,
             );
             return (
               <details
@@ -321,26 +333,33 @@ export default async function Page({
                   </span>
                 </summary>
                 <div className="border-t border-border/50">
-                  {shiftLengkap.length > 0 && (
-                    <div className="flex flex-wrap gap-2 border-b border-border/40 px-5 py-3">
-                      {shiftLengkap.map((s) => (
-                        <BapDialog
-                          key={s}
-                          kelasId={g.kelas.id}
-                          kelasNama={g.kelas.nama_kelas}
-                          shift={s}
-                          tanggal={tanggal}
-                          tanggalLabel={formatDateID(tanggal)}
-                          musyrif={
-                            g.rows.find((r) => r.checkpoint.shift === s && r.dicatatOleh)
-                              ?.dicatatOleh ?? "—"
-                          }
-                          // Aman: shiftLengkap sudah hanya memuat shift yang
-                          // seluruh checkpoint-nya terisi. Gerbang sebenarnya
-                          // tetap dijalankan ulang di getBapData().
-                          jamBelumDiisi={[]}
-                          label={`BAP Shift ${s}`}
-                        />
+                  {bapPerShift.length > 0 && (
+                    <div className="space-y-1.5 border-b border-border/40 px-5 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        {bapPerShift.map((b) => (
+                          <BapDialog
+                            key={b.shift}
+                            kelasId={g.kelas.id}
+                            kelasNama={g.kelas.nama_kelas}
+                            shift={b.shift}
+                            tanggal={tanggal}
+                            tanggalLabel={formatDateID(tanggal)}
+                            musyrif={b.musyrif}
+                            jamBelumDiisi={b.jamBelumDiisi}
+                            label={`BAP Shift ${b.shift}`}
+                            // Lebar alami, bukan `flex-1` — di wadah
+                            // flex-wrap, flex-1 membuat tiap tombol melar
+                            // memenuhi lebar kartu.
+                            className="h-10"
+                          />
+                        ))}
+                      </div>
+                      {shiftBelumLengkap.map((b) => (
+                        <p key={b.shift} className="text-xs text-muted-foreground">
+                          Shift {b.shift} belum bisa dibuat —{" "}
+                          <span className="font-mono">{b.jamBelumDiisi.join(", ")}</span>{" "}
+                          belum diisi.
+                        </p>
                       ))}
                     </div>
                   )}
