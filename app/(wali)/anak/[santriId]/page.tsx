@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   CalendarCheck,
   HeartPulse,
+  MessageSquareHeart,
   Minus,
   PieChart,
   ThumbsDown,
@@ -26,6 +27,8 @@ import { KomposisiPoin, PerkembanganSkor } from "./charts";
 import { RiwayatList } from "./riwayat-list";
 import { RekamMedisList } from "./rekam-medis-list";
 import { KehadiranList } from "./kehadiran-list";
+import { CatatanHarianList, type KabarItem } from "./catatan-harian-list";
+import type { JenisCatatan } from "@/lib/catatan-harian";
 import { BulanFilter } from "./bulan-filter";
 
 type Tx = {
@@ -137,6 +140,39 @@ export default async function Page({
     obat: string | null;
     catatan: string | null;
   }[];
+
+  // Kabar harian dari musyrif. Dibatasi 90 hari — lebih panjang dari
+  // Kehadiran (30 hari) karena kabar tentang anak layak tersimpan lebih lama,
+  // dan volumenya jauh lebih sedikit daripada baris absensi.
+  const sejakKabarDate = new Date();
+  sejakKabarDate.setDate(sejakKabarDate.getDate() - 90);
+  const sejakKabar = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+  }).format(sejakKabarDate);
+
+  const { data: kabarData } = await supabase
+    .from("catatan_harian")
+    .select("id, tanggal, jenis, isi, pegawai:pegawai(nama)")
+    .eq("santri_id", santriId)
+    .gte("tanggal", sejakKabar)
+    .order("tanggal", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  const kabar: KabarItem[] = (
+    (kabarData ?? []) as unknown as {
+      id: string;
+      tanggal: string;
+      jenis: JenisCatatan;
+      isi: string;
+      pegawai: { nama: string } | null;
+    }[]
+  ).map((k) => ({
+    id: k.id,
+    tanggal: k.tanggal,
+    jenis: k.jenis,
+    isi: k.isi,
+    penulis: k.pegawai?.nama ?? null,
+  }));
 
   // Absensi Santri: gabungkan log submission checkpoint kelas (checkpoint
   // mana saja yang sudah diisi musyrif) dengan pengecualian milik santri
@@ -455,6 +491,24 @@ export default async function Page({
           </CardContent>
         </Card>
       </div>
+
+      {/* Kabar Harian dari musyrif — sengaja di ATAS Riwayat Poin. Inilah
+          yang paling ingin dibaca orang tua; poin dan absensi lebih bersifat
+          administratif. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquareHeart className="size-4 text-primary" />
+            Kabar Harian
+            <span className="text-xs font-normal text-muted-foreground">
+              · 90 hari terakhir
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CatatanHarianList items={kabar} />
+        </CardContent>
+      </Card>
 
       {/* Riwayat */}
       <Card>
