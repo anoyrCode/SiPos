@@ -43,17 +43,20 @@ export type BapExcelRow = {
   jamTotal: number;
 };
 
+// Lebar sudah memperhitungkan panah filter otomatis yang menutupi ~3 karakter
+// terakhir judul kolom — dengan lebar pas-pasan, "Kelengkapan" terbaca
+// "Kelengkapar" dan "Hadir" terpotong.
 const KOLOM: { judul: string; lebar: number; bungkus?: boolean }[] = [
-  { judul: "Tanggal", lebar: 13 },
+  { judul: "Tanggal", lebar: 14 },
   { judul: "Kelas", lebar: 15 },
-  { judul: "Shift", lebar: 7 },
+  { judul: "Shift", lebar: 8 },
   { judul: "Musyrif", lebar: 26 },
-  { judul: "Hadir", lebar: 8 },
-  { judul: "Seharusnya", lebar: 11 },
-  { judul: "Tidak Hadir", lebar: 11 },
-  { judul: "Santri Tidak Hadir", lebar: 52, bungkus: true },
+  { judul: "Hadir", lebar: 10 },
+  { judul: "Seharusnya", lebar: 13 },
+  { judul: "Tidak Hadir", lebar: 13 },
+  { judul: "Santri Tidak Hadir", lebar: 58, bungkus: true },
   { judul: "Catatan Pengawasan", lebar: 52, bungkus: true },
-  { judul: "Kelengkapan", lebar: 12 },
+  { judul: "Kelengkapan", lebar: 14 },
 ];
 
 /** Tanggal ISO → objek Date berbasis UTC. */
@@ -117,7 +120,11 @@ export async function downloadExcelBapRekap(
 
   // Header dibekukan supaya tetap terlihat saat menggulir ribuan baris, dan
   // diberi filter otomatis supaya bisa disaring per kelas/shift langsung.
-  ws.views = [{ state: "frozen", ySplit: nomorHeader }];
+  //
+  // Dua kolom pertama ikut dibekukan (`xSplit`): kolom Santri Tidak Hadir dan
+  // Catatan Pengawasan lebar, jadi begitu digulir ke kanan pembaca kehilangan
+  // jejak baris ini milik tanggal dan kelas mana.
+  ws.views = [{ state: "frozen", xSplit: 2, ySplit: nomorHeader }];
   ws.autoFilter = {
     from: { row: nomorHeader, column: 1 },
     to: { row: nomorHeader, column: KOLOM.length },

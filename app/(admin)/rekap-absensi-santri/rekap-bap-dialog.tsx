@@ -99,18 +99,19 @@ export function RekapBapDialog({
         hadir: r.jumlahSantri,
         seharusnya: r.seharusnya,
         tidakHadir: r.tidakHadir,
-        // Satu santri per baris di dalam sel. Pemisah baris (bukan titik
-        // koma) supaya dengan bungkus teks tiap nama berdiri sendiri dan
-        // terbaca sebagai daftar.
+        // Satu santri per baris, diawali bullet supaya batas antar santri
+        // terlihat jelas saat teksnya membungkus. Keterangan milik santri
+        // diberi label "Ket:" — tanpa label, teks yang membungkus ke baris
+        // sendiri terbaca seperti catatan pengawasan yang nyasar kolom.
         namaTidakHadir:
           r.data.yakni
             .map((s) => {
-              const inti = `${s.nama} (${STATUS_LABEL[s.status]}, ${s.jamList.join("/")})`;
-              return s.catatan ? `${inti} - ${s.catatan}` : inti;
+              const inti = `• ${s.nama} — ${STATUS_LABEL[s.status]} · ${s.jamList.join(", ")}`;
+              return s.catatan ? `${inti} · Ket: ${s.catatan}` : inti;
             })
-            .join("\n") || "-",
+            .join("\n") || "—",
         catatan:
-          r.catatanList.map((c) => `${c.jam.slice(0, 5)}  ${c.isi}`).join("\n") || "-",
+          r.catatanList.map((c) => `• ${c.jam.slice(0, 5)} · ${c.isi}`).join("\n") || "—",
         jamTerisi: r.jamTerisi,
         jamTotal: r.jamTotal,
       })),
