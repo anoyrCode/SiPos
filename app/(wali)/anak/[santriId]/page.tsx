@@ -505,6 +505,13 @@ export default async function Page({
               · 90 hari terakhir
             </span>
           </CardTitle>
+          {/* Poin dan Kehadiran dicatat rutin, kabar harian tidak. Tanpa
+              keterangan ini, kartu yang kosong terbaca seolah ada yang
+              terlewat oleh musyrif. */}
+          <p className="text-sm text-muted-foreground">
+            Kabar tambahan dari musyrif. Tidak diisi setiap hari, jadi kosong
+            bukan berarti ada yang terlewat.
+          </p>
         </CardHeader>
         <CardContent>
           <CatatanHarianList items={kabar} />

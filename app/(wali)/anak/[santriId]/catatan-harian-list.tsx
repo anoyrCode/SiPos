@@ -24,9 +24,12 @@ export function CatatanHarianList({ items }: { items: KabarItem[] }) {
   const [page, setPage] = useState(1);
 
   if (items.length === 0) {
+    // "Belum ada" menyiratkan sesuatu yang seharusnya sudah ada tapi belum —
+    // padahal kabar harian memang hanya ditulis bila ada yang perlu
+    // disampaikan. Kalimatnya dibuat netral, bukan seperti kekurangan.
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
-        Belum ada kabar harian untuk ananda.
+        Tidak ada kabar dalam 90 hari terakhir.
       </p>
     );
   }
