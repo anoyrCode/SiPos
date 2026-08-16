@@ -33,18 +33,13 @@ export type BapRekapRow = {
   jumlahSantri: number;
   seharusnya: number;
   tidakHadir: number;
-  /** Versi teks satu sel, untuk kolom Excel. */
-  yakni: string;
-  /** Versi teks satu sel, untuk kolom Excel. */
-  catatanPengawasan: string;
   jamTerisi: number;
   jamTotal: number;
   musyrif: string;
   jamPengecekan: string[];
-  // Dua field di bawah ini bentuk TERSTRUKTUR untuk PDF. PDF menyusun
-  // tata letaknya sendiri lewat `drawBapPage`, jadi tidak bisa memakai versi
-  // teks yang sudah diringkas di atas — tanpa ini PDF borongan tercetak
-  // dengan "Tidak Hadir: -" walau datanya ada.
+  // Bentuk TERSTRUKTUR, bukan teks yang sudah diringkas. PDF menyusun tata
+  // letaknya sendiri lewat `drawBapPage`, dan Excel memecah keduanya jadi
+  // sheet rincian satu baris per kejadian — keduanya butuh datanya utuh.
   data: BapData;
   catatanList: { jam: string; isi: string }[];
 };
@@ -93,22 +88,6 @@ async function ambilSemua<T>(
     from += PAGE_SIZE;
   }
   return { rows, gagal: false };
-}
-
-const STATUS_TEKS_BAP: Record<"izin" | "sakit" | "alpa", string> = {
-  izin: "Izin",
-  sakit: "Sakit",
-  alpa: "Alpa",
-};
-
-function formatYakni(data: ReturnType<typeof hitungBap>): string {
-  if (data.yakni.length === 0) return "-";
-  return data.yakni
-    .map((s) => {
-      const inti = `${s.nama} (${STATUS_TEKS_BAP[s.status]}, ${s.jamList.join("/")})`;
-      return s.catatan ? `${inti} - ${s.catatan}` : inti;
-    })
-    .join("; ");
 }
 
 /**
@@ -358,9 +337,6 @@ export async function getRekapBapRentang(
           jumlahSantri: data.jumlahSantri,
           seharusnya: data.seharusnya,
           tidakHadir: data.tidakHadir,
-          yakni: formatYakni(data),
-          catatanPengawasan:
-            catatanList.map((c) => `${c.jam.slice(0, 5)} ${c.isi}`).join("; ") || "-",
           jamTerisi: submisi?.count ?? 0,
           jamTotal: cps.length,
           musyrif: submisi?.musyrif ?? "—",

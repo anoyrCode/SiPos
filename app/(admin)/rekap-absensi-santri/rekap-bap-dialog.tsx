@@ -17,11 +17,18 @@ import { Input } from "@/components/ui/input";
 import { Field } from "@/components/shared/field";
 import { cn } from "@/lib/utils";
 import { formatDateID } from "@/lib/format";
-import { downloadExcel } from "@/lib/export";
+import { downloadExcelMultiSheet } from "@/lib/export";
 import { downloadBapBatch } from "@/lib/pdf";
+import type { BapStatus } from "@/lib/bap-absensi-santri";
 import { getRekapBapRentang, getBapSehari } from "./bap-rekap-actions";
 
 type Mode = "excel" | "pdf";
+
+const STATUS_LABEL: Record<BapStatus, string> = {
+  izin: "Izin",
+  sakit: "Sakit",
+  alpa: "Alpa",
+};
 
 const JK_LABEL: Record<string, string> = {
   "": "Semua",
@@ -72,23 +79,84 @@ export function RekapBapDialog({
       return;
     }
 
-    await downloadExcel(
-      `rekap-bap-${dari}-sd-${sampai}-${labelFilter()}.xlsx`,
-      "Rekap BAP",
-      res.rows.map((r) => ({
+    // Tiga sheet, bukan satu. Menjejalkan daftar nama santri dan daftar
+    // catatan ke dalam satu sel (digabung titik koma) membuat tabelnya tidak
+    // terbaca — dan build komunitas SheetJS tidak bisa menulis bungkus teks
+    // untuk meredamnya. Sheet "Rekap" karena itu dijaga tetap angka semua dan
+    // kolomnya sempit; rinciannya pindah ke sheet tersendiri, satu baris per
+    // kejadian, sehingga bisa disaring dan di-pivot seperti data biasa.
+    const info: (string | number)[][] = [
+      ["Rekap Berita Acara Pengawasan"],
+      ["Rentang", `${dari} s/d ${sampai}`],
+      ["Shift", shift === 0 ? "Semua" : `Shift ${shift}`],
+      ["Jenis Kelamin Kelas", JK_LABEL[jk] ?? "Semua"],
+      ["Dicetak", formatDateID(new Date().toISOString().slice(0, 10))],
+      [],
+    ];
+
+    const barisTidakHadir = res.rows.flatMap((r) =>
+      r.data.yakni.map((s) => ({
         Tanggal: r.tanggal,
         Kelas: r.kelas,
-        "Jenis Kelamin": JK_LABEL[r.jenisKelamin ?? ""] ?? "Belum diisi",
         Shift: r.shift,
-        Musyrif: r.musyrif,
-        "Jumlah Santri": r.jumlahSantri,
-        Seharusnya: r.seharusnya,
-        "Tidak Hadir": r.tidakHadir,
-        Yakni: r.yakni,
-        "Catatan Pengawasan": r.catatanPengawasan,
-        Kelengkapan: `${r.jamTerisi}/${r.jamTotal}`,
+        "Nama Santri": s.nama,
+        NIS: s.nis ?? "-",
+        Status: STATUS_LABEL[s.status],
+        "Jam Tidak Hadir": s.jamList.join(", "),
+        Keterangan: s.catatan ?? "-",
       })),
-      [12, 16, 12, 7, 20, 12, 11, 11, 60, 60, 12],
+    );
+
+    const barisCatatan = res.rows.flatMap((r) =>
+      r.catatanList.map((c) => ({
+        Tanggal: r.tanggal,
+        Kelas: r.kelas,
+        Shift: r.shift,
+        Jam: c.jam.slice(0, 5),
+        Catatan: c.isi,
+      })),
+    );
+
+    await downloadExcelMultiSheet(
+      `rekap-bap-${dari}-sd-${sampai}-${labelFilter()}.xlsx`,
+      [
+        {
+          sheetName: "Rekap",
+          infoRows: info,
+          rows: res.rows.map((r) => ({
+            Tanggal: r.tanggal,
+            Kelas: r.kelas,
+            "Jenis Kelamin": JK_LABEL[r.jenisKelamin ?? ""] ?? "Belum diisi",
+            Shift: r.shift,
+            Musyrif: r.musyrif,
+            Hadir: r.jumlahSantri,
+            Seharusnya: r.seharusnya,
+            "Tidak Hadir": r.tidakHadir,
+            Kelengkapan: `${r.jamTerisi}/${r.jamTotal}`,
+          })),
+          colWidths: [12, 16, 14, 6, 24, 8, 12, 12, 13],
+        },
+        {
+          sheetName: "Tidak Hadir",
+          infoRows: info,
+          // Sheet kosong tanpa satu baris pun tidak menuliskan header sama
+          // sekali, dan pembacanya bingung apakah datanya nihil atau rusak.
+          rows:
+            barisTidakHadir.length > 0
+              ? barisTidakHadir
+              : [{ Keterangan: "Tidak ada santri yang tidak hadir pada rentang ini." }],
+          colWidths: [12, 16, 6, 28, 12, 10, 22, 45],
+        },
+        {
+          sheetName: "Catatan Pengawasan",
+          infoRows: info,
+          rows:
+            barisCatatan.length > 0
+              ? barisCatatan
+              : [{ Keterangan: "Tidak ada catatan pengawasan pada rentang ini." }],
+          colWidths: [12, 16, 6, 8, 70],
+        },
+      ],
     );
     setOpen(false);
     toast.success(`${res.rows.length} baris rekap BAP diunduh.`);
