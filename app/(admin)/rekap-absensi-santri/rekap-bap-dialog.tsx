@@ -83,41 +83,50 @@ export function RekapBapDialog({
     // catatan pengawasan. Ini baru mungkin sejak memakai ExcelJS: teksnya
     // dibungkus di dalam sel, jadi daftar panjang tidak lagi memanjang
     // menabrak kolom sebelahnya seperti pada versi SheetJS.
-    await downloadExcelBapRekap(
-      `rekap-bap-${dari}-sd-${sampai}-${labelFilter()}.xlsx`,
-      {
-        rentang: `${formatDateID(dari)} s/d ${formatDateID(sampai)}`,
-        shift: shift === 0 ? "Semua shift" : `Shift ${shift}`,
-        jenisKelamin: JK_LABEL[jk] ?? "Semua",
-        dicetak: formatDateID(new Date().toISOString().slice(0, 10)),
-      },
-      res.rows.map((r) => ({
-        tanggal: r.tanggal,
-        kelas: r.kelas,
-        shift: r.shift,
-        musyrif: r.musyrif,
-        hadir: r.jumlahSantri,
-        seharusnya: r.seharusnya,
-        tidakHadir: r.tidakHadir,
-        // Satu santri per baris, diawali bullet supaya batas antar santri
-        // terlihat jelas saat teksnya membungkus. Keterangan milik santri
-        // diberi label "Ket:" — tanpa label, teks yang membungkus ke baris
-        // sendiri terbaca seperti catatan pengawasan yang nyasar kolom.
-        namaTidakHadir:
-          r.data.yakni
-            .map((s) => {
-              const inti = `• ${s.nama} — ${STATUS_LABEL[s.status]} · ${s.jamList.join(", ")}`;
-              return s.catatan ? `${inti} · Ket: ${s.catatan}` : inti;
-            })
-            .join("\n") || "—",
-        catatan:
-          r.catatanList.map((c) => `• ${c.jam.slice(0, 5)} · ${c.isi}`).join("\n") || "—",
-        jamTerisi: r.jamTerisi,
-        jamTotal: r.jamTotal,
-      })),
-    );
-    setOpen(false);
-    toast.success(`${res.rows.length} baris rekap BAP diunduh.`);
+    const baris = res.rows.map((r) => ({
+      tanggal: r.tanggal,
+      kelas: r.kelas,
+      shift: r.shift,
+      musyrif: r.musyrif,
+      hadir: r.jumlahSantri,
+      seharusnya: r.seharusnya,
+      tidakHadir: r.tidakHadir,
+      // Satu santri per baris, diawali bullet supaya batas antar santri
+      // terlihat jelas saat teksnya membungkus. Keterangan milik santri
+      // diberi label "Ket:" — tanpa label, teks yang membungkus ke baris
+      // sendiri terbaca seperti catatan pengawasan yang nyasar kolom.
+      namaTidakHadir:
+        r.data.yakni
+          .map((s) => {
+            const inti = `• ${s.nama} — ${STATUS_LABEL[s.status]} · ${s.jamList.join(", ")}`;
+            return s.catatan ? `${inti} · Ket: ${s.catatan}` : inti;
+          })
+          .join("\n") || "—",
+      catatan:
+        r.catatanList.map((c) => `• ${c.jam.slice(0, 5)} · ${c.isi}`).join("\n") || "—",
+      jamTerisi: r.jamTerisi,
+      jamTotal: r.jamTotal,
+    }));
+
+    try {
+      await downloadExcelBapRekap(
+        `rekap-bap-${dari}-sd-${sampai}-${labelFilter()}.xlsx`,
+        {
+          rentang: `${formatDateID(dari)} s/d ${formatDateID(sampai)}`,
+          shift: shift === 0 ? "Semua shift" : `Shift ${shift}`,
+          jenisKelamin: JK_LABEL[jk] ?? "Semua",
+          dicetak: formatDateID(new Date().toISOString().slice(0, 10)),
+        },
+        baris,
+      );
+      setOpen(false);
+      toast.success(`${res.rows.length} baris rekap BAP diunduh.`);
+    } catch {
+      // ExcelJS dimuat dinamis dan menyusun berkasnya di memori — bisa gagal
+      // di jaringan buruk atau perangkat lawas. Tanpa ini tombolnya diklik
+      // dan tidak terjadi apa-apa tanpa penjelasan. Pola sama seperti onPdf.
+      toast.error("Gagal membuat Excel. Coba lagi.");
+    }
   }
 
   async function onPdf() {
