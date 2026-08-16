@@ -28,8 +28,8 @@ export function CatatanHarianList({ items }: { items: KabarItem[] }) {
     // padahal kabar harian memang hanya ditulis bila ada yang perlu
     // disampaikan. Kalimatnya dibuat netral, bukan seperti kekurangan.
     return (
-      <p className="py-8 text-center text-sm text-muted-foreground">
-        Tidak ada kabar dalam 90 hari terakhir.
+      <p className="py-6 text-center text-sm text-muted-foreground">
+        Tidak ada kabar dalam rentang ini.
       </p>
     );
   }

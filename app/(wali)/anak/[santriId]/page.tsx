@@ -507,10 +507,13 @@ export default async function Page({
           </CardTitle>
           {/* Poin dan Kehadiran dicatat rutin, kabar harian tidak. Tanpa
               keterangan ini, kartu yang kosong terbaca seolah ada yang
-              terlewat oleh musyrif. */}
-          <p className="text-sm text-muted-foreground">
-            Kabar tambahan dari musyrif. Tidak diisi setiap hari, jadi kosong
-            bukan berarti ada yang terlewat.
+              terlewat oleh musyrif.
+
+              `text-xs`, bukan `text-sm`: ini teks bantuan, dan pada ukuran
+              yang sama dengan isi kartu ia justru mendominasi — pada kartu
+              yang kosong, penjelasannya jadi lebih besar dari isinya. */}
+          <p className="text-xs text-muted-foreground">
+            Kabar tambahan dari musyrif — tidak diisi setiap hari.
           </p>
         </CardHeader>
         <CardContent>
