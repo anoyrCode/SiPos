@@ -201,6 +201,13 @@ export async function downloadExcelBapRekap(
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  // Ditempelkan ke DOM sebelum diklik: sebagian browser mengabaikan klik
+  // pada anchor yang tidak terpasang di dokumen.
+  a.style.display = "none";
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  // Pencabutan ditunda. Mencabut URL objek tepat setelah click() bisa
+  // membatalkan unduhan yang belum sempat dimulai browser.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
