@@ -429,13 +429,11 @@ async function drawBapPage(
     alternateRowStyles: { fillColor: [...ZEBRA] },
     styles: { fontSize: 8.5, cellPadding: 3, textColor: [...FG] },
     columnStyles: { 0: { cellWidth: 20, halign: "center" } },
-    didDrawPage: (data2) => {
-      pageFooter(
-        doc,
-        data2.pageNumber,
-        (doc as unknown as { internal: { pages: unknown[] } }).internal.pages.length - 1 || 1,
-      );
-    },
+    // Sengaja TANPA `didDrawPage` untuk footer. `data.pageNumber` dari
+    // autoTable dihitung per pemanggilan tabel, bukan per dokumen — di PDF
+    // borongan tiap kelas memulai tabelnya sendiri, sehingga semua halaman
+    // tertulis "Halaman 1 dari sekian". Footer digambar sekali di akhir oleh
+    // `gambarFooterSemuaHalaman()`, saat jumlah halaman sudah pasti.
   });
 
   const finalY =
@@ -450,12 +448,22 @@ async function drawBapPage(
   doc.text("(_______________________)", W - 70, sigY + 22);
 }
 
+/** Footer bernomor untuk SELURUH halaman, digambar setelah isinya selesai. */
+function gambarFooterSemuaHalaman(doc: import("jspdf").jsPDF) {
+  const total = doc.getNumberOfPages();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    pageFooter(doc, i, total);
+  }
+}
+
 export async function downloadBapAbsensiSantri(params: BapPdfParams) {
   const { default: jsPDF } = await import("jspdf");
   const { default: autoTable } = await import("jspdf-autotable");
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   await drawBapPage(doc, autoTable, params);
+  gambarFooterSemuaHalaman(doc);
 
   const namaBerkas = `bap-${params.kelas.trim().replace(/\s+/g, "-").toLowerCase()}-shift${params.shift}`;
   doc.save(`${namaBerkas}.pdf`);
@@ -482,6 +490,7 @@ export async function downloadBapBatch(
     if (i > 0) doc.addPage();
     await drawBapPage(doc, autoTable, params);
   }
+  gambarFooterSemuaHalaman(doc);
 
   doc.save(`${namaBerkas}.pdf`);
 }
