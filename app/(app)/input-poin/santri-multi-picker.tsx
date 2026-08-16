@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { searchSantri } from "./actions";
+import { KelasPickerDialog } from "./kelas-picker-dialog";
 import type { SantriHit } from "./schema";
 
 export function SantriMultiPicker({
@@ -63,7 +64,7 @@ export function SantriMultiPicker({
           ))}
         </div>
       )}
-      <div className="relative">
+      <div className="relative flex gap-2">
         <Input
           value={q}
           onChange={(e) => {
@@ -73,8 +74,19 @@ export function SantriMultiPicker({
           onFocus={() => setOpen(true)}
           placeholder="Cari santri (NIS / nama)…"
         />
+        {/* Jalur tambahan, bukan pengganti pencarian: mengetik satu per satu
+            tetap paling cepat untuk 1-2 santri, tapi tidak masuk akal untuk
+            sekelas penuh. Santri yang sudah dipilih diteruskan supaya dialog
+            bisa menandainya dan tidak menambahkan yang sama dua kali. */}
+        <KelasPickerDialog
+          sudahTerpilih={value}
+          onTambah={(tambahan) => onChange([...value, ...tambahan])}
+        />
+        {/* Dropdown dijangkarkan eksplisit (`left-0 top-full`): sejak tombol
+            "Pilih dari Kelas" jadi saudaranya di dalam flex, posisi statis
+            elemen absolut ini mengikuti tombol, bukan input. */}
         {open && (
-          <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border bg-popover p-1 shadow-xl">
+          <div className="absolute left-0 top-full z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border bg-popover p-1 shadow-xl">
             {pending && (
               <p className="p-2 text-xs text-muted-foreground">Mencari…</p>
             )}

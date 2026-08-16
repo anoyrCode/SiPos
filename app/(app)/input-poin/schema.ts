@@ -7,6 +7,11 @@ export type SantriHit = {
   kelas: string | null;
 };
 
+export type KelasOpt = {
+  id: string;
+  nama_kelas: string;
+};
+
 export type PoinOpt = {
   id: string;
   kode_poin: string;
