@@ -20,7 +20,12 @@ import { getStr, type SearchParams } from "@/lib/list-params";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { computeSantriProgress, computeSantriStatusLevel, santriStatusTone } from "@/lib/santri-status";
+import {
+  computeSantriProgress,
+  computeSantriStatusLevel,
+  santriStatusTone,
+  type SpAmbang,
+} from "@/lib/santri-status";
 import { SantriStatusBadge } from "@/components/shared/santri-status-badge";
 import { SantriProgressBar } from "@/components/shared/santri-progress-bar";
 import { KomposisiPoin, PerkembanganSkor } from "./charts";
@@ -37,7 +42,7 @@ type Tx = {
   nilai_poin: number;
   tanggal_kejadian: string;
   catatan: string | null;
-  master_poin: { kode_poin: string; nama_poin: string } | null;
+  master_poin: { kode_poin: string; nama_poin: string; level: string | null } | null;
 };
 
 function initials(nama: string): string {
@@ -116,7 +121,7 @@ export default async function Page({
   let txQuery = supabase
     .from("transaksi_poin")
     .select(
-      "id, tipe, nilai_poin, tanggal_kejadian, catatan, master_poin:master_poin(kode_poin, nama_poin)",
+      "id, tipe, nilai_poin, tanggal_kejadian, catatan, master_poin:master_poin(kode_poin, nama_poin, level)",
     )
     .eq("santri_id", santriId)
     .order("tanggal_kejadian", { ascending: false })
@@ -251,9 +256,38 @@ export default async function Page({
     .filter((t) => t.tipe === "NEGATIF")
     .reduce((a, t) => a + t.nilai_poin, 0);
   const net = pos - neg;
-  const statusLevel = computeSantriStatusLevel(net, neg);
+
+  // Ambang "Perlu Tindakan"/"Kritis" mengikuti Surat Peringatan: hanya
+  // pelanggaran berlevel `hitung_sp` yang dihitung, dengan ambang yang diatur
+  // admin. Tanpa ini, pelanggaran ringan yang menumpuk menandai santri
+  // "Perlu Tindakan" padahal Surat Peringatan tidak akan pernah terbit.
+  const [{ data: levelRows }, { data: ambangRow }] = await Promise.all([
+    supabase
+      .from("master_level_poin")
+      .select("nama")
+      .eq("tipe", "NEGATIF")
+      .eq("hitung_sp", true),
+    supabase
+      .from("surat_panggilan_pengaturan")
+      .select("ambang_sp1, ambang_sp3")
+      .maybeSingle(),
+  ]);
+  const levelSp = new Set((levelRows ?? []).map((l) => l.nama as string));
+  const ambang: SpAmbang = ambangRow
+    ? { sp1: ambangRow.ambang_sp1, sp3: ambangRow.ambang_sp3 }
+    : { sp1: 300, sp3: 900 };
+  const negSp = tx
+    .filter(
+      (t) =>
+        t.tipe === "NEGATIF" &&
+        t.master_poin?.level &&
+        levelSp.has(t.master_poin.level),
+    )
+    .reduce((a, t) => a + t.nilai_poin, 0);
+
+  const statusLevel = computeSantriStatusLevel(net, negSp, ambang);
   const tone = santriStatusTone(statusLevel);
-  const progress = computeSantriProgress(net, neg, statusLevel);
+  const progress = computeSantriProgress(net, negSp, statusLevel);
 
   // Riwayat Poin: difilter per bulan kalau ?bulan= diisi. KPI/chart/status
   // di atas TETAP dari `tx` penuh 1 tahun ajaran, tidak ikut filter ini.

@@ -6,7 +6,12 @@ import { getProfile } from "@/lib/auth/dal";
 import { Card, CardContent } from "@/components/ui/card";
 import { orDash } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { computeSantriProgress, computeSantriStatusLevel, santriStatusTone } from "@/lib/santri-status";
+import {
+  computeSantriProgress,
+  computeSantriStatusLevel,
+  santriStatusTone,
+  type SpAmbang,
+} from "@/lib/santri-status";
 import { SantriStatusBadge } from "@/components/shared/santri-status-badge";
 import { SantriProgressBar } from "@/components/shared/santri-progress-bar";
 
@@ -42,30 +47,58 @@ export default async function Page() {
     .filter((s): s is SantriAnak => Boolean(s));
 
   const ids = anak.map((s) => s.id);
-  const skor = new Map<string, { pos: number; neg: number }>();
+  // `negSp` = negatif yang MENGHITUNG ambang Surat Peringatan saja (level
+  // ber-`hitung_sp`), terpisah dari `neg` yang tetap seluruh negatif untuk
+  // KPI dan skor bersih. Tanpa pemisahan ini, pelanggaran ringan yang
+  // menumpuk menandai santri "Perlu Tindakan" padahal SP tidak akan terbit.
+  const skor = new Map<string, { pos: number; neg: number; negSp: number }>();
   const kelas = new Map<string, string>();
+  let ambang: SpAmbang = { sp1: 300, sp3: 900 };
 
   if (ta?.id && ids.length > 0) {
-    const [{ data: tr }, { data: sk }] = await Promise.all([
-      supabase
-        .from("transaksi_poin")
-        .select("santri_id, tipe, nilai_poin")
-        .in("santri_id", ids)
-        .eq("tahun_ajaran_id", ta.id),
-      supabase
-        .from("santri_kelas")
-        .select("santri_id, kelas:kelas!inner(nama_kelas, tahun_ajaran_id)")
-        .in("santri_id", ids)
-        .eq("kelas.tahun_ajaran_id", ta.id),
-    ]);
-    for (const t of (tr ?? []) as {
+    const [{ data: tr }, { data: sk }, { data: levelRows }, { data: ambangRow }] =
+      await Promise.all([
+        supabase
+          .from("transaksi_poin")
+          .select("santri_id, tipe, nilai_poin, master_poin:master_poin(level)")
+          .in("santri_id", ids)
+          .eq("tahun_ajaran_id", ta.id),
+        supabase
+          .from("santri_kelas")
+          .select("santri_id, kelas:kelas!inner(nama_kelas, tahun_ajaran_id)")
+          .in("santri_id", ids)
+          .eq("kelas.tahun_ajaran_id", ta.id),
+        supabase
+          .from("master_level_poin")
+          .select("nama")
+          .eq("tipe", "NEGATIF")
+          .eq("hitung_sp", true),
+        supabase
+          .from("surat_panggilan_pengaturan")
+          .select("ambang_sp1, ambang_sp3")
+          .maybeSingle(),
+      ]);
+
+    if (ambangRow) {
+      ambang = { sp1: ambangRow.ambang_sp1, sp3: ambangRow.ambang_sp3 };
+    }
+    const levelSp = new Set((levelRows ?? []).map((l) => l.nama as string));
+
+    for (const t of (tr ?? []) as unknown as {
       santri_id: string;
       tipe: "POSITIF" | "NEGATIF";
       nilai_poin: number;
+      master_poin: { level: string | null } | null;
     }[]) {
-      const e = skor.get(t.santri_id) ?? { pos: 0, neg: 0 };
-      if (t.tipe === "POSITIF") e.pos += t.nilai_poin;
-      else e.neg += t.nilai_poin;
+      const e = skor.get(t.santri_id) ?? { pos: 0, neg: 0, negSp: 0 };
+      if (t.tipe === "POSITIF") {
+        e.pos += t.nilai_poin;
+      } else {
+        e.neg += t.nilai_poin;
+        if (t.master_poin?.level && levelSp.has(t.master_poin.level)) {
+          e.negSp += t.nilai_poin;
+        }
+      }
       skor.set(t.santri_id, e);
     }
     for (const r of (sk ?? []) as unknown as {
@@ -131,11 +164,11 @@ export default async function Page() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {anak.map((s) => {
-            const e = skor.get(s.id) ?? { pos: 0, neg: 0 };
+            const e = skor.get(s.id) ?? { pos: 0, neg: 0, negSp: 0 };
             const net = e.pos - e.neg;
             const total = e.pos + e.neg;
             const posW = total > 0 ? (e.pos / total) * 100 : 0;
-            const level = computeSantriStatusLevel(net, e.neg);
+            const level = computeSantriStatusLevel(net, e.negSp, ambang);
             const tone = santriStatusTone(level);
             return (
               <Link key={s.id} href={`/anak/${s.id}`} className="group">
@@ -160,7 +193,9 @@ export default async function Page() {
 
                     {/* Status */}
                     <SantriStatusBadge level={level} />
-                    <SantriProgressBar progress={computeSantriProgress(net, e.neg, level)} />
+                    <SantriProgressBar
+                      progress={computeSantriProgress(net, e.negSp, level)}
+                    />
 
                     {/* Skor + rincian */}
                     <div className="flex items-end justify-between gap-2">
