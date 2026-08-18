@@ -48,6 +48,7 @@ type AppRoleRow = {
   perm_absensi_santri: boolean;
   perm_rekap_absensi_santri: boolean;
   perm_catatan_harian: boolean;
+  perm_rekap_catatan_harian: boolean;
 } | null;
 
 function resolvePerms(role: Role, r: AppRoleRow): Perms {
@@ -74,6 +75,7 @@ function resolvePerms(role: Role, r: AppRoleRow): Perms {
       absensi_santri: true,
       rekap_absensi_santri: true,
       catatan_harian: true,
+      rekap_catatan_harian: true,
     };
   }
   return {
@@ -96,6 +98,7 @@ function resolvePerms(role: Role, r: AppRoleRow): Perms {
     absensi_santri: !!r?.perm_absensi_santri,
     rekap_absensi_santri: !!r?.perm_rekap_absensi_santri,
     catatan_harian: !!r?.perm_catatan_harian,
+    rekap_catatan_harian: !!r?.perm_rekap_catatan_harian,
   };
 }
 
@@ -132,7 +135,7 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   const { data } = await supabase
     .from("profiles")
     .select(
-      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_akun_wali, perm_absensi, perm_dashboard, perm_approve_absensi, perm_rekap_absensi, perm_tindak_lanjut_sp, perm_absensi_santri, perm_rekap_absensi_santri, perm_catatan_harian), pegawai:pegawai(nama, jabatan, shift), wali:wali(nama)",
+      "id, email, role, pegawai_id, wali_id, app_role:app_role(nama, is_super, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_akun_wali, perm_absensi, perm_dashboard, perm_approve_absensi, perm_rekap_absensi, perm_tindak_lanjut_sp, perm_absensi_santri, perm_rekap_absensi_santri, perm_catatan_harian, perm_rekap_catatan_harian), pegawai:pegawai(nama, jabatan, shift), wali:wali(nama)",
     )
     .eq("id", user.id)
     .single();
@@ -342,6 +345,21 @@ export async function requireCatatanHarian(): Promise<Profile> {
   return profile;
 }
 
+/** True bila boleh mengelola rekap catatan harian semua kelas. */
+export async function canRekapCatatanHarian(): Promise<boolean> {
+  const profile = await getProfile();
+  return (profile?.perms.master || profile?.perms.rekap_catatan_harian) ?? false;
+}
+
+/** Wajib boleh membuka halaman Rekap Catatan Harian. */
+export async function requireRekapCatatanHarianAkses(): Promise<Profile> {
+  const profile = await requireAuth();
+  if (!(profile.perms.master || profile.perms.rekap_catatan_harian)) {
+    redirect(homePathForProfile(profile));
+  }
+  return profile;
+}
+
 /** Wajib login; jika tidak → redirect ke /login. */
 export async function requireAuth(): Promise<Profile> {
   const profile = await getProfile();
@@ -393,7 +411,8 @@ export async function requireStaff(): Promise<Profile> {
     p.tindak_lanjut_sp ||
     p.absensi_santri ||
     p.rekap_absensi_santri ||
-    p.catatan_harian;
+    p.catatan_harian ||
+    p.rekap_catatan_harian;
   if (profile.role === "wali" || !hasAny) {
     redirect(homePathForProfile(profile));
   }

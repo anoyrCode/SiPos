@@ -21,6 +21,7 @@ export type Perms = {
   absensi_santri: boolean; // input kehadiran santri kelas yang diampu
   rekap_absensi_santri: boolean; // lihat rekap kehadiran santri semua kelas
   catatan_harian: boolean; // tulis kabar harian santri kelas yang diampu
+  rekap_catatan_harian: boolean; // lihat/ubah/hapus catatan harian semua kelas
 };
 
 export const EMPTY_PERMS: Perms = {
@@ -43,6 +44,7 @@ export const EMPTY_PERMS: Perms = {
   absensi_santri: false,
   rekap_absensi_santri: false,
   catatan_harian: false,
+  rekap_catatan_harian: false,
 };
 
 export type NavItem = {
@@ -71,6 +73,7 @@ export function homePathForProfile({ role, perms }: ProfileLike): string {
   if (perms.rekap_absensi_santri) return "/rekap-absensi-santri";
   if (perms.absensi_santri) return "/absensi-santri";
   if (perms.catatan_harian) return "/catatan-harian";
+  if (perms.rekap_catatan_harian) return "/rekap-catatan-harian";
   return "/tanpa-akses"; // tidak ada hak akses sama sekali — di luar layout (app), cegah redirect loop
 }
 
@@ -112,7 +115,7 @@ export function navForProfile(
     transaksi.push({ href: "/absensi-santri", label: "Absensi Santri" });
   if (perms.catatan_harian)
     transaksi.push({ href: "/catatan-harian", label: "Catatan Harian" });
-  if (perms.master)
+  if (perms.master || perms.rekap_catatan_harian)
     transaksi.push({
       href: "/rekap-catatan-harian",
       label: "Rekap Catatan Harian",

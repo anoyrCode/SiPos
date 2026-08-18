@@ -37,6 +37,7 @@ const PERM_BADGES: { key: keyof PeranRow; label: string }[] = [
   { key: "perm_absensi_santri", label: "Absensi Santri" },
   { key: "perm_rekap_absensi_santri", label: "Rekap Absensi Santri" },
   { key: "perm_catatan_harian", label: "Catatan Harian" },
+  { key: "perm_rekap_catatan_harian", label: "Rekap Catatan Harian" },
 ];
 
 export default async function Page({
@@ -52,7 +53,7 @@ export default async function Page({
   let query = supabase
     .from("app_role")
     .select(
-      "id, nama, deskripsi, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_akun_wali, perm_absensi, perm_dashboard, perm_approve_absensi, perm_rekap_absensi, perm_tindak_lanjut_sp, perm_absensi_santri, perm_rekap_absensi_santri, perm_catatan_harian, is_super",
+      "id, nama, deskripsi, perm_input_poin, perm_laporan, perm_master, perm_akun, perm_kesehatan, scope_kelas, perm_santri, perm_pegawai, perm_akun_staff, perm_akun_wali, perm_absensi, perm_dashboard, perm_approve_absensi, perm_rekap_absensi, perm_tindak_lanjut_sp, perm_absensi_santri, perm_rekap_absensi_santri, perm_catatan_harian, perm_rekap_catatan_harian, is_super",
       { count: "exact" },
     )
     .order("is_super", { ascending: false })

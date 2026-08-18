@@ -26,7 +26,8 @@ export default async function AdminLayout({
       p.dashboard ||
       p.approve_absensi ||
       p.rekap_absensi ||
-      p.rekap_absensi_santri
+      p.rekap_absensi_santri ||
+      p.rekap_catatan_harian
     )
   ) {
     redirect(homePathForProfile(profile));

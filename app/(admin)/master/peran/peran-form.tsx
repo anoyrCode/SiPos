@@ -41,7 +41,8 @@ type PermKey =
   | "perm_tindak_lanjut_sp"
   | "perm_absensi_santri"
   | "perm_rekap_absensi_santri"
-  | "perm_catatan_harian";
+  | "perm_catatan_harian"
+  | "perm_rekap_catatan_harian";
 
 const PERMS: { key: PermKey; label: string; desc: string }[] = [
   { key: "perm_input_poin", label: "Input poin", desc: "Mencatat poin santri." },
@@ -125,6 +126,11 @@ const PERMS: { key: PermKey; label: string; desc: string }[] = [
     label: "Catatan Harian",
     desc: "Menulis kabar harian santri di kelas yang ditugaskan, dibaca wali.",
   },
+  {
+    key: "perm_rekap_catatan_harian",
+    label: "— Kelola Rekap Catatan Harian (Semua Kelas)",
+    desc: "Melihat, mengubah, dan menghapus catatan harian seluruh kelas, tanpa akses master data lain. Penyuntingan tercatat dan terlihat wali.",
+  },
 ];
 
 export function PeranForm({ initial }: { initial?: PeranRow }) {
@@ -154,6 +160,7 @@ export function PeranForm({ initial }: { initial?: PeranRow }) {
     perm_absensi_santri: initial?.perm_absensi_santri ?? false,
     perm_rekap_absensi_santri: initial?.perm_rekap_absensi_santri ?? false,
     perm_catatan_harian: initial?.perm_catatan_harian ?? false,
+    perm_rekap_catatan_harian: initial?.perm_rekap_catatan_harian ?? false,
   };
 
   const form = useForm<PeranInput>({
