@@ -1,7 +1,7 @@
 import { MessageSquareHeart } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requirePerm } from "@/lib/auth/dal";
+import { requireRekapCatatanHarianAkses } from "@/lib/auth/dal";
 import {
   getStr,
   parseListParams,
@@ -29,7 +29,13 @@ type Row = {
   isi: string;
   santri: { nama: string; nis: string | null } | null;
   kelas: { nama_kelas: string } | null;
-  pegawai: { nama: string } | null;
+  // Dua embed ke tabel `pegawai` — WAJIB disebut kolomnya di query. Sejak
+  // kolom `disunting_oleh` ada, `catatan_harian` punya dua foreign key ke
+  // `pegawai`, sehingga embed polos `pegawai:pegawai(nama)` menjadi ambigu
+  // dan ditolak PostgREST. Alias lama `pegawai` diganti `penulis`.
+  penulis: { nama: string } | null;
+  penyunting: { nama: string } | null;
+  disunting_at: string | null;
 };
 
 const SENTINEL_KOSONG = "00000000-0000-0000-0000-000000000000";
@@ -39,7 +45,7 @@ export default async function Page({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  await requirePerm("master");
+  await requireRekapCatatanHarianAkses();
 
   const sp = await searchParams;
   const { page, perPage, q, from, to } = parseListParams(sp);
@@ -95,7 +101,7 @@ export default async function Page({
   let query = supabase
     .from("catatan_harian")
     .select(
-      "id, tanggal, jenis, isi, santri:santri(nama, nis), kelas:kelas(nama_kelas), pegawai:pegawai(nama)",
+      "id, tanggal, jenis, isi, disunting_at, santri:santri(nama, nis), kelas:kelas(nama_kelas), penulis:pegawai!dicatat_oleh(nama), penyunting:pegawai!disunting_oleh(nama)",
       { count: "exact" },
     )
     .order("tanggal", { ascending: false })
@@ -172,7 +178,23 @@ export default async function Page({
       header: "Ditulis oleh",
       headClassName: "w-48",
       className: "align-top text-sm",
-      cell: (r) => <span className="leading-snug">{orDash(r.pegawai?.nama)}</span>,
+      cell: (r) => <span className="leading-snug">{orDash(r.penulis?.nama)}</span>,
+    },
+    {
+      key: "disunting",
+      header: "Disunting",
+      headClassName: "w-44",
+      className: "align-top text-xs",
+      cell: (r) =>
+        r.disunting_at ? (
+          <span className="leading-snug text-muted-foreground">
+            {orDash(r.penyunting?.nama)}
+            <br />
+            {formatDateID(r.disunting_at.slice(0, 10))}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
   ];
 
