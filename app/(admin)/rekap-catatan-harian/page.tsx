@@ -9,7 +9,7 @@ import {
   totalPages,
   type SearchParams,
 } from "@/lib/list-params";
-import { formatDateID, orDash } from "@/lib/format";
+import { formatDateID, orDash, tanggalWib } from "@/lib/format";
 import {
   JENIS_LABEL,
   JENIS_VARIANT,
@@ -196,7 +196,7 @@ export default async function Page({
           <span className="leading-snug text-muted-foreground">
             {orDash(r.penyunting?.nama)}
             <br />
-            {formatDateID(r.disunting_at.slice(0, 10))}
+            {formatDateID(tanggalWib(r.disunting_at))}
           </span>
         ) : (
           <span className="text-muted-foreground">—</span>

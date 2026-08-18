@@ -68,14 +68,16 @@ export function EditCatatanDialog({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (!o) {
-          // Dikembalikan ke nilai baris, bukan dikosongkan — dialog ini
-          // menyunting data yang sudah ada.
-          setTanggal(tanggalAwal);
-          setJenis(jenisAwal);
-          setIsi(isiAwal);
-          setError(null);
-        }
+        // Disegarkan dari props saat DIBUKA, bukan hanya saat ditutup.
+        // `useState` hanya membaca props sekali saat mount, jadi setelah satu
+        // penyuntingan berhasil komponen ini masih memegang teks lama —
+        // membuka ulang dialognya akan menampilkan isi sebelum diedit, dan
+        // menyimpannya lagi berarti mengembalikan perubahan tanpa disadari.
+        // Props sudah diperbarui server lewat router.refresh().
+        setTanggal(tanggalAwal);
+        setJenis(jenisAwal);
+        setIsi(isiAwal);
+        setError(null);
       }}
     >
       <DialogTrigger asChild>

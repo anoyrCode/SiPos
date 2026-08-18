@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { orDash } from "@/lib/format";
+import { orDash, tanggalWib } from "@/lib/format";
 import { getStr, type SearchParams } from "@/lib/list-params";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -179,9 +179,10 @@ export default async function Page({
     tanggal: k.tanggal,
     jenis: k.jenis,
     isi: k.isi,
-    // `disunting_at` bertipe timestamptz — dipotong ke tanggal saja, karena
-    // yang relevan bagi wali harinya, bukan jam persisnya.
-    disuntingPada: k.disunting_at ? k.disunting_at.slice(0, 10) : null,
+    // Dikonversi ke tanggal WIB, bukan dipotong dari string ISO-nya:
+    // nilainya UTC, jadi suntingan pukul 00:00–07:00 WIB akan tercatat
+    // sebagai hari sebelumnya.
+    disuntingPada: tanggalWib(k.disunting_at),
   }));
 
   // Absensi Santri: gabungkan log submission checkpoint kelas (checkpoint
