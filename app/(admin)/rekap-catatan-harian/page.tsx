@@ -112,19 +112,25 @@ export default async function Page({
   const rows = (data ?? []) as unknown as Row[];
   const isFiltered = Boolean(q || jenisFilter || kelasFilter || dateFrom || dateTo);
 
+  // Lebar tiap kolom ditetapkan lewat `headClassName` (yang mengatur <th>,
+  // penentu lebar pada tabel ber-layout otomatis). Tanpa itu kolom Catatan
+  // terhimpit oleh kolom lain sampai teksnya jatuh satu-dua kata per baris.
   const columns: Column<Row>[] = [
     {
       key: "tanggal",
       header: "Tanggal",
-      className: "whitespace-nowrap text-xs",
+      headClassName: "w-28",
+      className: "whitespace-nowrap align-top text-xs",
       cell: (r) => formatDateID(r.tanggal),
     },
     {
       key: "santri",
       header: "Santri",
+      headClassName: "w-52",
+      className: "align-top",
       cell: (r) => (
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{orDash(r.santri?.nama)}</p>
+          <p className="text-sm font-medium leading-snug">{orDash(r.santri?.nama)}</p>
           {r.santri?.nis && (
             <p className="font-mono text-xs text-muted-foreground">{r.santri.nis}</p>
           )}
@@ -134,13 +140,15 @@ export default async function Page({
     {
       key: "kelas",
       header: "Kelas",
-      className: "whitespace-nowrap text-sm",
+      headClassName: "w-32",
+      className: "whitespace-nowrap align-top text-sm",
       cell: (r) => orDash(r.kelas?.nama_kelas),
     },
     {
       key: "jenis",
       header: "Jenis",
-      className: "whitespace-nowrap",
+      headClassName: "w-36",
+      className: "whitespace-nowrap align-top",
       cell: (r) => (
         <Badge variant={JENIS_VARIANT[r.jenis]}>{JENIS_LABEL[r.jenis]}</Badge>
       ),
@@ -148,14 +156,23 @@ export default async function Page({
     {
       key: "isi",
       header: "Catatan",
-      className: "text-sm",
-      cell: (r) => <p className="max-w-md whitespace-pre-line">{r.isi}</p>,
+      headClassName: "min-w-[26rem]",
+      className: "align-top text-sm",
+      // Dipotong 4 baris: catatan bisa sepanjang beberapa paragraf, dan satu
+      // baris setinggi itu membuat seluruh tabel tidak terbaca. Teks utuhnya
+      // muncul saat kursor diarahkan ke selnya.
+      cell: (r) => (
+        <p className="line-clamp-4 whitespace-pre-line leading-snug" title={r.isi}>
+          {r.isi}
+        </p>
+      ),
     },
     {
       key: "penulis",
       header: "Ditulis oleh",
-      className: "whitespace-nowrap text-sm",
-      cell: (r) => orDash(r.pegawai?.nama),
+      headClassName: "w-48",
+      className: "align-top text-sm",
+      cell: (r) => <span className="leading-snug">{orDash(r.pegawai?.nama)}</span>,
     },
   ];
 
