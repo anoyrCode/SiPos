@@ -160,7 +160,7 @@ export default async function Page({
   // dan membuka aksesnya berarti membocorkan alamat & telepon staf.
   const { data: kabarData } = await supabase
     .from("catatan_harian")
-    .select("id, tanggal, jenis, isi")
+    .select("id, tanggal, jenis, isi, disunting_at")
     .eq("santri_id", santriId)
     .gte("tanggal", sejakKabar)
     .order("tanggal", { ascending: false })
@@ -172,12 +172,16 @@ export default async function Page({
       tanggal: string;
       jenis: JenisCatatan;
       isi: string;
+      disunting_at: string | null;
     }[]
   ).map((k) => ({
     id: k.id,
     tanggal: k.tanggal,
     jenis: k.jenis,
     isi: k.isi,
+    // `disunting_at` bertipe timestamptz — dipotong ke tanggal saja, karena
+    // yang relevan bagi wali harinya, bukan jam persisnya.
+    disuntingPada: k.disunting_at ? k.disunting_at.slice(0, 10) : null,
   }));
 
   // Absensi Santri: gabungkan log submission checkpoint kelas (checkpoint

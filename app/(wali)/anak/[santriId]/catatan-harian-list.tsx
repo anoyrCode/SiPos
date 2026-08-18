@@ -16,6 +16,8 @@ export type KabarItem = {
   tanggal: string;
   jenis: JenisCatatan;
   isi: string;
+  /** Tanggal ISO bila pernah disunting orang lain, null bila belum. */
+  disuntingPada: string | null;
 };
 
 const PER_PAGE = 5;
@@ -54,6 +56,14 @@ export function CatatanHarianList({ items }: { items: KabarItem[] }) {
               </span>
             </div>
             <p className="mt-1.5 text-sm">{k.isi}</p>
+            {k.disuntingPada && (
+              // Nama penyunting sengaja tidak ditampilkan — cukup pihaknya.
+              // Menyeret nama perorangan ke hadapan orang tua tidak menambah
+              // kejelasan, hanya menambah beban.
+              <p className="mt-1.5 text-xs italic text-muted-foreground">
+                disunting pesantren, {formatDateID(k.disuntingPada)}
+              </p>
+            )}
           </div>
         ))}
       </div>
