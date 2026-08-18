@@ -112,6 +112,11 @@ export function navForProfile(
     transaksi.push({ href: "/absensi-santri", label: "Absensi Santri" });
   if (perms.catatan_harian)
     transaksi.push({ href: "/catatan-harian", label: "Catatan Harian" });
+  if (perms.master)
+    transaksi.push({
+      href: "/rekap-catatan-harian",
+      label: "Rekap Catatan Harian",
+    });
   if (perms.master || perms.approve_absensi || perms.rekap_absensi)
     transaksi.push({
       href: "/rekap-absensi",
