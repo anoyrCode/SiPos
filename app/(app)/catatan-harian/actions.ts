@@ -118,6 +118,13 @@ export async function ubahCatatanHarian(
       jenis,
       isi: isi.trim(),
       updated_at: new Date().toISOString(),
+      // Penanda suntingan dikosongkan: isinya kembali menjadi tulisan
+      // penulisnya sendiri. Menyisakan penanda lama akan berbohong ke wali
+      // bahwa catatan ini masih hasil suntingan orang lain. RLS memastikan
+      // action ini hanya menyentuh catatan milik pemanggil, jadi kepemilikan
+      // tidak perlu diperiksa ulang di sini.
+      disunting_oleh: null,
+      disunting_at: null,
     })
     .eq("id", id)
     .select("id");

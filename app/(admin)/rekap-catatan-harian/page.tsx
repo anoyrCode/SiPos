@@ -1,7 +1,8 @@
-import { MessageSquareHeart } from "lucide-react";
+import { MessageSquareHeart, Trash2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { requireRekapCatatanHarianAkses } from "@/lib/auth/dal";
+import { todayJakarta } from "@/lib/absensi-status";
 import {
   getStr,
   parseListParams,
@@ -19,8 +20,12 @@ import { SearchInput } from "@/components/shared/search-input";
 import { FilterSelect } from "@/components/shared/filter-select";
 import { Pagination } from "@/components/shared/pagination";
 import { DataTable, type Column } from "@/components/shared/data-table";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { DateRangeFilter } from "@/app/(app)/riwayat-poin/date-range-filter";
+import { EditCatatanDialog } from "./edit-catatan-dialog";
+import { hapusCatatanAdmin } from "./actions";
 
 type Row = {
   id: string;
@@ -55,6 +60,7 @@ export default async function Page({
   const dateTo = getStr(sp.to);
 
   const supabase = await createClient();
+  const hariIni = todayJakarta();
 
   const { data: ta } = await supabase
     .from("tahun_ajaran")
@@ -195,6 +201,36 @@ export default async function Page({
         ) : (
           <span className="text-muted-foreground">—</span>
         ),
+    },
+    {
+      key: "aksi",
+      header: <span className="sr-only">Aksi</span>,
+      headClassName: "w-24",
+      className: "align-top",
+      cell: (r) => (
+        <div className="flex gap-1">
+          <EditCatatanDialog
+            id={r.id}
+            santriNama={r.santri?.nama ?? "—"}
+            tanggalAwal={r.tanggal}
+            jenisAwal={r.jenis}
+            isiAwal={r.isi}
+            hariIni={hariIni}
+          />
+          <ConfirmDialog
+            action={hapusCatatanAdmin}
+            id={r.id}
+            title="Hapus catatan ini?"
+            description="Catatan akan hilang dari rekap dan dari portal wali. Tindakan ini tidak bisa dibatalkan."
+            successMessage="Catatan dihapus."
+            trigger={
+              <Button type="button" variant="ghost" size="icon" aria-label="Hapus catatan">
+                <Trash2 className="size-3.5 text-negative" />
+              </Button>
+            }
+          />
+        </div>
+      ),
     },
   ];
 
