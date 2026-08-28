@@ -258,10 +258,12 @@ export async function downloadSuratPanggilan(params: {
 
   doc.setFontSize(9.5);
   doc.setTextColor(...FG);
-  doc.text("Kesantrian / Wali Kelas,", 14, sigY);
-  doc.text("Orang Tua / Wali Santri,", W - 70, sigY);
+  doc.text("Orang Tua / Wali Santri,", 14, sigY);
+  doc.text("Kesantrian,", W / 2, sigY, { align: "center" });
+  doc.text("Kepala Sekolah,", W - 14, sigY, { align: "right" });
   doc.text("(_______________________)", 14, sigY + 22);
-  doc.text("(_______________________)", W - 70, sigY + 22);
+  doc.text("(_______________________)", W / 2, sigY + 22, { align: "center" });
+  doc.text("(_______________________)", W - 14, sigY + 22, { align: "right" });
 
   doc.save(`surat-panggilan-${santri.nama.trim().replace(/\s+/g, "-").toLowerCase()}.pdf`);
 }
