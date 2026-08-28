@@ -169,8 +169,10 @@ export async function downloadSuratPanggilan(params: {
   totalNegatif: number;
   ambangBatas: number;
   taLabel: string;
+  /** Rentang tanggal skorsing, diisi admin sesaat sebelum cetak (tidak disimpan ke DB). */
+  skorsing: { dari: string; sampai: string };
 }) {
-  const { santri, wali, pelanggaran, totalNegatif, ambangBatas, taLabel } = params;
+  const { santri, wali, pelanggaran, totalNegatif, ambangBatas, taLabel, skorsing } = params;
   const { default: jsPDF } = await import("jspdf");
   const { default: autoTable } = await import("jspdf-autotable");
 
@@ -220,6 +222,10 @@ export async function downloadSuratPanggilan(params: {
     ["Kelas", santri.kelas ?? "—"],
     ["Tahun Ajaran", taLabel],
     ["Total Poin Negatif", `-${totalNegatif}`],
+    [
+      "Masa Skorsing",
+      `${formatTanggalID(skorsing.dari)} s.d. ${formatTanggalID(skorsing.sampai)}`,
+    ],
   ];
   for (const [k, v] of info) {
     doc.text(k, 14, y);

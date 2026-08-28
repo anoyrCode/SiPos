@@ -8,11 +8,19 @@ import { toast } from "sonner";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { Pagination } from "@/components/shared/pagination";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { Field } from "@/components/shared/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -75,6 +83,10 @@ export function SuratPanggilanTable({
   const [showHandled, setShowHandled] = useState(false);
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [markingId, setMarkingId] = useState<string | null>(null);
+  const [printRow, setPrintRow] = useState<SuratPanggilanRow | null>(null);
+  const [dariSkorsing, setDariSkorsing] = useState("");
+  const [sampaiSkorsing, setSampaiSkorsing] = useState("");
+  const [skorsingError, setSkorsingError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const first = useRef(true);
 
@@ -104,17 +116,36 @@ export function SuratPanggilanTable({
   const { page, perPage } = parseClientPageParams(searchParams);
   const paged = paginateArray(filtered, page, perPage);
 
-  async function handlePrint(row: SuratPanggilanRow) {
-    setPrintingId(row.id);
+  function openPrintDialog(row: SuratPanggilanRow) {
+    setPrintRow(row);
+    setDariSkorsing("");
+    setSampaiSkorsing("");
+    setSkorsingError(null);
+  }
+
+  async function handlePrint() {
+    if (!printRow) return;
+    if (!dariSkorsing || !sampaiSkorsing) {
+      setSkorsingError("Tanggal mulai dan selesai skorsing wajib diisi.");
+      return;
+    }
+    if (dariSkorsing > sampaiSkorsing) {
+      setSkorsingError("Tanggal mulai tidak boleh setelah tanggal selesai.");
+      return;
+    }
+    setSkorsingError(null);
+    setPrintingId(printRow.id);
     try {
       await downloadSuratPanggilan({
-        santri: { nama: row.nama, nis: row.nis, kelas: row.kelas },
-        wali: { nama: row.namaWali, noTelp: row.noTelpWali },
-        pelanggaran: row.pelanggaran,
-        totalNegatif: row.totalNegatif,
+        santri: { nama: printRow.nama, nis: printRow.nis, kelas: printRow.kelas },
+        wali: { nama: printRow.namaWali, noTelp: printRow.noTelpWali },
+        pelanggaran: printRow.pelanggaran,
+        totalNegatif: printRow.totalNegatif,
         ambangBatas: ambang,
         taLabel,
+        skorsing: { dari: dariSkorsing, sampai: sampaiSkorsing },
       });
+      setPrintRow(null);
     } finally {
       setPrintingId(null);
     }
@@ -191,7 +222,7 @@ export function SuratPanggilanTable({
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => handlePrint(r)}
+              onClick={() => openPrintDialog(r)}
               disabled={printingId === r.id}
             >
               <FileText data-icon="inline-start" />
@@ -283,6 +314,54 @@ export function SuratPanggilanTable({
         totalPages={paged.totalPages}
         totalItems={paged.totalItems}
       />
+
+      <Dialog
+        open={!!printRow}
+        onOpenChange={(o) => {
+          if (!o) setPrintRow(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-lg">Masa Skorsing</DialogTitle>
+            <DialogDescription className="text-sm">
+              Isi rentang tanggal skorsing {printRow?.nama} untuk dicantumkan di surat.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Dari Tanggal" htmlFor="skorsing-dari" required>
+                <Input
+                  id="skorsing-dari"
+                  type="date"
+                  value={dariSkorsing}
+                  onChange={(e) => setDariSkorsing(e.target.value)}
+                />
+              </Field>
+              <Field label="Sampai Tanggal" htmlFor="skorsing-sampai" required>
+                <Input
+                  id="skorsing-sampai"
+                  type="date"
+                  value={sampaiSkorsing}
+                  onChange={(e) => setSampaiSkorsing(e.target.value)}
+                />
+              </Field>
+            </div>
+            {skorsingError && (
+              <p className="text-xs text-destructive">{skorsingError}</p>
+            )}
+            <Button
+              type="button"
+              className="h-11 w-full"
+              onClick={handlePrint}
+              disabled={printingId === printRow?.id}
+            >
+              {printingId === printRow?.id ? "Memproses…" : "Cetak Surat"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
