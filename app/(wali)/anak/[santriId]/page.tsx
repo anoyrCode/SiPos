@@ -208,7 +208,9 @@ export default async function Page({
     const [{ data: submisiData }, { data: exceptionData }] = await Promise.all([
       supabase
         .from("absensi_santri_submission")
-        .select("checkpoint_id, tanggal, checkpoint:absensi_santri_checkpoint(jam)")
+        .select(
+          "checkpoint_id, tanggal, checkpoint:absensi_santri_checkpoint(jam, urutan)",
+        )
         .eq("kelas_id", kelasId)
         .gte("tanggal", sejak)
         .order("tanggal", { ascending: false }),
@@ -240,18 +242,29 @@ export default async function Page({
       (submisiData ?? []) as unknown as {
         checkpoint_id: string;
         tanggal: string;
-        checkpoint: { jam: string } | null;
+        checkpoint: { jam: string; urutan: number } | null;
       }[]
-    ).map((s) => {
-      const exc = exceptionMap.get(`${s.checkpoint_id}:${s.tanggal}`);
-      return {
-        id: `${s.checkpoint_id}:${s.tanggal}`,
-        tanggal: s.tanggal,
-        jam: s.checkpoint?.jam ?? "00:00:00",
-        status: exc?.status ?? "hadir",
-        catatan: exc?.catatan ?? null,
-      };
-    });
+    )
+      // `.order("tanggal", ...)` di query hanya mengurutkan per tanggal —
+      // checkpoint di tanggal yang sama tidak ikut terurut. Diurutkan pakai
+      // `urutan` checkpoint, BUKAN `jam` mentah — shift 3 melewati tengah
+      // malam (21:00 → 04:50) jadi urutan waktu asli (`urutan`) berbeda dari
+      // urutan string jam (01:00 akan salah terlihat "sebelum" 21:00 kalau
+      // dibandingkan sebagai teks). Lihat komentar migrasi 0041.
+      .sort((a, b) => {
+        if (a.tanggal !== b.tanggal) return a.tanggal < b.tanggal ? 1 : -1;
+        return (b.checkpoint?.urutan ?? 0) - (a.checkpoint?.urutan ?? 0);
+      })
+      .map((s) => {
+        const exc = exceptionMap.get(`${s.checkpoint_id}:${s.tanggal}`);
+        return {
+          id: `${s.checkpoint_id}:${s.tanggal}`,
+          tanggal: s.tanggal,
+          jam: s.checkpoint?.jam ?? "00:00:00",
+          status: exc?.status ?? "hadir",
+          catatan: exc?.catatan ?? null,
+        };
+      });
   }
 
   const pos = tx
