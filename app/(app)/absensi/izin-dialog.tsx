@@ -26,7 +26,34 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/shared/field";
 import { ajukanIzin } from "./actions";
+import type { FormResult } from "@/lib/forms";
 import type { KategoriPengajuan } from "@/lib/absensi-status";
+
+// Ada laporan macet di "Menyimpan..." tanpa pernah selesai -- sudah dicek,
+// bukan row lock DB dan bukan bug logika (tidak ada percabangan tanggal di
+// ajukanIzin()). Aksi ini melakukan 5+ panggilan jaringan berurutan (cek
+// izin, profil, cek konflik, upload bukti, insert, upsert); kalau salah
+// satu stall krn koneksi tidak stabil, Server Action tidak bisa di-abort
+// dari sini, jadi tanpa batas waktu UI menunggu selamanya. Timeout ini
+// TIDAK membatalkan request aslinya di server, cuma membebaskan UI supaya
+// pengguna tahu & bisa coba lagi (server tetap bebas menyimpan belakangan).
+const SUBMIT_TIMEOUT_MS = 30_000;
+
+function withTimeout(promise: Promise<FormResult>): Promise<FormResult> {
+  return Promise.race([
+    promise,
+    new Promise<FormResult>((resolve) => {
+      setTimeout(
+        () =>
+          resolve({
+            ok: false,
+            error: "Waktu tunggu habis. Periksa koneksi internet Anda, lalu coba lagi.",
+          }),
+        SUBMIT_TIMEOUT_MS,
+      );
+    }),
+  ]);
+}
 
 export function IzinDialog() {
   const router = useRouter();
@@ -67,7 +94,7 @@ export function IzinDialog() {
     formData.set("tanggal_selesai", isPulangAwal ? mulai : selesai);
     formData.set("keterangan", keterangan);
     if (bukti) formData.set("bukti", bukti);
-    const res = await ajukanIzin(formData);
+    const res = await withTimeout(ajukanIzin(formData));
     setPending(false);
     if (!res.ok) {
       setError(res.error);
